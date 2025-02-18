@@ -3,12 +3,13 @@ Cloud-specific configuration for the Transformer Loading Analysis Application
 """
 
 import os
+import streamlit as st
 from pathlib import Path
 
 # Gmail API configuration for cloud
-GMAIL_CREDENTIALS = os.getenv('GMAIL_CREDENTIALS')
-GMAIL_TOKEN = os.getenv('GMAIL_TOKEN')
-DEFAULT_RECIPIENT = os.getenv('DEFAULT_RECIPIENT', 'jhnapo2213@gmail.com')
+GMAIL_CREDENTIALS = st.secrets["GMAIL_CREDENTIALS"]
+GMAIL_TOKEN = st.secrets["GMAIL_TOKEN"]
+DEFAULT_RECIPIENT = st.secrets.get("DEFAULT_RECIPIENT", "jhnapo2213@gmail.com")
 
 # Data paths
 def get_cloud_data_path():
