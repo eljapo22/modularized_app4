@@ -9,11 +9,13 @@ import json
 
 # Gmail configuration
 try:
-    GMAIL_TOKEN = st.secrets["GMAIL_TOKEN"]
+    token_info = st.secrets["GMAIL_TOKEN"]
+    if isinstance(token_info, str):
+        token_info = json.loads(token_info)
     DEFAULT_RECIPIENT = st.secrets["DEFAULT_RECIPIENT"]
 except Exception as e:
     st.error(f"Error loading Gmail configuration: {str(e)}")
-    GMAIL_TOKEN = None
+    token_info = None
     DEFAULT_RECIPIENT = None
 
 # Data paths

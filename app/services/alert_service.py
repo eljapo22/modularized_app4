@@ -20,17 +20,15 @@ from google.auth.transport.requests import Request
 # Gmail API configuration
 def is_running_in_cloud():
     """Check if we're running in Streamlit Cloud"""
-    return st.secrets.get("GMAIL_CREDENTIALS") is not None
+    return st.secrets.get("GMAIL_TOKEN") is not None
 
 if is_running_in_cloud():
     try:
-        from config.cloud_config import GMAIL_CREDENTIALS, GMAIL_TOKEN, DEFAULT_RECIPIENT
+        from config.cloud_config import DEFAULT_RECIPIENT
         CREDENTIALS_PATH = None
         TOKEN_PATH = None
     except Exception as e:
         st.warning(f"Email alerts are disabled: {str(e)}")
-        GMAIL_CREDENTIALS = None
-        GMAIL_TOKEN = None
         DEFAULT_RECIPIENT = None
         CREDENTIALS_PATH = None
         TOKEN_PATH = None
@@ -47,7 +45,10 @@ def get_gmail_service():
         if is_running_in_cloud():
             # In cloud, use credentials from Streamlit secrets
             try:
-                creds = Credentials.from_authorized_user_info(st.secrets["GMAIL_TOKEN"], SCOPES)
+                token_info = st.secrets["GMAIL_TOKEN"]
+                if isinstance(token_info, str):
+                    token_info = json.loads(token_info)
+                creds = Credentials.from_authorized_user_info(token_info, SCOPES)
                 if not creds or not creds.valid:
                     st.error("Invalid Gmail credentials in Streamlit secrets")
                     return None
