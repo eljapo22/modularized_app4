@@ -105,30 +105,39 @@ def get_gmail_service():
                         st.error(f"Failed to parse token: {str(e)}")
                         return None
                 
+                # Rename 'token' to 'token' if present (Google expects 'token')
+                if 'token' in token_info:
+                    token_info['token'] = token_info['token']
+                
                 st.write("Creating credentials object...")
                 try:
                     creds = Credentials.from_authorized_user_info(token_info, SCOPES)
                     st.write("Credentials created successfully")
+                    
+                    # Check if token needs refresh
+                    if not creds.valid:
+                        if creds.expired and creds.refresh_token:
+                            st.write("Token expired, attempting refresh...")
+                            try:
+                                creds.refresh(Request())
+                                st.write("Token refreshed successfully")
+                                
+                                # Save the refreshed token back to a file for reference
+                                # (You'll need to manually update Streamlit secrets with this)
+                                refreshed_token = json.loads(creds.to_json())
+                                st.write("New token generated. Please update your Streamlit secrets with:")
+                                st.code(json.dumps(refreshed_token, indent=2), language="json")
+                                
+                            except Exception as e:
+                                st.error(f"Failed to refresh token: {str(e)}")
+                                return None
+                        else:
+                            st.error("Token is invalid and cannot be refreshed")
+                            return None
+                    
                 except Exception as e:
                     st.error(f"Failed to create credentials: {str(e)}")
                     return None
-                
-                if not creds:
-                    st.error("Credentials object is None")
-                    return None
-                    
-                if not creds.valid:
-                    st.write("Credentials are invalid, attempting refresh...")
-                    if creds.expired and creds.refresh_token:
-                        try:
-                            creds.refresh(Request())
-                            st.write("Credentials refreshed successfully")
-                        except Exception as e:
-                            st.error(f"Failed to refresh credentials: {str(e)}")
-                            return None
-                    else:
-                        st.error("Credentials are invalid and cannot be refreshed")
-                        return None
                 
                 # Build and return Gmail service
                 st.write("Building Gmail service...")
