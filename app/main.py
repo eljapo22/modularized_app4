@@ -40,14 +40,6 @@ from visualization.tables import (
 )
 from core.database import get_database_connection
 
-# Configure logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Initialize database connection
-if 'db_con' not in st.session_state:
-    st.session_state.db_con = get_database_connection()
-
 # Configure the application
 st.set_page_config(
     page_title="Transformer Loading Analysis",
@@ -60,6 +52,14 @@ st.set_page_config(
         'About': None
     }
 )
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Initialize database connection
+if 'db_con' not in st.session_state:
+    st.session_state.db_con = get_database_connection()
 
 # Force light theme
 st._config.set_option('theme.base', 'light')
