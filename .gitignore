@@ -24,6 +24,7 @@ wheels/
 venv/
 ENV/
 env/
+.env/
 
 # IDE
 .idea/
@@ -33,6 +34,12 @@ env/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Gmail credentials
+app/config/credentials.json
+app/config/token.json
+credentials.json
+token.json
 
 # Environment variables
 .env

@@ -13,6 +13,7 @@ import base64
 from config.constants import SCOPES
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 
 # Gmail API configuration
 if os.getenv("STREAMLIT_CLOUD"):
@@ -20,9 +21,10 @@ if os.getenv("STREAMLIT_CLOUD"):
     CREDENTIALS_PATH = None
     TOKEN_PATH = None
 else:
-    CREDENTIALS_PATH = 'C:\\Users\\JohnApostolo\\CascadeProjects\\credentials.json'
-    TOKEN_PATH = 'C:\\Users\\JohnApostolo\\CascadeProjects\\token.json'
-    DEFAULT_RECIPIENT = "jhnapo2213@gmail.com"  # Updated email address
+    # Use repository-relative paths
+    CREDENTIALS_PATH = Path(__file__).parent.parent / 'config' / 'credentials.json'
+    TOKEN_PATH = Path(__file__).parent.parent / 'config' / 'token.json'
+    DEFAULT_RECIPIENT = "jhnapo2213@gmail.com"
 
 def get_gmail_service():
     """Initialize Gmail API service"""
@@ -34,7 +36,7 @@ def get_gmail_service():
         else:
             # Check if we have valid token
             if os.path.exists(TOKEN_PATH):
-                creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+                creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
             
         # If no valid credentials, let user log in
         if not creds or not creds.valid:
@@ -49,17 +51,24 @@ def get_gmail_service():
                 if not os.path.exists(CREDENTIALS_PATH):
                     st.error(f"Credentials file not found at {CREDENTIALS_PATH}")
                     return None
-                    
-                flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
+                flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
                 creds = flow.run_local_server(port=0)
-                
-                # Save the credentials for future use
-                with open(TOKEN_PATH, 'w') as token:
-                    token.write(creds.to_json())
+            
+            # Save the credentials for the next run
+            if not os.getenv("STREAMLIT_CLOUD"):
+                try:
+                    with open(TOKEN_PATH, 'w') as token:
+                        token.write(creds.to_json())
+                except Exception as e:
+                    st.error(f"Error saving token file: {str(e)}")
                     
-        service = build('gmail', 'v1', credentials=creds)
-        return service
-        
+        try:
+            service = build('gmail', 'v1', credentials=creds)
+            return service
+        except Exception as e:
+            st.error(f"Error building Gmail service: {str(e)}")
+            return None
+            
     except Exception as e:
         st.error(f"Error initializing Gmail service: {str(e)}")
         return None
