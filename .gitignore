@@ -40,3 +40,8 @@ env/
 # Operating System
 .DS_Store
 Thumbs.db
+
+# Keep Parquet files
+!*.parquet
+!processed_data/
+!data/
