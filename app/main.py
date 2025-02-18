@@ -620,17 +620,17 @@ def main():
         # Date selection
         selected_from_date = st.date_input(
             "From Date",
-            value=datetime.strptime(param_date, "%Y-%m-%d").date() if param_date else end_date,
-            min_value=start_date,
-            max_value=end_date
+            value=datetime.strptime(param_date, "%Y-%m-%d").date() if param_date else datetime(2024, 6, 28).date(),
+            min_value=datetime(2024, 1, 1).date(),
+            max_value=datetime(2024, 6, 28).date()
         )
 
         # Add To Date for UI presentation
         st.date_input(
             "To Date",
             value=selected_from_date,
-            min_value=start_date,
-            max_value=end_date,
+            min_value=datetime(2024, 1, 1).date(),
+            max_value=datetime(2024, 6, 28).date(),
             disabled=True
         )
 
