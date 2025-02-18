@@ -17,8 +17,8 @@ def get_data_path() -> Path:
         # In cloud, use relative path from app directory
         return Path(__file__).parent.parent.parent / "processed_data" / "transformer_analysis" / "hourly"
     else:
-        # Locally, use absolute path
-        return Path("C:/Users/JohnApostolo/CascadeProjects/processed_data/transformer_analysis/hourly")
+        # Locally, use path relative to repository root
+        return Path(__file__).parent.parent.parent / "processed_data" / "transformer_analysis" / "hourly"
 
 @st.cache_data
 def get_available_dates() -> Tuple[date, date]:
