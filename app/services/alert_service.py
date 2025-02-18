@@ -61,10 +61,8 @@ else:
 def get_gmail_service():
     """Initialize Gmail API service"""
     try:
-        creds = None
-        
-        # Check if we're in cloud environment
-        if st.secrets.get("GMAIL_TOKEN"):
+        # First check if we have token in Streamlit secrets
+        if "GMAIL_TOKEN" in st.secrets:
             try:
                 # Get and parse token from secrets
                 token_info = st.secrets["GMAIL_TOKEN"]
@@ -78,11 +76,16 @@ def get_gmail_service():
                     st.error("Invalid Gmail token in Streamlit secrets")
                     return None
                     
+                # Build and return Gmail service
+                service = build('gmail', 'v1', credentials=creds)
+                return service
+                    
             except Exception as e:
                 st.error(f"Error with Gmail token: {str(e)}")
                 return None
+        
+        # If no token in secrets, try local development flow
         else:
-            # Local development mode
             token_path = Path(__file__).parent.parent / 'config' / 'token.json'
             creds_path = Path(__file__).parent.parent / 'config' / 'credentials.json'
             
@@ -104,13 +107,13 @@ def get_gmail_service():
                 with open(token_path, 'w') as token:
                     token.write(creds.to_json())
 
-        # Build and return Gmail service
-        try:
-            service = build('gmail', 'v1', credentials=creds)
-            return service
-        except Exception as e:
-            st.error(f"Error building Gmail service: {str(e)}")
-            return None
+            # Build and return Gmail service
+            try:
+                service = build('gmail', 'v1', credentials=creds)
+                return service
+            except Exception as e:
+                st.error(f"Error building Gmail service: {str(e)}")
+                return None
 
     except Exception as e:
         st.error(f"Error in get_gmail_service: {str(e)}")
