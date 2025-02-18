@@ -8,8 +8,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 from typing import List, Tuple
-from core.database import SuppressOutput
-from utils.logging_utils import log_performance, Timer, logger
+from app.core.database import SuppressOutput
+from app.utils.logging_utils import log_performance, Timer, logger
 
 def get_data_path() -> Path:
     """Get the base path for data files, works both locally and in cloud"""
