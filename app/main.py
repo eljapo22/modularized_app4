@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, time
 import logging
-from app.services.data_service import (
+from .services.data_service import (
     get_transformer_ids_for_feeder,
     get_analysis_results,
     get_available_dates,
@@ -17,15 +17,15 @@ from app.services.data_service import (
     get_customer_data,
     get_transformer_attributes
 )
-from app.services.alert_service import process_alerts, test_alert_system
-from app.utils.logging_utils import Timer, logger, log_performance
-from app.visualization.charts import (
+from .services.alert_service import process_alerts, test_alert_system
+from .utils.logging_utils import Timer, logger, log_performance
+from .visualization.charts import (
     display_loading_status_line_chart,
     display_power_time_series,
     display_current_time_series,
     display_voltage_over_time as charts_voltage_display
 )
-from app.visualization.tables import (
+from .visualization.tables import (
     display_transformer_raw_data,
     display_customer_data,
     display_transformer_attributes
@@ -157,7 +157,7 @@ st.markdown("""
 
 # Initialize session state for database connection
 if 'db_con' not in st.session_state:
-    from app.core.database import get_database_connection
+    from .core.database import get_database_connection
     with Timer("Database Connection"):
         st.session_state.db_con = get_database_connection()
 
