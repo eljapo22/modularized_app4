@@ -1,0 +1,192 @@
+"""
+Data retrieval and processing services for the Transformer Loading Analysis Application
+"""
+
+import os
+import streamlit as st
+import pandas as pd
+from datetime import datetime, date
+from typing import List, Tuple
+from ..core.database import SuppressOutput
+from ..utils.logging_utils import log_performance, Timer, logger
+
+@st.cache_data
+def get_available_dates() -> Tuple[date, date]:
+    """Get available date range from the data"""
+    try:
+        # Currently hardcoded to June 2024 based on available data
+        start_date = date(2024, 6, 1)
+        end_date = date(2024, 6, 30)
+        return start_date, end_date
+    except Exception as e:
+        logger.error(f"Error getting available dates: {str(e)}")
+        return date.today(), date.today()
+
+@st.cache_data
+@log_performance
+def get_transformer_options(feeder: str) -> List[str]:
+    """Get list of transformers for a given feeder"""
+    try:
+        feeder_num = feeder.split()[-1]  # Extract number from "Feeder X"
+        base_path = os.path.join("C:\\", "Users", "JohnApostolo", "CascadeProjects", 
+                               "processed_data", "transformer_analysis", 
+                               "hourly", f"feeder{feeder_num}")
+                               
+        if not os.path.exists(base_path):
+            st.warning(f"Data directory not found: {base_path}")
+            return []
+            
+        # Find all parquet files
+        parquet_files = [f for f in os.listdir(base_path) if f.endswith('.parquet')]
+        
+        if not parquet_files:
+            st.warning(f"No data files found in {base_path}")
+            return []
+            
+        # Get transformer IDs from first file
+        first_file = os.path.join(base_path, parquet_files[0])
+        
+        with SuppressOutput():
+            query = f"""
+            SELECT DISTINCT transformer_id
+            FROM read_parquet('{first_file}')
+            ORDER BY transformer_id
+            """
+            transformer_ids = st.session_state.db_con.execute(query).df()
+            
+        return transformer_ids['transformer_id'].tolist()
+        
+    except Exception as e:
+        st.error(f"Error getting transformer options: {str(e)}")
+        return []
+
+@log_performance
+def get_relevant_files_query(base_path, feeder, start_date, end_date):
+    """Get the query string for relevant parquet files based on date range"""
+    try:
+        feeder_path = os.path.join(base_path, f'feeder{feeder}')
+        
+        if not os.path.exists(feeder_path):
+            st.error(f"Feeder directory not found: {feeder_path}")
+            return None
+            
+        parquet_files = [f for f in os.listdir(feeder_path) if f.endswith('.parquet')]
+        if not parquet_files:
+            st.error(f"No parquet files found in {feeder_path}")
+            return None
+            
+        st.info(f"Found {len(parquet_files)} parquet files to analyze")
+        return f"read_parquet('{feeder_path}/*.parquet', union_by_name=True)"
+        
+    except Exception as e:
+        st.error(f"Error constructing file query: {str(e)}")
+        logger.error(f"Error in get_relevant_files_query: {str(e)}", exc_info=True)
+        return None
+
+@log_performance
+def get_transformer_ids_for_feeder(feeder: str) -> List[str]:
+    """Get list of transformer IDs for a feeder using the latest monthly summary file"""
+    try:
+        feeder_dir = feeder.lower().replace(' ', '')
+        base_path = os.path.join("C:\\", "Users", "JohnApostolo", "CascadeProjects", 
+                               "processed_data", "transformer_analysis", 
+                               "hourly", feeder_dir)
+        
+        if not os.path.exists(base_path):
+            st.warning(f"Feeder directory not found: {base_path}")
+            return []
+            
+        with Timer("Finding Monthly Files"):
+            monthly_files = [f for f in os.listdir(base_path) 
+                           if f.endswith('.parquet') 
+                           and len(f.split('-')) == 2]
+            
+            if not monthly_files:
+                st.warning(f"No monthly summary files found in {base_path}")
+                return []
+                
+            latest_monthly = sorted(monthly_files)[-1]
+            monthly_path = os.path.join(base_path, latest_monthly)
+            st.info(f"Using monthly summary file: {latest_monthly}")
+        
+        with Timer("Querying Transformer IDs"):
+            with SuppressOutput():
+                query = f"""
+                SELECT DISTINCT transformer_id 
+                FROM read_parquet('{monthly_path}')
+                ORDER BY transformer_id
+                """
+                transformer_ids = st.session_state.db_con.execute(query).df()
+                
+            return transformer_ids['transformer_id'].tolist()
+        
+    except Exception as e:
+        st.error(f"Error getting transformer IDs: {str(e)}")
+        logger.error(f"Error in get_transformer_ids_for_feeder: {str(e)}", exc_info=True)
+        return []
+
+@log_performance
+def get_analysis_results(con, selected_feeder, start_date, end_date, base_path):
+    """Get analysis results for the selected feeder and date range"""
+    progress_bar = st.progress(0, "Starting analysis...")
+    try:
+        with Timer("Constructing Query"):
+            progress_bar.progress(10, "Constructing query...")
+            file_query = get_relevant_files_query(base_path, selected_feeder, start_date, end_date)
+            if not file_query:
+                progress_bar.empty()
+                return pd.DataFrame()
+
+            start_ts = pd.Timestamp(start_date)
+            end_ts = pd.Timestamp(end_date)
+
+            query = f"""
+            SELECT 
+                timestamp,
+                transformer_id,
+                power_kw,
+                current_a,
+                voltage_v,
+                power_factor,
+                size_kva,
+                (power_kw / NULLIF(size_kva * power_factor, 0)) * 100 AS loading_percentage,
+                CASE
+                    WHEN (power_kw / NULLIF(size_kva * power_factor, 0)) * 100 >= 120 THEN 'Critical'
+                    WHEN (power_kw / NULLIF(size_kva * power_factor, 0)) * 100 >= 100 THEN 'Overloaded'
+                    WHEN (power_kw / NULLIF(size_kva * power_factor, 0)) * 100 >= 80 THEN 'Warning'
+                    WHEN (power_kw / NULLIF(size_kva * power_factor, 0)) * 100 >= 50 THEN 'Pre-Warning'
+                    ELSE 'Normal'
+                END as load_range
+            FROM {file_query}
+            WHERE timestamp >= '{start_ts}'
+            AND timestamp < '{end_ts}'
+            ORDER BY timestamp
+            """
+            progress_bar.progress(30, "Query constructed...")
+    
+        try:
+            with Timer("Executing Query"):
+                progress_bar.progress(50, "Executing query...")
+                with SuppressOutput():
+                    results = con.execute(query).df()
+                progress_bar.progress(90, "Processing results...")
+                
+                if results.empty:
+                    st.warning("No data found for the selected parameters")
+                else:
+                    st.success(f"Found {len(results)} records")
+                    
+                progress_bar.progress(100, "Analysis complete!")
+                return results
+                
+        except Exception as e:
+            st.error(f"Error executing query: {str(e)}")
+            logger.error(f"Error executing query: {str(e)}", exc_info=True)
+            return pd.DataFrame()
+            
+    except Exception as e:
+        st.error(f"Error in analysis: {str(e)}")
+        logger.error(f"Error in get_analysis_results: {str(e)}", exc_info=True)
+        return pd.DataFrame()
+    finally:
+        progress_bar.empty()

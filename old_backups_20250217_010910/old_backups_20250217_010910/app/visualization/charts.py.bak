@@ -1,0 +1,226 @@
+"""
+Visualization components for the Transformer Loading Analysis Application
+"""
+
+import streamlit as st
+import plotly.graph_objects as go
+import plotly.express as px
+import pandas as pd
+from ..config.constants import STATUS_COLORS
+from datetime import datetime, timedelta
+
+def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
+    """
+    Add a vertical line indicator for the selected hour to any plotly figure.
+    
+    Args:
+        fig: plotly figure object
+        selected_hour: hour to indicate (0-23)
+        y_range: optional tuple of (min, max) for y-axis range
+    
+    Returns:
+        Modified plotly figure
+    """
+    if not isinstance(selected_hour, (int, float)) or not (0 <= selected_hour <= 23):
+        return fig
+        
+    # Get the current date
+    today = datetime.now().replace(
+        hour=int(selected_hour),
+        minute=0,
+        second=0,
+        microsecond=0
+    )
+    
+    # If no y_range provided, try to get it from the figure
+    if y_range is None:
+        try:
+            y_range = (
+                min(t.y for t in fig.data),
+                max(t.y for t in fig.data)
+            )
+        except:
+            y_range = (0, 100)
+    
+    # Add the vertical line
+    fig.add_vline(
+        x=today,
+        line=dict(
+            color='gray',
+            width=1,
+            dash='dash'
+        ),
+        annotation=dict(
+            text=f'{selected_hour:02d}:00',
+            textangle=-90,
+            yshift=10
+        ),
+        opacity=0.7
+    )
+    
+    return fig
+
+def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
+    """Create a base plotly figure with common settings"""
+    fig = go.Figure()
+    fig.update_layout(
+        title=title,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+        hovermode='closest',
+        showlegend=True,
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01
+        )
+    )
+    return fig
+
+def display_loading_status_line_chart(results_df, selected_hour: int = None):
+    """Display a scatter plot of loading status events with detailed hover data"""
+    if results_df.empty:
+        st.warning("No data available for visualization")
+        return
+
+    fig = create_base_figure(
+        'Transformer Loading Status Over Time',
+        'Time',
+        'Loading Percentage (%)'
+    )
+
+    # Add continuous gray line for all points
+    fig.add_trace(go.Scatter(
+        x=results_df['timestamp'],
+        y=results_df['loading_percentage'],
+        mode='lines',
+        line=dict(color='gray', width=1),
+        showlegend=False,
+        hoverinfo='skip'
+    ))
+
+    # Add colored markers for each status
+    for status, color in STATUS_COLORS.items():
+        mask = results_df['load_range'] == status
+        if mask.any():
+            hover_text = [
+                f"Status: {status}<br>" +
+                f"Loading: {row['loading_percentage']:.1f}%<br>" +
+                f"Power: {row['power_kw']:.1f} kW<br>" +
+                f"Current: {row['current_a']:.1f} A<br>" +
+                f"Voltage: {row['voltage_v']:.1f} V<br>" +
+                f"Size: {row['size_kva']} kVA<br>" +
+                f"Time: {row['timestamp']}"
+                for _, row in results_df[mask].iterrows()
+            ]
+            
+            fig.add_trace(go.Scatter(
+                x=results_df[mask]['timestamp'],
+                y=results_df[mask]['loading_percentage'],
+                mode='markers',
+                name=status,
+                marker=dict(color=color, size=8),
+                hovertext=hover_text,
+                hoverinfo='text'
+            ))
+            
+    # Add hour indicator if specified
+    if selected_hour is not None:
+        y_range = (
+            results_df['loading_percentage'].min(),
+            results_df['loading_percentage'].max()
+        )
+        fig = add_hour_indicator(fig, selected_hour, y_range)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_power_time_series(results_df, selected_hour: int = None):
+    """Display power consumption time series visualization"""
+    if results_df.empty:
+        st.warning("No data available for power visualization")
+        return
+
+    fig = px.line(
+        results_df,
+        x='timestamp',
+        y='power_kw',
+        title='Power Consumption Over Time'
+    )
+    
+    fig.update_traces(line_color='blue')
+    fig.update_layout(
+        xaxis_title='Time',
+        yaxis_title='Power (kW)',
+        showlegend=False
+    )
+    
+    # Add hour indicator if specified
+    if selected_hour is not None:
+        y_range = (
+            results_df['power_kw'].min(),
+            results_df['power_kw'].max()
+        )
+        fig = add_hour_indicator(fig, selected_hour, y_range)
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_current_time_series(results_df, selected_hour: int = None):
+    """Display current analysis time series visualization"""
+    if results_df.empty:
+        st.warning("No data available for current visualization")
+        return
+
+    fig = px.line(
+        results_df,
+        x='timestamp',
+        y='current_a',
+        title='Current Over Time'
+    )
+    
+    fig.update_traces(line_color='red')
+    fig.update_layout(
+        xaxis_title='Time',
+        yaxis_title='Current (A)',
+        showlegend=False
+    )
+    
+    # Add hour indicator if specified
+    if selected_hour is not None:
+        y_range = (
+            results_df['current_a'].min(),
+            results_df['current_a'].max()
+        )
+        fig = add_hour_indicator(fig, selected_hour, y_range)
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_voltage_time_series(results_df, selected_hour: int = None):
+    """Display voltage analysis time series visualization"""
+    if results_df.empty:
+        st.warning("No data available for voltage visualization")
+        return
+
+    fig = px.line(
+        results_df,
+        x='timestamp',
+        y='voltage_v',
+        title='Voltage Over Time'
+    )
+    
+    fig.update_traces(line_color='green')
+    fig.update_layout(
+        xaxis_title='Time',
+        yaxis_title='Voltage (V)',
+        showlegend=False
+    )
+    
+    # Add hour indicator if specified
+    if selected_hour is not None:
+        y_range = (
+            results_df['voltage_v'].min(),
+            results_df['voltage_v'].max()
+        )
+        fig = add_hour_indicator(fig, selected_hour, y_range)
+    
+    st.plotly_chart(fig, use_container_width=True)

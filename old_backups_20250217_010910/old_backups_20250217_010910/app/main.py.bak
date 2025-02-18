@@ -1,0 +1,163 @@
+"""
+Main application file for the Transformer Loading Analysis Application
+"""
+
+import os
+import warnings
+import streamlit as st
+from datetime import datetime, timedelta
+import logging
+from app.services.data_service import (
+    get_transformer_ids_for_feeder,
+    get_analysis_results,
+    get_available_dates,
+    get_transformer_options
+)
+from app.services.alert_service import process_alerts
+from app.utils.logging_utils import Timer, logger, log_performance
+from app.visualization.charts import (
+    display_loading_status_line_chart,
+    display_power_time_series,
+    display_current_time_series,
+    display_voltage_time_series
+)
+from app.visualization.tables import (
+    display_transformer_raw_data,
+    display_customer_data,
+    display_transformer_attributes
+)
+
+# Configure the application
+st.set_page_config(
+    page_title="Transformer Loading Analysis",
+    page_icon="⚡",
+    layout="wide"
+)
+
+# Initialize session state for database connection
+if 'db_con' not in st.session_state:
+    from app.core.database import get_database_connection
+    with Timer("Database Connection"):
+        st.session_state.db_con = get_database_connection()
+
+# Disable discovery cache warning
+warnings.filterwarnings('ignore', message='file_cache is unavailable when using oauth2client >= 4.0.0')
+
+@log_performance
+def main():
+    """Main application function"""
+    with Timer("Application Startup"):
+        st.title("Transformer Loading Analysis")
+        
+        # Sidebar for parameters
+        with st.sidebar:
+            with Timer("Sidebar Rendering"):
+                st.header("Analysis Parameters")
+                
+                # Get available dates
+                start_date, end_date = get_available_dates()
+                
+                # Date selection with min/max dates
+                selected_date = st.date_input(
+                    "Select Date",
+                    value=start_date,
+                    min_value=start_date,
+                    max_value=end_date,
+                    help="Select a date in June 2024"
+                )
+                
+                # Hour selection
+                selected_hour = st.selectbox(
+                    "Select Hour",
+                    range(24),
+                    format_func=lambda x: f"{x:02d}:00"
+                )
+                
+                # Feeder selection
+                selected_feeder = st.selectbox(
+                    "Select Feeder",
+                    ["Feeder 1", "Feeder 2", "Feeder 3", "Feeder 4"]
+                )
+                
+                # Get transformer options for selected feeder
+                with Timer("Loading Transformer Options"):
+                    transformer_options = get_transformer_options(selected_feeder)
+                
+                # Transformer selection
+                selected_transformer = st.selectbox(
+                    "Select Transformer",
+                    transformer_options if transformer_options else ["No transformers available"]
+                )
+                
+                # Email alert settings
+                st.header("Email Alert Settings")
+                enable_email_alerts = st.checkbox("Enable Email Alerts", value=False)
+                if enable_email_alerts:
+                    alert_email = st.text_input("Alert Email Address", "example@email.com")
+            
+                # Analysis button
+                if st.button("Analyze Loading"):
+                    if not transformer_options:
+                        st.error("No transformer options available. Please check the feeder selection.")
+                    else:
+                        try:
+                            st.info("Starting analysis... Please wait.")
+                            base_path = os.path.join("C:\\", "Users", "JohnApostolo", "CascadeProjects", 
+                                                   "processed_data", "transformer_analysis", "hourly")
+                            
+                            # Verify paths before proceeding
+                            feeder_path = os.path.join(base_path, f'feeder{selected_feeder.split()[-1]}')
+                            if not os.path.exists(feeder_path):
+                                st.error(f"Data path not found: {feeder_path}")
+                                st.info("Please check if the data directory exists and contains parquet files.")
+                                return
+                                
+                            with Timer("Analysis Execution"):
+                                # Get analysis results
+                                results = get_analysis_results(
+                                    st.session_state.db_con,
+                                    selected_feeder.split()[-1],  # Extract feeder number
+                                    selected_date,
+                                    selected_date + timedelta(days=1),
+                                    base_path
+                                )
+                                
+                                if results is not None and not results.empty:
+                                    st.session_state.analysis_results = results
+                                    st.success("Analysis completed successfully!")
+                                else:
+                                    st.warning("No results found for the selected parameters.")
+                                    return
+                                    
+                                # Process alerts if enabled
+                                if enable_email_alerts:
+                                    process_alerts(results, selected_date, selected_hour, alert_email)
+                                    
+                        except Exception as e:
+                            st.error(f"Error during analysis: {str(e)}")
+                            logger.error(f"Analysis error: {str(e)}", exc_info=True)
+    
+    # Main content area
+    if 'analysis_results' in st.session_state:
+        results = st.session_state.analysis_results
+        
+        with Timer("Visualization Rendering"):
+            # Display visualizations
+            display_loading_status_line_chart(results)
+            
+            # Create columns for additional charts
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                display_power_time_series(results)
+                display_current_time_series(results)
+                
+            with col2:
+                display_voltage_time_series(results)
+                
+            # Raw data display
+            st.header("Raw Data")
+            display_transformer_raw_data(results)
+
+if __name__ == "__main__":
+    main()

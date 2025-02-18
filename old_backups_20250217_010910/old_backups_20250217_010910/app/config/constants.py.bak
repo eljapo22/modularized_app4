@@ -1,0 +1,26 @@
+"""
+Constants for the Transformer Loading Analysis Application
+"""
+
+# Loading thresholds - DO NOT MODIFY without engineering approval
+LOADING_THRESHOLDS = {
+    'CRITICAL': 120,
+    'OVERLOADED': 100,
+    'WARNING': 80,
+    'PRE_WARNING': 50
+}
+
+# Status colors - DO NOT MODIFY as they match industry standards
+STATUS_COLORS = {
+    'Critical': '#ff0000',
+    'Overloaded': '#ffa500',
+    'Warning': '#ffff00',
+    'Pre-Warning': '#90EE90',
+    'Normal': '#00ff00'
+}
+
+# Gmail API scope
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+
+# Email configuration
+ALERT_EMAIL = "jhnapo2213@gmail.com"
