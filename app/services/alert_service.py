@@ -10,7 +10,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import base64
-from config.constants import SCOPES
+from app.config.constants import SCOPES
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
