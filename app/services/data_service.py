@@ -20,6 +20,15 @@ def get_data_path() -> Path:
         # Locally, use path relative to repository root
         return Path(__file__).parent.parent.parent / "processed_data" / "transformer_analysis" / "hourly"
 
+def get_customer_data_path() -> Path:
+    """Get the base path for customer data files, works both locally and in cloud"""
+    if os.getenv("STREAMLIT_CLOUD"):
+        # In cloud, use relative path from app directory
+        return Path(__file__).parent.parent.parent / "processed_data" / "customer_analysis" / "hourly"
+    else:
+        # Locally, use path relative to repository root
+        return Path(__file__).parent.parent.parent / "processed_data" / "customer_analysis" / "hourly"
+
 @st.cache_data
 def get_available_dates() -> Tuple[date, date]:
     """Get available date range from the data"""
@@ -300,7 +309,7 @@ def get_customer_data(transformer_id: str, selected_date: date) -> pd.DataFrame:
             return pd.DataFrame()
         
         # Construct base path
-        base_path = Path("C:/Users/JohnApostolo/CascadeProjects/processed_data/customer_analysis/hourly") / feeder_dir
+        base_path = get_customer_data_path() / feeder_dir
         
         if not base_path.exists():
             logger.error(f"Customer data directory not found: {base_path}")
