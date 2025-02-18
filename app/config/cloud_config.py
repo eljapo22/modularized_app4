@@ -5,11 +5,18 @@ Cloud-specific configuration settings
 import os
 import streamlit as st
 from pathlib import Path
+import json
 
 # Gmail configuration
-GMAIL_CREDENTIALS = st.secrets.get("GMAIL_CREDENTIALS", None)
-GMAIL_TOKEN = st.secrets.get("GMAIL_TOKEN", None)
-DEFAULT_RECIPIENT = st.secrets.get("DEFAULT_RECIPIENT", None)
+try:
+    GMAIL_CREDENTIALS = json.loads(st.secrets["GMAIL_CREDENTIALS"])
+    GMAIL_TOKEN = json.loads(st.secrets["GMAIL_TOKEN"])
+    DEFAULT_RECIPIENT = st.secrets["DEFAULT_RECIPIENT"]
+except Exception as e:
+    st.error(f"Error loading Gmail configuration: {str(e)}")
+    GMAIL_CREDENTIALS = None
+    GMAIL_TOKEN = None
+    DEFAULT_RECIPIENT = None
 
 # Data paths
 def get_cloud_data_path():

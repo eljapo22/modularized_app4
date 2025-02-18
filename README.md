@@ -53,6 +53,34 @@ Main dependencies (see `requirements.txt` for full list):
 - Pandas
 - Plotly
 
+## Google API Setup
+
+### Local Development
+1. Create a Google Cloud Project and enable Gmail API
+2. Create OAuth 2.0 credentials (Desktop application)
+3. Download `credentials.json` and place it in `app/config/`
+4. Add your email as a test user in OAuth consent screen
+5. Run the app locally first to generate `token.json`
+
+### Streamlit Cloud Deployment
+1. In Streamlit Cloud dashboard, add these secrets:
+   ```toml
+   [secrets]
+   GMAIL_CREDENTIALS = "YOUR_CREDENTIALS_JSON_CONTENT"
+   GMAIL_TOKEN = "YOUR_TOKEN_JSON_CONTENT"
+   DEFAULT_RECIPIENT = "your-email@example.com"
+   ```
+
+### Security Notes
+- NEVER commit credentials to GitHub
+- Keep `credentials.json` and `token.json` private
+- Use Streamlit's secret management for cloud deployment
+- The following files are ignored in git:
+  * `credentials.json`
+  * `token.json`
+  * `.env`
+  * `.streamlit/secrets.toml`
+
 ## Support
 
 For issues and questions:

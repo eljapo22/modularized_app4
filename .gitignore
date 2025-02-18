@@ -32,17 +32,17 @@ env/
 *.swp
 *.swo
 
+# Google API credentials
+**/credentials.json
+**/token.json
+
 # Streamlit
 .streamlit/secrets.toml
 
-# Gmail credentials
-app/config/credentials.json
-app/config/token.json
-credentials.json
-token.json
-
-# Environment variables
-.env
+# Data files
+processed_data/
+*.xlsx
+*.csv
 
 # Operating System
 .DS_Store
@@ -50,5 +50,4 @@ Thumbs.db
 
 # Keep Parquet files
 !*.parquet
-!processed_data/
 !data/
