@@ -2,29 +2,29 @@
 Cloud-specific configuration settings
 """
 
-import os
 import streamlit as st
-from pathlib import Path
 import json
 
 # Gmail configuration
 try:
+    # Get token from secrets and ensure it's a dictionary
     token_info = st.secrets["GMAIL_TOKEN"]
     if isinstance(token_info, str):
         token_info = json.loads(token_info)
+    
+    # Get default recipient
     DEFAULT_RECIPIENT = st.secrets["DEFAULT_RECIPIENT"]
+    
+    # These paths should be None in cloud environment
+    CREDENTIALS_PATH = None
+    TOKEN_PATH = None
+    
 except Exception as e:
     st.error(f"Error loading Gmail configuration: {str(e)}")
     token_info = None
     DEFAULT_RECIPIENT = None
-
-# Data paths
-def get_cloud_data_path():
-    """Get the base path for data files in cloud environment"""
-    return Path(__file__).parent.parent.parent / "processed_data"
-
-DATA_DIR = "/mount/src/modularized_app4/data"
-EXCEL_FILE = os.path.join(DATA_DIR, "transformer_data.xlsx")
+    CREDENTIALS_PATH = None
+    TOKEN_PATH = None
 
 # Scopes for Gmail API
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']

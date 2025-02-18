@@ -17,16 +17,35 @@ from pathlib import Path
 import json
 from google.auth.transport.requests import Request
 
+def debug_print_secrets():
+    """Debug function to print available secrets"""
+    st.write("Available secrets:", list(st.secrets.keys()))
+    if "GMAIL_TOKEN" in st.secrets:
+        token_info = st.secrets["GMAIL_TOKEN"]
+        st.write("Token type:", type(token_info))
+        if isinstance(token_info, str):
+            try:
+                parsed = json.loads(token_info)
+                st.write("Token parsed successfully")
+            except Exception as e:
+                st.write("Token parse error:", str(e))
+    else:
+        st.write("GMAIL_TOKEN not found in secrets")
+
 # Gmail API configuration
 def is_running_in_cloud():
     """Check if we're running in Streamlit Cloud"""
-    return st.secrets.get("GMAIL_TOKEN") is not None
+    in_cloud = st.secrets.get("GMAIL_TOKEN") is not None
+    st.write("Running in cloud:", in_cloud)
+    return in_cloud
 
 if is_running_in_cloud():
     try:
+        debug_print_secrets()
         from config.cloud_config import DEFAULT_RECIPIENT
         CREDENTIALS_PATH = None
         TOKEN_PATH = None
+        st.write("Cloud config loaded successfully")
     except Exception as e:
         st.warning(f"Email alerts are disabled: {str(e)}")
         DEFAULT_RECIPIENT = None
@@ -37,52 +56,55 @@ else:
     CREDENTIALS_PATH = Path(__file__).parent.parent / 'config' / 'credentials.json'
     TOKEN_PATH = Path(__file__).parent.parent / 'config' / 'token.json'
     DEFAULT_RECIPIENT = "jhnapo2213@gmail.com"
+    st.write("Running in local mode")
 
 def get_gmail_service():
     """Initialize Gmail API service"""
     try:
         creds = None
-        if is_running_in_cloud():
-            # In cloud, use credentials from Streamlit secrets
+        
+        # Check if we're in cloud environment
+        if st.secrets.get("GMAIL_TOKEN"):
             try:
+                # Get and parse token from secrets
                 token_info = st.secrets["GMAIL_TOKEN"]
                 if isinstance(token_info, str):
                     token_info = json.loads(token_info)
+                
+                # Create credentials from token
                 creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+                
                 if not creds or not creds.valid:
-                    st.error("Invalid Gmail credentials in Streamlit secrets")
+                    st.error("Invalid Gmail token in Streamlit secrets")
                     return None
+                    
             except Exception as e:
-                st.error(f"Error loading Gmail credentials from secrets: {str(e)}")
+                st.error(f"Error with Gmail token: {str(e)}")
                 return None
         else:
-            # Use repository-relative paths for local development
-            if os.path.exists(TOKEN_PATH):
+            # Local development mode
+            token_path = Path(__file__).parent.parent / 'config' / 'token.json'
+            creds_path = Path(__file__).parent.parent / 'config' / 'credentials.json'
+            
+            if os.path.exists(token_path):
                 try:
-                    creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+                    creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
                 except Exception as e:
                     st.error(f"Error loading token file: {str(e)}")
                     return None
 
             if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    try:
-                        creds.refresh(Request())
-                    except Exception as e:
-                        st.error(f"Error refreshing credentials: {str(e)}")
-                        return None
-                else:
-                    if not os.path.exists(CREDENTIALS_PATH):
-                        st.error(f"Credentials file not found at {CREDENTIALS_PATH}")
-                        return None
+                if not os.path.exists(creds_path):
+                    st.error(f"Credentials file not found at {creds_path}")
+                    return None
                     
-                    flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
-                    creds = flow.run_local_server(port=0)
-                    
-                    # Save the credentials for the next run
-                    with open(TOKEN_PATH, 'w') as token:
-                        token.write(creds.to_json())
+                flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), SCOPES)
+                creds = flow.run_local_server(port=0)
+                
+                with open(token_path, 'w') as token:
+                    token.write(creds.to_json())
 
+        # Build and return Gmail service
         try:
             service = build('gmail', 'v1', credentials=creds)
             return service
