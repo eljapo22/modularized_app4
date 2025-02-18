@@ -17,11 +17,19 @@ from pathlib import Path
 
 # Gmail API configuration
 if os.getenv("STREAMLIT_CLOUD"):
-    from config.cloud_config import GMAIL_CREDENTIALS, GMAIL_TOKEN, DEFAULT_RECIPIENT
-    CREDENTIALS_PATH = None
-    TOKEN_PATH = None
+    try:
+        from config.cloud_config import GMAIL_CREDENTIALS, GMAIL_TOKEN, DEFAULT_RECIPIENT
+        CREDENTIALS_PATH = None
+        TOKEN_PATH = None
+    except Exception as e:
+        st.warning("Email alerts are disabled: Gmail credentials not configured in Streamlit Cloud")
+        GMAIL_CREDENTIALS = None
+        GMAIL_TOKEN = None
+        DEFAULT_RECIPIENT = None
+        CREDENTIALS_PATH = None
+        TOKEN_PATH = None
 else:
-    # Use repository-relative paths
+    # Use repository-relative paths for local development
     CREDENTIALS_PATH = Path(__file__).parent.parent / 'config' / 'credentials.json'
     TOKEN_PATH = Path(__file__).parent.parent / 'config' / 'token.json'
     DEFAULT_RECIPIENT = "jhnapo2213@gmail.com"
@@ -31,36 +39,43 @@ def get_gmail_service():
     try:
         creds = None
         if os.getenv("STREAMLIT_CLOUD"):
-            if GMAIL_CREDENTIALS and GMAIL_TOKEN:
+            # In cloud, use credentials from Streamlit secrets
+            if not GMAIL_CREDENTIALS or not GMAIL_TOKEN:
+                st.error("Gmail credentials not found in Streamlit secrets")
+                return None
+            try:
                 creds = Credentials.from_authorized_user_info(eval(GMAIL_TOKEN), SCOPES)
+            except Exception as e:
+                st.error(f"Error loading Gmail token from secrets: {str(e)}")
+                return None
         else:
-            # Check if we have valid token
+            # In local development, use credential files
             if os.path.exists(TOKEN_PATH):
-                creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+                try:
+                    creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+                except Exception as e:
+                    st.error(f"Error loading token file: {str(e)}")
+                    return None
             
         # If no valid credentials, let user log in
         if not creds or not creds.valid:
             if os.getenv("STREAMLIT_CLOUD"):
-                if not GMAIL_CREDENTIALS:
-                    st.error("Gmail credentials not found in environment variables")
-                    return None
-                creds_info = eval(GMAIL_CREDENTIALS)
-                flow = InstalledAppFlow.from_client_config(creds_info, SCOPES)
-                creds = flow.run_local_server(port=0)
+                st.error("Gmail token is invalid and cannot be refreshed in cloud environment")
+                return None
             else:
                 if not os.path.exists(CREDENTIALS_PATH):
                     st.error(f"Credentials file not found at {CREDENTIALS_PATH}")
                     return None
-                flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
-                creds = flow.run_local_server(port=0)
-            
-            # Save the credentials for the next run
-            if not os.getenv("STREAMLIT_CLOUD"):
                 try:
+                    flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
+                    creds = flow.run_local_server(port=0)
+                    
+                    # Save the credentials for the next run
                     with open(TOKEN_PATH, 'w') as token:
                         token.write(creds.to_json())
                 except Exception as e:
-                    st.error(f"Error saving token file: {str(e)}")
+                    st.error(f"Error in OAuth flow: {str(e)}")
+                    return None
                     
         try:
             service = build('gmail', 'v1', credentials=creds)
