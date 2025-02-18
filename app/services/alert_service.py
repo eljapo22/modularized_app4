@@ -32,6 +32,32 @@ def debug_print_secrets():
     else:
         st.write("GMAIL_TOKEN not found in secrets")
 
+def debug_token_info(token_info):
+    """Debug helper to safely print token info"""
+    if isinstance(token_info, str):
+        st.write("Token is a string, length:", len(token_info))
+        try:
+            parsed = json.loads(token_info)
+            st.write("Token parsed successfully")
+            # Show token structure without sensitive values
+            safe_info = {
+                k: "..." if k in ["token", "refresh_token", "client_secret"] 
+                else v for k, v in parsed.items()
+            }
+            st.write("Token structure:", safe_info)
+        except json.JSONDecodeError as e:
+            st.write("Token parse error:", str(e))
+    elif isinstance(token_info, dict):
+        st.write("Token is already a dictionary")
+        # Show token structure without sensitive values
+        safe_info = {
+            k: "..." if k in ["token", "refresh_token", "client_secret"] 
+            else v for k, v in token_info.items()
+        }
+        st.write("Token structure:", safe_info)
+    else:
+        st.write("Token is unexpected type:", type(token_info))
+
 # Gmail API configuration
 def is_running_in_cloud():
     """Check if we're running in Streamlit Cloud"""
@@ -62,30 +88,64 @@ def get_gmail_service():
     """Initialize Gmail API service"""
     try:
         # First check if we have token in Streamlit secrets
+        st.write("Checking for GMAIL_TOKEN in secrets...")
         if "GMAIL_TOKEN" in st.secrets:
+            st.write("Found GMAIL_TOKEN in secrets")
             try:
                 # Get and parse token from secrets
                 token_info = st.secrets["GMAIL_TOKEN"]
+                debug_token_info(token_info)
+                
                 if isinstance(token_info, str):
-                    token_info = json.loads(token_info)
+                    st.write("Parsing token string...")
+                    try:
+                        token_info = json.loads(token_info)
+                        st.write("Token parsed successfully")
+                    except json.JSONDecodeError as e:
+                        st.error(f"Failed to parse token: {str(e)}")
+                        return None
                 
-                # Create credentials from token
-                creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+                st.write("Creating credentials object...")
+                try:
+                    creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+                    st.write("Credentials created successfully")
+                except Exception as e:
+                    st.error(f"Failed to create credentials: {str(e)}")
+                    return None
                 
-                if not creds or not creds.valid:
-                    st.error("Invalid Gmail token in Streamlit secrets")
+                if not creds:
+                    st.error("Credentials object is None")
                     return None
                     
+                if not creds.valid:
+                    st.write("Credentials are invalid, attempting refresh...")
+                    if creds.expired and creds.refresh_token:
+                        try:
+                            creds.refresh(Request())
+                            st.write("Credentials refreshed successfully")
+                        except Exception as e:
+                            st.error(f"Failed to refresh credentials: {str(e)}")
+                            return None
+                    else:
+                        st.error("Credentials are invalid and cannot be refreshed")
+                        return None
+                
                 # Build and return Gmail service
-                service = build('gmail', 'v1', credentials=creds)
-                return service
+                st.write("Building Gmail service...")
+                try:
+                    service = build('gmail', 'v1', credentials=creds)
+                    st.write("Gmail service built successfully")
+                    return service
+                except Exception as e:
+                    st.error(f"Failed to build Gmail service: {str(e)}")
+                    return None
                     
             except Exception as e:
                 st.error(f"Error with Gmail token: {str(e)}")
                 return None
-        
-        # If no token in secrets, try local development flow
         else:
+            st.write("GMAIL_TOKEN not found in secrets, falling back to local mode")
+            # Local development mode
             token_path = Path(__file__).parent.parent / 'config' / 'token.json'
             creds_path = Path(__file__).parent.parent / 'config' / 'credentials.json'
             
