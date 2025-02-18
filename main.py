@@ -31,6 +31,8 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, time
 import logging
+import plotly.graph_objects as go
+
 from app.services.data_service import (
     get_transformer_ids_for_feeder,
     get_analysis_results,
@@ -407,8 +409,6 @@ def process_data(df):
     except Exception as e:
         logger.error(f"Error processing data: {str(e)}", exc_info=True)
         return None
-
-import plotly.graph_objects as go
 
 def display_power_time_series(df, selected_hour, is_transformer_view=False):
     """Display power consumption over time"""

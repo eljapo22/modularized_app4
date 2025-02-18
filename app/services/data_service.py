@@ -2,18 +2,21 @@
 Data retrieval and processing services for the Transformer Loading Analysis Application
 """
 
+import warnings
 import os
-from pathlib import Path
-import streamlit as st
 import pandas as pd
-from datetime import datetime, date
+import numpy as np
+from datetime import datetime, date, timedelta
+import logging
 from typing import List, Tuple
 from app.core.database import SuppressOutput
 from app.utils.logging_utils import log_performance, Timer, logger
+from pathlib import Path
+import streamlit as st
 
 def get_data_path() -> Path:
     """Get the base path for data files, works both locally and in cloud"""
-    if os.getenv("STREAMLIT_CLOUD"):
+    if os.getenv('STREAMLIT_SHARING') or os.getenv('STREAMLIT_CLOUD'):
         # In cloud, use relative path from app directory
         return Path(__file__).parent.parent.parent / "processed_data" / "transformer_analysis" / "hourly"
     else:
