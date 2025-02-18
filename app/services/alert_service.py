@@ -15,31 +15,48 @@ import pandas as pd
 from datetime import datetime
 
 # Gmail API configuration
-CREDENTIALS_PATH = 'C:\\Users\\JohnApostolo\\CascadeProjects\\credentials.json'
-TOKEN_PATH = 'C:\\Users\\JohnApostolo\\CascadeProjects\\token.json'
-DEFAULT_RECIPIENT = "jhnapo2213@gmail.com"  # Updated email address
+if os.getenv("STREAMLIT_CLOUD"):
+    from ..config.cloud_config import GMAIL_CREDENTIALS, GMAIL_TOKEN, DEFAULT_RECIPIENT
+    CREDENTIALS_PATH = None
+    TOKEN_PATH = None
+else:
+    CREDENTIALS_PATH = 'C:\\Users\\JohnApostolo\\CascadeProjects\\credentials.json'
+    TOKEN_PATH = 'C:\\Users\\JohnApostolo\\CascadeProjects\\token.json'
+    DEFAULT_RECIPIENT = "jhnapo2213@gmail.com"  # Updated email address
 
 def get_gmail_service():
     """Initialize Gmail API service"""
     try:
         creds = None
-        # Check if we have valid token
-        if os.path.exists(TOKEN_PATH):
-            creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+        if os.getenv("STREAMLIT_CLOUD"):
+            if GMAIL_CREDENTIALS and GMAIL_TOKEN:
+                creds = Credentials.from_authorized_user_info(eval(GMAIL_TOKEN), SCOPES)
+        else:
+            # Check if we have valid token
+            if os.path.exists(TOKEN_PATH):
+                creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
             
         # If no valid credentials, let user log in
         if not creds or not creds.valid:
-            if not os.path.exists(CREDENTIALS_PATH):
-                st.error(f"Credentials file not found at {CREDENTIALS_PATH}")
-                return None
+            if os.getenv("STREAMLIT_CLOUD"):
+                if not GMAIL_CREDENTIALS:
+                    st.error("Gmail credentials not found in environment variables")
+                    return None
+                creds_info = eval(GMAIL_CREDENTIALS)
+                flow = InstalledAppFlow.from_client_config(creds_info, SCOPES)
+                creds = flow.run_local_server(port=0)
+            else:
+                if not os.path.exists(CREDENTIALS_PATH):
+                    st.error(f"Credentials file not found at {CREDENTIALS_PATH}")
+                    return None
+                    
+                flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
+                creds = flow.run_local_server(port=0)
                 
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
-            creds = flow.run_local_server(port=0)
-            
-            # Save the credentials for future use
-            with open(TOKEN_PATH, 'w') as token:
-                token.write(creds.to_json())
-                
+                # Save the credentials for future use
+                with open(TOKEN_PATH, 'w') as token:
+                    token.write(creds.to_json())
+                    
         service = build('gmail', 'v1', credentials=creds)
         return service
         
