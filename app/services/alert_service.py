@@ -10,13 +10,13 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import base64
-from ..config.constants import SCOPES
+from config.constants import SCOPES
 import pandas as pd
 from datetime import datetime
 
 # Gmail API configuration
 if os.getenv("STREAMLIT_CLOUD"):
-    from ..config.cloud_config import GMAIL_CREDENTIALS, GMAIL_TOKEN, DEFAULT_RECIPIENT
+    from config.cloud_config import GMAIL_CREDENTIALS, GMAIL_TOKEN, DEFAULT_RECIPIENT
     CREDENTIALS_PATH = None
     TOKEN_PATH = None
 else:
