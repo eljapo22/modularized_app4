@@ -14,6 +14,7 @@ from config.constants import SCOPES
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
+import json
 
 # Gmail API configuration
 if os.getenv("STREAMLIT_CLOUD"):
@@ -22,7 +23,7 @@ if os.getenv("STREAMLIT_CLOUD"):
         CREDENTIALS_PATH = None
         TOKEN_PATH = None
     except Exception as e:
-        st.warning("Email alerts are disabled: Gmail credentials not configured in Streamlit Cloud")
+        st.warning(f"Email alerts are disabled: {str(e)}")
         GMAIL_CREDENTIALS = None
         GMAIL_TOKEN = None
         DEFAULT_RECIPIENT = None
@@ -44,7 +45,9 @@ def get_gmail_service():
                 st.error("Gmail credentials not found in Streamlit secrets")
                 return None
             try:
-                creds = Credentials.from_authorized_user_info(eval(GMAIL_TOKEN), SCOPES)
+                # Parse credentials from JSON strings
+                token_info = json.loads(GMAIL_TOKEN)
+                creds = Credentials.from_authorized_user_info(token_info, SCOPES)
             except Exception as e:
                 st.error(f"Error loading Gmail token from secrets: {str(e)}")
                 return None
