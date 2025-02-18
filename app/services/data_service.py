@@ -94,7 +94,7 @@ def get_transformer_options() -> List[str]:
                 continue
                 
             # Get transformer IDs from first file
-            first_file = feeder_path / parquet_files[0]
+            first_file = str(feeder_path / parquet_files[0])  # Convert to string
             
             with SuppressOutput():
                 query = """
@@ -126,7 +126,7 @@ def get_relevant_files_query(base_path, feeder, start_date, end_date):
             return None
             
         st.info(f"Found {len(parquet_files)} parquet files to analyze")
-        return f"read_parquet('{feeder_path}/*.parquet', union_by_name=True)"
+        return f"read_parquet('{str(feeder_path)}/*.parquet', union_by_name=True)"  # Convert to string
         
     except Exception as e:
         st.error(f"Error constructing file query: {str(e)}")
@@ -161,7 +161,7 @@ def get_transformer_ids_for_feeder(feeder: str) -> List[str]:
             with SuppressOutput():
                 query = f"""
                 SELECT DISTINCT transformer_id 
-                FROM read_parquet('{monthly_path}')
+                FROM read_parquet('{str(monthly_path)}')
                 ORDER BY transformer_id
                 """
                 transformer_ids = st.session_state.db_con.execute(query).df()
@@ -217,7 +217,7 @@ def get_analysis_results(transformer_id: str, selected_date: date, time_range: t
                 WHERE transformer_id = ?
                 LIMIT 1
                 """
-                result = st.session_state.db_con.execute(query, [date_file, transformer_id]).fetchone()
+                result = st.session_state.db_con.execute(query, [str(date_file), transformer_id]).fetchone()
                 
                 if result is not None:
                     feeder_found = feeder
@@ -238,7 +238,7 @@ def get_analysis_results(transformer_id: str, selected_date: date, time_range: t
             WHERE transformer_id = ?
             LIMIT 1
             """
-            transformer_info = st.session_state.db_con.execute(info_query, [transformer_file, transformer_id]).fetchone()
+            transformer_info = st.session_state.db_con.execute(info_query, [str(transformer_file), transformer_id]).fetchone()
             logger.info(f"Transformer info query result: {transformer_info}")
             
             if transformer_info is not None:
@@ -269,7 +269,7 @@ def get_analysis_results(transformer_id: str, selected_date: date, time_range: t
                     query,
                     [
                         size_kva,
-                        transformer_file,
+                        str(transformer_file),
                         transformer_id,
                         time_range[0],
                         time_range[1],
@@ -335,7 +335,7 @@ def get_customer_data(transformer_id: str, selected_date: date) -> pd.DataFrame:
                     current_a,
                     voltage_v,  -- Make sure we're selecting voltage
                     power_factor
-                FROM read_parquet('{file_path}')
+                FROM read_parquet('{str(file_path)}')
                 WHERE date_trunc('day', timestamp) = date_trunc('day', '{selected_date.strftime('%Y-%m-%d')}'::DATE)
                 ORDER BY timestamp, customer_id
                 """
