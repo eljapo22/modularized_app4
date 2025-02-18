@@ -15,6 +15,7 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 import json
+from google.auth.transport.requests import Request
 
 # Gmail API configuration
 if os.getenv("STREAMLIT_CLOUD"):
@@ -45,9 +46,7 @@ def get_gmail_service():
                 st.error("Gmail credentials not found in Streamlit secrets")
                 return None
             try:
-                # Parse credentials from JSON strings
-                token_info = json.loads(GMAIL_TOKEN)
-                creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+                creds = Credentials.from_authorized_user_info(GMAIL_TOKEN, SCOPES)
             except Exception as e:
                 st.error(f"Error loading Gmail token from secrets: {str(e)}")
                 return None
@@ -59,36 +58,35 @@ def get_gmail_service():
                 except Exception as e:
                     st.error(f"Error loading token file: {str(e)}")
                     return None
-            
-        # If no valid credentials, let user log in
-        if not creds or not creds.valid:
-            if os.getenv("STREAMLIT_CLOUD"):
-                st.error("Gmail token is invalid and cannot be refreshed in cloud environment")
-                return None
-            else:
-                if not os.path.exists(CREDENTIALS_PATH):
-                    st.error(f"Credentials file not found at {CREDENTIALS_PATH}")
-                    return None
-                try:
+
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    try:
+                        creds.refresh(Request())
+                    except Exception as e:
+                        st.error(f"Error refreshing credentials: {str(e)}")
+                        return None
+                else:
+                    if not os.path.exists(CREDENTIALS_PATH):
+                        st.error(f"Credentials file not found at {CREDENTIALS_PATH}")
+                        return None
+                    
                     flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
                     creds = flow.run_local_server(port=0)
                     
                     # Save the credentials for the next run
                     with open(TOKEN_PATH, 'w') as token:
                         token.write(creds.to_json())
-                except Exception as e:
-                    st.error(f"Error in OAuth flow: {str(e)}")
-                    return None
-                    
+
         try:
             service = build('gmail', 'v1', credentials=creds)
             return service
         except Exception as e:
             st.error(f"Error building Gmail service: {str(e)}")
             return None
-            
+
     except Exception as e:
-        st.error(f"Error initializing Gmail service: {str(e)}")
+        st.error(f"Error in get_gmail_service: {str(e)}")
         return None
 
 def get_status_color(status):
