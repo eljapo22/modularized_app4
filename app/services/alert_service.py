@@ -18,7 +18,11 @@ import json
 from google.auth.transport.requests import Request
 
 # Gmail API configuration
-if os.getenv("STREAMLIT_CLOUD"):
+def is_running_in_cloud():
+    """Check if we're running in Streamlit Cloud"""
+    return st.secrets.get("GMAIL_CREDENTIALS") is not None
+
+if is_running_in_cloud():
     try:
         from config.cloud_config import GMAIL_CREDENTIALS, GMAIL_TOKEN, DEFAULT_RECIPIENT
         CREDENTIALS_PATH = None
@@ -40,18 +44,18 @@ def get_gmail_service():
     """Initialize Gmail API service"""
     try:
         creds = None
-        if os.getenv("STREAMLIT_CLOUD"):
+        if is_running_in_cloud():
             # In cloud, use credentials from Streamlit secrets
-            if not GMAIL_CREDENTIALS or not GMAIL_TOKEN:
-                st.error("Gmail credentials not found in Streamlit secrets")
-                return None
             try:
-                creds = Credentials.from_authorized_user_info(GMAIL_TOKEN, SCOPES)
+                creds = Credentials.from_authorized_user_info(st.secrets["GMAIL_TOKEN"], SCOPES)
+                if not creds or not creds.valid:
+                    st.error("Invalid Gmail credentials in Streamlit secrets")
+                    return None
             except Exception as e:
-                st.error(f"Error loading Gmail token from secrets: {str(e)}")
+                st.error(f"Error loading Gmail credentials from secrets: {str(e)}")
                 return None
         else:
-            # In local development, use credential files
+            # Use repository-relative paths for local development
             if os.path.exists(TOKEN_PATH):
                 try:
                     creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
