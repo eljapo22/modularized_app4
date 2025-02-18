@@ -38,10 +38,15 @@ from visualization.tables import (
     display_customer_data,
     display_transformer_attributes
 )
+from core.database import get_database_connection
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# Initialize database connection
+if 'db_con' not in st.session_state:
+    st.session_state.db_con = get_database_connection()
 
 # Configure the application
 st.set_page_config(
@@ -649,6 +654,10 @@ def main():
             options=feeder_options,
             index=feeder_options.index(param_feeder) if param_feeder in feeder_options else 0
         )
+
+        # Initialize database connection
+        if 'db_con' not in st.session_state:
+            st.session_state.db_con = get_database_connection()
 
         # Transformer selection
         transformer_options = get_transformer_options()
