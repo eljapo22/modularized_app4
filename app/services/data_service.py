@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, date, timedelta
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Union
 from app.core.database import SuppressOutput
 from app.utils.logging_utils import log_performance, Timer, logger
 from pathlib import Path
@@ -196,10 +196,29 @@ def get_loading_status(loading_percentage: float) -> str:
         return 'Normal'
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_analysis_results(transformer_id: str, selected_date: date, time_range: tuple = (0, 24), loading_range: tuple = (0, 200)) -> pd.DataFrame:
-    """Get analysis results for the selected transformer and date"""
+def get_analysis_results(transformer_id: str, selected_date: Union[date, datetime, str], time_range: tuple = (0, 24), loading_range: tuple = (0, 200)) -> pd.DataFrame:
+    """
+    Get analysis results for the selected transformer and date
+    
+    Args:
+        transformer_id: ID of the transformer
+        selected_date: Date to analyze (can be date object, datetime object, or string in YYYY-MM-DD format)
+        time_range: Tuple of (start_hour, end_hour) to filter
+        loading_range: Tuple of (min_loading, max_loading) percentage to filter
+    """
     try:
         logger.info(f"Getting analysis results for transformer {transformer_id} on {selected_date}")
+        
+        # Convert selected_date to date object if it's not already
+        if isinstance(selected_date, str):
+            selected_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+        elif isinstance(selected_date, datetime):
+            selected_date = selected_date.date()
+        elif isinstance(selected_date, int):
+            # Handle Unix timestamp if that's what we're getting
+            selected_date = datetime.fromtimestamp(selected_date).date()
+        elif not isinstance(selected_date, date):
+            raise ValueError(f"Invalid date type: {type(selected_date)}")
         
         # Find the parquet file for the selected date
         base_path = get_data_path()
@@ -219,87 +238,50 @@ def get_analysis_results(transformer_id: str, selected_date: date, time_range: t
                 continue
                 
             # Check if transformer exists in this file
-            with SuppressOutput():
-                query = """
-                SELECT size_kva
-                FROM read_parquet(?)
-                WHERE transformer_id = ?
-                LIMIT 1
-                """
-                result = st.session_state.db_con.execute(query, [str(date_file), transformer_id]).fetchone()
-                
-                if result is not None:
+            try:
+                df = pd.read_parquet(date_file)
+                if transformer_id in df['transformer_id'].unique():
                     feeder_found = feeder
                     transformer_file = date_file
-                    logger.info(f"Found transformer in {feeder} with size_kva: {result[0]}")
+                    logger.info(f"Found transformer in {feeder}")
                     break
+            except Exception as e:
+                logger.error(f"Error reading {date_file}: {str(e)}")
+                continue
                     
         if transformer_file is None:
             logger.error(f"No data found for transformer {transformer_id} on {selected_date}")
             return pd.DataFrame()
             
-        # Query the data with filters
-        with SuppressOutput():
-            # First get transformer info
-            info_query = """
-            SELECT size_kva
-            FROM read_parquet(?)
-            WHERE transformer_id = ?
-            LIMIT 1
-            """
-            transformer_info = st.session_state.db_con.execute(info_query, [str(transformer_file), transformer_id]).fetchone()
-            logger.info(f"Transformer info query result: {transformer_info}")
+        # Read and process the data
+        try:
+            df = pd.read_parquet(transformer_file)
             
-            if transformer_info is not None:
-                size_kva = transformer_info[0]
-                logger.info(f"Retrieved size_kva: {size_kva}")
-                
-                # Now get the time series data
-                query = """
-                SELECT
-                    timestamp,
-                    transformer_id,
-                    loading_percentage,
-                    power_kw,
-                    current_a,
-                    voltage_v,
-                    power_factor,
-                    ? as size_kva
-                FROM read_parquet(?)
-                WHERE transformer_id = ?
-                  AND EXTRACT(HOUR FROM timestamp) >= ?
-                  AND EXTRACT(HOUR FROM timestamp) <= ?
-                  AND loading_percentage >= ?
-                  AND loading_percentage <= ?
-                ORDER BY timestamp
-                """
-                
-                results = st.session_state.db_con.execute(
-                    query,
-                    [
-                        size_kva,
-                        str(transformer_file),
-                        transformer_id,
-                        time_range[0],
-                        time_range[1],
-                        loading_range[0],
-                        loading_range[1]
-                    ]
-                ).fetchdf()
-                
-                logger.info(f"Query results shape: {results.shape}")
-                logger.info(f"Query results columns: {results.columns.tolist()}")
-                if not results.empty and 'size_kva' in results.columns:
-                    logger.info(f"First row size_kva: {results['size_kva'].iloc[0]}")
-                
-            if not results.empty:
-                # Add loading status column
-                results['load_range'] = results['loading_percentage'].apply(get_loading_status)
-                
-            return results
+            # Filter for the specific transformer
+            df = df[df['transformer_id'] == transformer_id]
+            
+            # Apply time range filter
+            df['hour'] = pd.to_datetime(df['timestamp']).dt.hour
+            df = df[(df['hour'] >= time_range[0]) & (df['hour'] <= time_range[1])]
+            
+            # Apply loading range filter
+            df = df[(df['loading_percentage'] >= loading_range[0]) & 
+                   (df['loading_percentage'] <= loading_range[1])]
+            
+            # Add loading status
+            df['load_range'] = df['loading_percentage'].apply(get_loading_status)
+            
+            # Sort by timestamp
+            df = df.sort_values('timestamp')
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error processing data: {str(e)}")
+            return pd.DataFrame()
         
     except Exception as e:
-        logger.error(f"Error getting analysis results: {str(e)}", exc_info=True)
+        logger.error(f"Error in get_analysis_results: {str(e)}")
         return pd.DataFrame()
 
 @st.cache_data
