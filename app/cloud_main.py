@@ -162,21 +162,31 @@ def main():
             if st.button("Search & Alert"):
                 with st.spinner("Analyzing transformer status..."):
                     try:
+                        # Get analysis results for the selected hour
                         results = get_analysis_results(
                             selected_transformer,
                             selected_date,
                             time_range=(selected_hour, selected_hour + 1)
                         )
-                        if results is not None and not results.empty:
-                            alert_service.process_and_send_alert(
+                        
+                        if results is None or results.empty:
+                            st.warning("No data available for selected parameters.")
+                        else:
+                            # Process and send alert
+                            success = alert_service.process_and_send_alert(
                                 results,
                                 selected_transformer,
                                 selected_date,
                                 selected_hour
                             )
+                            
+                            if success:
+                                st.success("Alert check completed successfully.")
+                            
                     except Exception as e:
                         st.error(f"Error processing alert: {str(e)}")
-    
+                        logger.error(f"Alert processing error: {str(e)}", exc_info=True)
+
     # Main content
     try:
         # Get transformer data

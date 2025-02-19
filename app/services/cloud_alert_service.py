@@ -137,3 +137,32 @@ class CloudAlertService(AlertService):
         if alerts is not None:
             return self.send_alert(alerts, selected_date, selected_hour, recipients)
         return True  # No alerts needed to be sent
+
+    def process_and_send_alert(self, results_df: pd.DataFrame, transformer_id: str, selected_date: datetime, selected_hour: int, recipients: Optional[List[str]] = None) -> bool:
+        """
+        Process transformer data and send alert if conditions are met
+        
+        Args:
+            results_df: DataFrame with transformer loading results
+            transformer_id: ID of the transformer
+            selected_date: Date to check
+            selected_hour: Hour to check
+            recipients: Optional list of email recipients
+            
+        Returns:
+            bool: True if alert was processed and sent successfully
+        """
+        try:
+            # Check alert conditions
+            alert_data = check_alert_condition(results_df, selected_hour)
+            
+            # If there are alerts, send email
+            if alert_data is not None and not alert_data.empty:
+                return self.send_alert(alert_data, selected_date, selected_hour, recipients)
+            else:
+                st.info("No alerts needed for the selected parameters.")
+                return True
+                
+        except Exception as e:
+            st.error(f"Failed to process and send alert: {str(e)}")
+            return False
