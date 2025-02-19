@@ -79,7 +79,7 @@ def generate_dashboard_link(transformer_id: str, feeder: str, date: datetime, ho
     date_str = date.strftime('%Y-%m-%d')
     return f"{base_url}?transformer={transformer_id}&feeder={feeder}&date={date_str}&hour={hour}"
 
-def check_alert_condition(results_df: pd.DataFrame, selected_hour: int) -> Optional[pd.DataFrame]:
+def check_alert_condition(results_df: pd.DataFrame, selected_hour: int, transformer_id: str = None) -> Optional[pd.DataFrame]:
     """
     Check for alert conditions at the selected hour
     
@@ -88,14 +88,17 @@ def check_alert_condition(results_df: pd.DataFrame, selected_hour: int) -> Optio
     if results_df is None or results_df.empty:
         return None
         
-    # Filter for selected hour
+    # Filter for selected hour and transformer
     hour_data = results_df[results_df['hour'] == selected_hour].copy()
+    if transformer_id:
+        hour_data = hour_data[hour_data['transformer_id'] == transformer_id]
+        
     if hour_data.empty:
         return None
         
     # Check loading conditions
     alert_conditions = (
-        (hour_data['loading_status'].isin(['Critical', 'Overloaded', 'Warning']))
+        (hour_data['load_range'].isin(['Critical', 'Overloaded', 'Warning']))
     )
     
     alerts = hour_data[alert_conditions]

@@ -166,7 +166,7 @@ def main():
                         results = get_analysis_results(
                             selected_transformer,
                             selected_date,
-                            time_range=(selected_hour, selected_hour + 1)
+                            time_range=(0, 24)  # Get full day data
                         )
                         
                         if results is None or results.empty:

@@ -155,7 +155,7 @@ class CloudAlertService(AlertService):
         """
         try:
             # Check alert conditions
-            alert_data = check_alert_condition(results_df, selected_hour)
+            alert_data = check_alert_condition(results_df, selected_hour, transformer_id)
             
             # If there are alerts, send email
             if alert_data is not None and not alert_data.empty:
