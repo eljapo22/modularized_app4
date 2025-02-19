@@ -8,29 +8,39 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, date, timedelta
 import logging
-from typing import List, Tuple, Union
+import re
+from typing import List, Tuple, Union, Optional
 from app.core.database import SuppressOutput
 from app.utils.logging_utils import log_performance, Timer, logger
 from pathlib import Path
 import streamlit as st
+from app.config.cloud_config import use_motherduck
+
+def get_project_root() -> Path:
+    """Get the root directory of the project"""
+    root = Path(__file__).parent.parent.parent
+    logger.info(f"Project root: {root}")
+    if not root.exists():
+        logger.error(f"Project root does not exist: {root}")
+    return root
 
 def get_data_path() -> Path:
-    """Get the base path for data files, works both locally and in cloud"""
-    if os.getenv('STREAMLIT_SHARING') or os.getenv('STREAMLIT_CLOUD'):
-        # In cloud, use relative path from app directory
-        return Path(__file__).parent.parent.parent / "processed_data" / "transformer_analysis" / "hourly"
-    else:
-        # Locally, use path relative to repository root
-        return Path(__file__).parent.parent.parent / "processed_data" / "transformer_analysis" / "hourly"
+    """Get the base path for data files"""
+    # Always use repository structure since data is in Git
+    path = get_project_root() / "processed_data" / "transformer_analysis" / "hourly"
+    logger.info(f"Data path: {path}")
+    if not path.exists():
+        logger.error(f"Data path does not exist: {path}")
+    return path
 
 def get_customer_data_path() -> Path:
-    """Get the base path for customer data files, works both locally and in cloud"""
-    if os.getenv("STREAMLIT_CLOUD"):
-        # In cloud, use relative path from app directory
-        return Path(__file__).parent.parent.parent / "processed_data" / "customer_analysis" / "hourly"
-    else:
-        # Locally, use path relative to repository root
-        return Path(__file__).parent.parent.parent / "processed_data" / "customer_analysis" / "hourly"
+    """Get the base path for customer data files"""
+    # Always use repository structure since data is in Git
+    path = get_project_root() / "processed_data" / "customer_analysis" / "hourly"
+    logger.info(f"Customer data path: {path}")
+    if not path.exists():
+        logger.error(f"Customer data path does not exist: {path}")
+    return path
 
 @st.cache_data
 def get_available_dates() -> Tuple[date, date]:
@@ -40,81 +50,90 @@ def get_available_dates() -> Tuple[date, date]:
         
         if not base_path.exists():
             logger.error(f"Data directory not found: {base_path}")
-            return date.today(), date.today()
+            default_date = datetime(2024, 2, 14).date()
+            return default_date, default_date
             
-        # Get all parquet files
-        parquet_files = [f for f in os.listdir(base_path) if f.endswith('.parquet')]
-        
-        # Extract dates from filenames (excluding monthly summaries)
+        # List all parquet files
+        files = list(base_path.glob("*.parquet"))
+        if not files:
+            logger.error("No parquet files found")
+            default_date = datetime(2024, 2, 14).date()
+            return default_date, default_date
+            
+        # Extract dates from filenames
         dates = []
-        for file in parquet_files:
+        for file in files:
             try:
-                # Skip monthly summary files
-                if file.count('-') != 2:
-                    continue
-                    
-                # Parse date from filename (format: YYYY-MM-DD.parquet)
-                date_str = file.replace('.parquet', '')
-                dates.append(datetime.strptime(date_str, '%Y-%m-%d').date())
+                # Only accept daily file format (YYYY-MM-DD.parquet)
+                date_str = file.stem
+                if len(date_str) == 10:  # YYYY-MM-DD format
+                    dates.append(datetime.strptime(date_str, '%Y-%m-%d').date())
             except ValueError:
                 continue
                 
         if not dates:
-            logger.error("No valid date files found")
-            return date.today(), date.today()
+            logger.error("No valid dates found in filenames")
+            default_date = datetime(2024, 2, 14).date()
+            return default_date, default_date
             
-        dates.sort()  # Sort dates chronologically
-        return dates[0], dates[-1]
+        min_date = min(dates)
+        max_date = max(dates)
+        
+        logger.info(f"Date range: {min_date} to {max_date}")
+        return min_date, max_date
+        
     except Exception as e:
         logger.error(f"Error getting available dates: {str(e)}")
-        return date.today(), date.today()
+        default_date = datetime(2024, 2, 14).date()
+        return default_date, default_date
 
 @st.cache_data
 @log_performance
 def get_transformer_options(feeder: str = None) -> List[str]:
-    """
-    Get list of transformers for all feeders or a specific feeder
-    
-    Args:
-        feeder: Optional feeder name to filter transformers. If None, returns all transformers.
-    """
+    """Get list of available transformers"""
     try:
         base_path = get_data_path()
-                               
-        if not base_path.exists():
-            st.warning(f"Data directory not found: {base_path}")
-            return []
-            
-        # Find all feeder directories
-        if feeder:
-            feeder_dirs = [feeder] if os.path.exists(base_path / feeder) else []
-        else:
-            feeder_dirs = [d for d in os.listdir(base_path) if d.startswith('feeder')]
+        logger.info(f"Looking for transformers in {base_path}")
         
-        if not feeder_dirs:
-            st.warning(f"No feeder directories found in {base_path}")
-            return []
-            
-        # Get transformer IDs from first file in each feeder
-        transformer_ids = set()
+        # If feeder is specified, only look in that feeder's directory
+        if feeder:
+            feeder_dirs = [feeder]
+        else:
+            # Otherwise, look in all feeder directories
+            feeder_dirs = [d.name for d in base_path.iterdir() if d.is_dir() and d.name.startswith('feeder')]
+            logger.info(f"Found feeder directories: {feeder_dirs}")
+
+        transformers = []
         for feeder_dir in feeder_dirs:
+            # Get monthly summary file for current month
             feeder_path = base_path / feeder_dir
-            parquet_files = [f for f in os.listdir(feeder_path) if f.endswith('.parquet')]
+            if not feeder_path.exists():
+                logger.warning(f"Feeder directory not found: {feeder_path}")
+                continue
+                
+            # Get all daily files for the current month
+            current_month = datetime.now().strftime('%Y-%m')
+            daily_files = list(feeder_path.glob(f"{current_month}-*.parquet"))
             
-            if not parquet_files:
+            if not daily_files:
+                logger.warning(f"No daily files found for {current_month} in {feeder_path}")
                 continue
-                
-            # Get transformer IDs from first file
-            first_file = str(feeder_path / parquet_files[0])  # Convert to string
-            try:
-                df = pd.read_parquet(first_file)
-                transformer_ids.update(df['transformer_id'].unique())
-            except Exception as e:
-                logger.error(f"Error reading transformer IDs from {first_file}: {str(e)}")
-                continue
-                
-        # Convert to sorted list
-        return sorted(list(transformer_ids))
+            
+            # Read each file and collect transformer IDs
+            for file in daily_files:
+                logger.info(f"Reading transformers from {file}")
+                try:
+                    df = pd.read_parquet(file)
+                    transformers.extend(df['transformer_id'].unique().tolist())
+                except Exception as e:
+                    logger.error(f"Error reading {file}: {str(e)}")
+                    continue
+            
+        # Remove duplicates and sort
+        transformers = sorted(list(set(transformers)))
+        logger.info(f"Found {len(transformers)} transformers")
+        return transformers
+        
     except Exception as e:
         logger.error(f"Error getting transformer options: {str(e)}")
         return []
@@ -146,41 +165,53 @@ def get_relevant_files_query(base_path, feeder, start_date, end_date):
 def get_transformer_ids_for_feeder(feeder: str) -> List[str]:
     """Get list of transformer IDs for a feeder using the latest monthly summary file"""
     try:
-        feeder_dir = feeder.lower().replace(' ', '')
-        base_path = get_data_path() / feeder_dir
+        # Get base path for data
+        base_path = get_data_path() / feeder  # get_data_path() already includes 'hourly'
+        logger.info(f"Looking for transformers in {base_path}")
         
         if not base_path.exists():
-            st.warning(f"Feeder directory not found: {base_path}")
-            return []
+            logger.error(f"Feeder directory not found: {base_path}")
+            return ['no_transformers_found']
             
-        with Timer("Finding Monthly Files"):
-            monthly_files = [f for f in os.listdir(base_path) 
-                           if f.endswith('.parquet') 
-                           and len(f.split('-')) == 2]
-            
-            if not monthly_files:
-                st.warning(f"No monthly summary files found in {base_path}")
-                return []
-                
-            latest_monthly = sorted(monthly_files)[-1]
-            monthly_path = base_path / latest_monthly
-            st.info(f"Using monthly summary file: {latest_monthly}")
+        # Get all parquet files
+        try:
+            parquet_files = [f for f in os.listdir(base_path) if f.endswith('.parquet')]
+            logger.info(f"Found {len(parquet_files)} parquet files: {parquet_files[:5]}")
+        except Exception as e:
+            logger.error(f"Error listing directory {base_path}: {str(e)}")
+            return ['no_transformers_found']
         
-        with Timer("Querying Transformer IDs"):
-            with SuppressOutput():
-                query = f"""
-                SELECT DISTINCT transformer_id 
-                FROM read_parquet('{str(monthly_path)}')
-                ORDER BY transformer_id
-                """
-                transformer_ids = st.session_state.db_con.execute(query).df()
-                
-            return transformer_ids['transformer_id'].tolist()
+        if not parquet_files:
+            logger.error(f"No parquet files found in {base_path}")
+            return ['no_transformers_found']
+            
+        # Get latest file
+        latest_file = sorted(parquet_files)[-1]
+        file_path = base_path / latest_file
+        logger.info(f"Using file: {file_path}")
+        
+        # Read parquet file
+        try:
+            df = pd.read_parquet(file_path)
+            logger.info(f"Read parquet file with columns: {df.columns.tolist()}")
+            logger.info(f"Sample data:\n{df.head()}")
+        except Exception as e:
+            logger.error(f"Error reading parquet file {file_path}: {str(e)}")
+            return ['no_transformers_found']
+        
+        # Get unique transformer IDs
+        transformer_ids = sorted(df['transformer_id'].unique().tolist())
+        logger.info(f"Found {len(transformer_ids)} transformers: {transformer_ids[:5]}")
+        
+        if not transformer_ids:
+            logger.warning(f"No transformer IDs found in {file_path}")
+            return ['no_transformers_found']
+            
+        return transformer_ids
         
     except Exception as e:
-        st.error(f"Error getting transformer IDs: {str(e)}")
-        logger.error(f"Error in get_transformer_ids_for_feeder: {str(e)}", exc_info=True)
-        return []
+        logger.error(f"Error in get_transformer_ids_for_feeder: {str(e)}")
+        return ['no_transformers_found']
 
 def get_loading_status(loading_percentage: float) -> str:
     """Get the loading status based on percentage."""
@@ -197,153 +228,193 @@ def get_loading_status(loading_percentage: float) -> str:
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_analysis_results(transformer_id: str, selected_date: Union[date, datetime, str, int, np.integer], time_range: tuple = (0, 24), loading_range: tuple = (0, 200)) -> pd.DataFrame:
-    """
-    Get analysis results for the selected transformer and date
-    
-    Args:
-        transformer_id: ID of the transformer
-        selected_date: Date to analyze (can be date object, datetime object, string in YYYY-MM-DD format, or integer timestamp)
-        time_range: Tuple of (start_hour, end_hour) to filter
-        loading_range: Tuple of (min_loading, max_loading) percentage to filter
-    """
+    """Get analysis results for a transformer and date"""
     try:
-        logger.info(f"Getting analysis results for transformer {transformer_id} on {selected_date}")
+        logger.debug(f"Starting get_analysis_results for transformer {transformer_id} on date {selected_date}")
         
-        # Convert selected_date to date object if it's not already
-        if isinstance(selected_date, str):
-            selected_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
-        elif isinstance(selected_date, datetime):
-            selected_date = selected_date.date()
-        elif isinstance(selected_date, (int, np.integer)):
-            # Handle integer timestamps (both Python int and numpy.int64)
-            selected_date = pd.Timestamp(selected_date).date()
-        elif not isinstance(selected_date, date):
-            raise ValueError(f"Invalid date type: {type(selected_date)}")
-        
-        # Find the parquet file for the selected date
-        base_path = get_data_path()
-                               
-        # Find which feeder contains this transformer
-        feeder_found = None
-        transformer_file = None
-        
-        for feeder in os.listdir(base_path):
-            if not feeder.startswith('feeder'):
-                continue
-                
-            feeder_path = base_path / feeder
-            date_file = feeder_path / f"{selected_date.strftime('%Y-%m-%d')}.parquet"
-            
-            if not date_file.exists():
-                continue
-                
-            # Check if transformer exists in this file
-            try:
-                df = pd.read_parquet(date_file)
-                if transformer_id in df['transformer_id'].unique():
-                    feeder_found = feeder
-                    transformer_file = date_file
-                    logger.info(f"Found transformer in {feeder}")
-                    break
-            except Exception as e:
-                logger.error(f"Error reading {date_file}: {str(e)}")
-                continue
-                    
-        if transformer_file is None:
-            logger.error(f"No data found for transformer {transformer_id} on {selected_date}")
+        # Extract feeder from transformer ID
+        feeder = extract_feeder(transformer_id)
+        if not feeder:
+            logger.error(f"Could not extract feeder from transformer ID: {transformer_id}")
             return pd.DataFrame()
             
-        # Read and process the data
+        logger.info(f"Getting data for transformer {transformer_id} in {feeder}")
+        
+        # Convert date to string format
         try:
-            df = pd.read_parquet(transformer_file)
+            if isinstance(selected_date, (datetime, date)):
+                date_str = selected_date.strftime('%Y-%m-%d')
+            elif isinstance(selected_date, str):
+                # Validate the date string format
+                datetime.strptime(selected_date, '%Y-%m-%d')
+                date_str = selected_date
+            else:
+                # For other types (int, np.integer), convert through Timestamp
+                date_str = pd.Timestamp(selected_date).strftime('%Y-%m-%d')
+                
+            logger.debug(f"Converted date {selected_date} to format: {date_str}")
             
-            # Filter for the specific transformer
-            df = df[df['transformer_id'] == transformer_id]
+        except Exception as e:
+            logger.error(f"Invalid date format: {selected_date} - {str(e)}")
+            return pd.DataFrame()
             
-            # Apply time range filter
+        # Use local parquet files
+        base_path = get_data_path() / feeder
+        logger.debug(f"Looking for data in: {base_path}")
+        
+        if not base_path.exists():
+            logger.error(f"Feeder directory not found: {base_path}")
+            return pd.DataFrame()
+        
+        # Try daily file only
+        daily_file = base_path / f"{date_str}.parquet"
+        logger.debug(f"Checking daily file: {daily_file}")
+        
+        if daily_file.exists():
+            file_path = daily_file
+            logger.info(f"Found and using daily file: {file_path}")
+        else:
+            logger.error(f"No daily data file found for {date_str} at {daily_file}")
+            st.error(f"No data file found for date: {date_str}")
+            return pd.DataFrame()
+        
+        try:
+            # Read parquet file
+            logger.info(f"Reading file: {file_path}")
+            df = pd.read_parquet(file_path)
+            logger.info(f"Read {len(df)} rows with columns: {df.columns.tolist()}")
+            
+            # Filter for transformer
+            df = df[df['transformer_id'] == transformer_id].copy()
+            logger.info(f"Found {len(df)} rows for transformer {transformer_id}")
+            
+            if df.empty:
+                logger.warning(f"No data found for transformer {transformer_id} on {date_str}")
+                st.error("""No data found for this transformer. Please check:
+                1. The selected date is within the available range
+                2. The transformer has data for this date
+                3. The data files are properly formatted""")
+                return pd.DataFrame()
+            
+            # Log transformer capacity
+            if 'size_kva' in df.columns:
+                size_kva = df['size_kva'].iloc[0]
+                logger.info(f"Transformer capacity (size_kva): {size_kva} kVA")
+            else:
+                logger.warning("size_kva column not found in data")
+            
+            # Log power values before processing
+            if 'power_kw' in df.columns:
+                logger.info(f"Power values: min={df['power_kw'].min()}, max={df['power_kw'].max()}")
+                
+                # Calculate loading percentage using power and size_kva
+                if 'size_kva' in df.columns and 'power_factor' in df.columns:
+                    size_kva = df['size_kva'].iloc[0]
+                    power_factor = df['power_factor'].fillna(0.95)  # Use 0.95 as default power factor if missing
+                    df['loading_percentage'] = (df['power_kw'] / (size_kva * power_factor)) * 100
+                    logger.info(f"Calculated loading percentage using size_kva={size_kva}, power_factor={power_factor.iloc[0]}")
+                elif 'size_kva' in df.columns:
+                    size_kva = df['size_kva'].iloc[0]
+                    df['loading_percentage'] = (df['power_kw'] / size_kva) * 100  # Assume unity power factor
+                    logger.warning("Power factor not found, assuming unity power factor for loading calculation")
+                else:
+                    logger.error("Cannot calculate loading percentage - missing size_kva")
+            
+            # Filter by time range
             df['hour'] = pd.to_datetime(df['timestamp']).dt.hour
             df = df[(df['hour'] >= time_range[0]) & (df['hour'] <= time_range[1])]
+            logger.info(f"Found {len(df)} rows in time range {time_range}")
             
-            # Apply loading range filter
+            # Filter by loading range
             df = df[(df['loading_percentage'] >= loading_range[0]) & 
                    (df['loading_percentage'] <= loading_range[1])]
+            logger.info(f"Found {len(df)} rows in loading range {loading_range}")
             
-            # Add loading status
+            if df.empty:
+                logger.warning("No data found after applying time and loading range filters")
+                st.warning("No data found within the selected time and loading ranges")
+                return pd.DataFrame()
+                
+            # Add load range based on loading percentage
             df['load_range'] = df['loading_percentage'].apply(get_loading_status)
             
             # Sort by timestamp
             df = df.sort_values('timestamp')
             
+            logger.info(f"Returning {len(df)} rows of data")
             return df
             
         except Exception as e:
-            logger.error(f"Error processing data: {str(e)}")
+            logger.error(f"Error processing data file: {str(e)}")
+            st.error(f"Error processing data file: {str(e)}")
             return pd.DataFrame()
         
     except Exception as e:
-        logger.error(f"Error in get_analysis_results: {str(e)}")
+        logger.error(f"Error getting analysis results: {str(e)}")
         return pd.DataFrame()
 
 @st.cache_data
-def get_customer_data(transformer_id: str, selected_date: date) -> pd.DataFrame:
-    """Get customer data for a specific transformer and date"""
+def get_customer_data(transformer_id: str, selected_date: Union[date, datetime, str]) -> pd.DataFrame:
+    """Get customer data for a transformer and date"""
     try:
-        logger.info(f"Retrieving customer data for transformer {transformer_id} on {selected_date}")
+        logger.debug(f"Starting get_customer_data for transformer {transformer_id} on date {selected_date}")
         
-        # Extract feeder number from transformer ID (e.g., S1F1ATF001 -> 1)
+        # Extract feeder from transformer ID
+        feeder = extract_feeder(transformer_id)
+        if not feeder:
+            logger.error(f"Could not extract feeder from transformer ID: {transformer_id}")
+            return pd.DataFrame()
+
+        # Convert date to string format for month
         try:
-            feeder_match = transformer_id.split('F')[1][0]  # Get the first character after 'F'
-            feeder_dir = f"feeder{feeder_match}"
-            logger.info(f"Identified feeder directory: {feeder_dir}")
-        except (IndexError, AttributeError) as e:
-            logger.error(f"Failed to extract feeder number from transformer ID {transformer_id}: {str(e)}")
-            return pd.DataFrame()
-        
-        # Construct base path
-        base_path = get_customer_data_path() / feeder_dir
-        
-        if not base_path.exists():
-            logger.error(f"Customer data directory not found: {base_path}")
-            return pd.DataFrame()
+            if isinstance(selected_date, (datetime, date)):
+                date_obj = selected_date if isinstance(selected_date, date) else selected_date.date()
+            elif isinstance(selected_date, str):
+                # Validate the date string format
+                date_obj = datetime.strptime(selected_date, '%Y-%m-%d').date()
+            else:
+                logger.error(f"Invalid date type: {type(selected_date)}")
+                return pd.DataFrame()
             
-        # Get the monthly file for the selected date
-        month_file = f"{transformer_id}_{selected_date.strftime('%Y-%m')}.parquet"
-        file_path = base_path / month_file
-        logger.info(f"Reading file: {month_file}")
+            # Format for monthly file
+            month_str = date_obj.strftime('%Y-%m')
+            target_date = date_obj.strftime('%Y-%m-%d')
+            logger.debug(f"Converted date {selected_date} to month format: {month_str}")
+            
+        except Exception as e:
+            logger.error(f"Invalid date format: {selected_date}")
+            return pd.DataFrame()
+
+        # Construct file path for monthly customer data
+        file_path = get_customer_data_path() / feeder / f"{transformer_id}_{month_str}.parquet"
+        logger.debug(f"Looking for customer data at: {file_path}")
         
         if not file_path.exists():
             logger.error(f"Customer data file not found: {file_path}")
             return pd.DataFrame()
-            
-        # Query the parquet file for the specific date using DuckDB's date_trunc
-        with Timer("Customer Data Query"):
-            with SuppressOutput():
-                query = f"""
-                SELECT 
-                    timestamp,
-                    customer_id,
-                    power_kw,
-                    current_a,
-                    voltage_v,  -- Make sure we're selecting voltage
-                    power_factor
-                FROM read_parquet('{str(file_path)}')
-                WHERE date_trunc('day', timestamp) = date_trunc('day', '{selected_date.strftime('%Y-%m-%d')}'::DATE)
-                ORDER BY timestamp, customer_id
-                """
-                df = st.session_state.db_con.execute(query).df()
-                
-                # Debug log the columns
-                logger.info(f"Retrieved columns: {df.columns.tolist()}")
-                
-        if df.empty:
-            logger.warning(f"No customer data found for date {selected_date}")
-        else:
-            logger.info(f"Successfully retrieved {len(df)} records for {len(df['customer_id'].unique())} customers")
-            
-        return df
+
+        # Read parquet file
+        logger.debug(f"Reading customer data file: {file_path}")
+        df = pd.read_parquet(file_path)
+        logger.debug(f"Read {len(df)} rows from customer data file")
         
+        # Convert timestamp to date for filtering
+        df['date'] = pd.to_datetime(df['timestamp']).dt.date
+        df = df[df['date'] == date_obj].copy()
+        logger.debug(f"Filtered to {len(df)} rows for date {target_date}")
+        
+        # Drop temporary date column
+        df = df.drop('date', axis=1)
+        
+        if df.empty:
+            logger.warning(f"No customer data found for date {target_date}")
+            return pd.DataFrame()
+
+        logger.info(f"Found {len(df)} customer data records for {transformer_id} on {target_date}")
+        return df
+
     except Exception as e:
-        logger.error(f"Error getting customer data: {str(e)}", exc_info=True)
+        logger.error(f"Error getting customer data: {str(e)}")
         return pd.DataFrame()
 
 @st.cache_data
@@ -358,15 +429,27 @@ def get_transformer_attributes(transformer_id: str) -> pd.DataFrame:
         DataFrame containing transformer attributes
     """
     try:
-        # Get customer data to count customers
-        customer_data = get_customer_data(transformer_id, date.today())
-        if customer_data is None or customer_data.empty:
-            return pd.DataFrame()
+        # Get customer data for current month
+        current_date = datetime.now().date()
+        month_start = current_date.replace(day=1)
+        customer_data = get_customer_data(transformer_id, month_start)
+        
+        if customer_data.empty:
+            logger.warning(f"No customer data found for transformer {transformer_id}")
+            return pd.DataFrame({
+                'transformer_id': [transformer_id],
+                'number_of_customers': [0],
+                'x_coordinate': [None],
+                'y_coordinate': [None]
+            })
             
         # Count unique customers per transformer
+        customer_count = customer_data['customer_id'].nunique()
+        logger.info(f"Found {customer_count} customers for transformer {transformer_id}")
+        
         attributes = pd.DataFrame({
             'transformer_id': [transformer_id],
-            'number_of_customers': [customer_data['customer_id'].nunique()],
+            'number_of_customers': [customer_count],
             'x_coordinate': [None],  # Placeholder for now
             'y_coordinate': [None]   # Placeholder for now
         })
@@ -375,4 +458,60 @@ def get_transformer_attributes(transformer_id: str) -> pd.DataFrame:
         
     except Exception as e:
         logger.error(f"Error getting transformer attributes: {str(e)}")
-        return pd.DataFrame()
+        return pd.DataFrame({
+            'transformer_id': [transformer_id],
+            'number_of_customers': [0],
+            'x_coordinate': [None],
+            'y_coordinate': [None]
+        })
+
+def get_database_connection():
+    # TO DO: implement logic to get a database connection
+    pass
+
+def extract_feeder(transformer_id: str) -> str:
+    """
+    Extract feeder ID from transformer ID.
+    
+    Format: S[sector]F[feeder]ATF[number]
+    Example: S1F1ATF001 -> feeder1
+    
+    Args:
+        transformer_id: ID of the transformer
+        
+    Returns:
+        Feeder ID (e.g. 'feeder1')
+    """
+    try:
+        # Extract feeder number using regex
+        match = re.search(r'F(\d+)', transformer_id)
+        if not match:
+            logger.error(f"Could not extract feeder from transformer ID: {transformer_id}")
+            return None
+            
+        feeder_num = match.group(1)
+        feeder = f"feeder{feeder_num}"
+        logger.info(f"Extracted feeder {feeder} from {transformer_id}")
+        return feeder
+        
+    except Exception as e:
+        logger.error(f"Error extracting feeder: {str(e)}")
+        return None
+
+@st.cache_data
+@log_performance
+def get_available_feeders() -> List[str]:
+    """Get list of available feeders"""
+    try:
+        base_path = get_data_path()
+        logger.info(f"Looking for feeders in {base_path}")
+        
+        # Get all feeder directories
+        feeder_dirs = [d.name for d in base_path.iterdir() if d.is_dir() and d.name.startswith('feeder')]
+        feeder_dirs = sorted(feeder_dirs)
+        
+        logger.info(f"Found feeders: {feeder_dirs}")
+        return feeder_dirs
+    except Exception as e:
+        logger.error(f"Error getting available feeders: {str(e)}")
+        return ['feeder1']  # Return default if error occurs
