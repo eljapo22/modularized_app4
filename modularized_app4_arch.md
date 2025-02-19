@@ -17,8 +17,11 @@ modularized_app4/
     │   └── database.py      # Database connection handling
     ├── services/
     │   ├── __init__.py
-    │   ├── data_service.py  # Data retrieval and processing
-    │   └── alert_service.py # Email and alert functionality
+    │   ├── data_service.py      # Data retrieval and processing
+    │   ├── alert_service.py     # Base alert service interface
+    │   ├── cloud_alert_service.py # Cloud-specific alert implementation
+    │   ├── local_alert_service.py # Local-specific alert implementation
+    │   └── cloud_data_service.py # Cloud-specific data service
     └── visualization/
         ├── __init__.py
         ├── charts.py        # Chart visualization components

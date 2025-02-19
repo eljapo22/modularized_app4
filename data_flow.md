@@ -48,15 +48,18 @@ graph TD
     Viz --> Tables[Tables Component]
     
     %% Alert System
-    ThresholdCheck --> AlertService[Alert Service]
-    AlertService --> |HTML Format| EmailGen[Email Generation]
-    EmailGen --> EmailSend[Send Alert]
+    ThresholdCheck --> AlertCheck{Environment Check}
+    AlertCheck --> |Cloud| CloudAlert[Cloud Alert Service]
+    AlertCheck --> |Local| LocalAlert[Local Alert Service]
+    CloudAlert --> |Gmail API| EmailAlert[Email Alert]
+    LocalAlert --> |Gmail API| EmailAlert
+    EmailAlert --> |Dashboard Link| UI
     
     %% Error Handling
     UI --> |Validation| ErrorHandler[Error Handler]
     DB --> |DB Errors| ErrorHandler
     Processing --> |Process Errors| ErrorHandler
-    AlertService --> |Alert Errors| ErrorHandler
+    AlertCheck --> |Alert Errors| ErrorHandler
     ErrorHandler --> UserFeedback[User Feedback]
 
     %% Styling
@@ -67,6 +70,6 @@ graph TD
     
     class Processing,CustProcess process
     class TransformerData,CustomerData,FilteredCust data
-    class AlertService,EmailGen,EmailSend alert
+    class CloudAlert,LocalAlert,EmailAlert alert
     class ErrorHandler,UserFeedback error
 ```

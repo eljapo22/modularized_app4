@@ -34,7 +34,7 @@ env/
 
 # Google API credentials
 **/credentials.json
-**/token.json
+**/*.token.json
 
 # Streamlit
 .streamlit/secrets.toml

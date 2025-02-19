@@ -20,12 +20,32 @@ A comprehensive dashboard for monitoring and analyzing transformer loading data,
 
 ## Features
 
-- Real-time transformer loading monitoring
-- Historical data analysis
-- Interactive visualizations
-- Email alerts for critical loads
-- Customer data integration
-- Customizable thresholds
+1. **Real-time Monitoring**
+   - Track transformer loading in real-time
+   - View historical data and trends
+   - Analyze loading patterns
+
+2. **Smart Alerts**
+   - Environment-aware email alerts (Cloud/Local)
+   - Configurable alert thresholds:
+     - Critical: >= 120%
+     - Overloaded: >= 100%
+     - Warning: >= 80%
+     - Pre-Warning: >= 50%
+     - Normal: < 50%
+   - Interactive dashboard links in alerts
+
+3. **Interactive Visualizations**
+   - Customizable dashboards
+   - Real-time data updates
+
+4. **Customer Data Integration**
+   - Support for multiple customer data sources
+   - Automated data ingestion
+
+5. **Customizable Thresholds**
+   - Configure alert thresholds for different scenarios
+   - Support for multiple threshold profiles
 
 ## Documentation
 

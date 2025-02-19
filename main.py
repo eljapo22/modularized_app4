@@ -21,10 +21,10 @@ import os
 import sys
 from pathlib import Path
 
-# Add the app directory to Python path
-app_dir = Path(__file__).parent
-if str(app_dir) not in sys.path:
-    sys.path.insert(0, str(app_dir))
+# Add the project root to Python path for cloud environment
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 import warnings
 import pandas as pd
@@ -41,8 +41,11 @@ from app.services.data_service import (
     get_customer_data,
     get_transformer_attributes
 )
-from app.services.alert_service import process_alerts, test_alert_system
+from app.services.alert_service import AlertService
+from app.services.cloud_alert_service import CloudAlertService
+from app.services.local_alert_service import LocalAlertService
 from app.utils.logging_utils import Timer, logger, log_performance
+from app.utils.cloud_environment_check import display_environment_status, is_cloud_ready
 from app.visualization.charts import (
     display_loading_status_line_chart,
     display_power_time_series,
@@ -678,6 +681,19 @@ def main():
             selected_from_date
         ) if selected_transformer else None
         
+        # Add environment status to sidebar
+        with st.expander("Environment Status"):
+            display_environment_status()
+
+        # Initialize alert service based on environment
+        if os.getenv('STREAMLIT_CLOUD'):
+            if not is_cloud_ready():
+                st.error("Cloud environment is not properly configured. Check Environment Status in sidebar.")
+                return
+            alert_service = CloudAlertService()
+        else:
+            alert_service = LocalAlertService()
+
         # Buttons
         col1, col2 = st.columns(2)
         with col1:
@@ -693,7 +709,7 @@ def main():
             logger.info("Search button clicked")
             try:
                 # Process alerts - this will send email with dashboard link
-                process_alerts(results_df, selected_from_date, selected_hour.hour)
+                alert_service.process_alerts(results_df, selected_from_date, st.session_state.selected_hour)
                 st.success("Alert email sent successfully! Check your email for the dashboard link.")
             except Exception as e:
                 st.error(f"Error processing alert: {str(e)}")
@@ -916,7 +932,7 @@ def main():
     elif view_mode == "minimal" and search_clicked:
         with st.spinner("Processing your request and sending email..."):
             try:
-                if process_alerts(results_df, selected_from_date, st.session_state.selected_hour, [DEFAULT_RECIPIENT]):
+                if alert_service.process_alerts(results_df, selected_from_date, st.session_state.selected_hour, [DEFAULT_RECIPIENT]):
                     st.markdown('<div style="height: 1rem"></div>', unsafe_allow_html=True)
                     st.success("""
                         ✅ Analysis complete! 
