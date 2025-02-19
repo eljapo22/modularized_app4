@@ -1,0 +1,101 @@
+name: Cloud Environment Validation
+
+on:
+  push:
+    branches: [ main, cloud ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate-cloud:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install streamlit pandas numpy plotly
+          pip install -e .
+          
+      - name: Validate cloud imports
+        run: |
+          python - << EOF
+          import ast
+          import sys
+          
+          def check_imports(filename):
+              with open(filename) as f:
+                  tree = ast.parse(f.read())
+              
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      for name in node.names:
+                          if name.name.startswith(('services.', 'config.', 'utils.', 'core.')):
+                              print(f"ERROR: Direct import found in {filename}: {name.name}")
+                              sys.exit(1)
+                  elif isinstance(node, ast.ImportFrom):
+                      if node.module and node.module.startswith(('services.', 'config.', 'utils.', 'core.')):
+                          print(f"ERROR: Direct import found in {filename}: {node.module}")
+                          sys.exit(1)
+              
+              print(f"✓ {filename} passes cloud import validation")
+          
+          # Check cloud-specific files
+          check_imports('app/cloud_main.py')
+          check_imports('app/services/cloud_alert_service.py')
+          check_imports('app/services/cloud_data_service.py')
+          EOF
+
+      - name: Check for sensitive files
+        run: |
+          SENSITIVE_FILES=(
+            "app/config/cloud_token.json"
+            "app/config/cloud_credentials.json"
+            ".streamlit/secrets.toml"
+            "app/config/token.json"
+            "app/config/credentials.json"
+          )
+          
+          for file in "${SENSITIVE_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              echo "ERROR: Sensitive file found in repository: $file"
+              exit 1
+            fi
+          done
+          
+          echo "✓ No sensitive files found in repository"
+          
+      - name: Validate Streamlit configuration
+        run: |
+          python - << EOF
+          import os
+          import sys
+          import toml
+          from pathlib import Path
+          
+          # Check .streamlit/config.toml exists
+          config_path = Path('.streamlit/config.toml')
+          if not config_path.exists():
+              print("ERROR: Missing .streamlit/config.toml")
+              sys.exit(1)
+          
+          # Validate configuration
+          config = toml.load(config_path)
+          required_settings = {
+              'server.headless': True,
+              'browser.serverAddress': 'localhost'
+          }
+          
+          for key, value in required_settings.items():
+              if key not in config or config[key] != value:
+                  print(f"ERROR: Invalid {key} in config.toml")
+                  sys.exit(1)
+          
+          print("✓ Streamlit configuration is valid")
+          EOF

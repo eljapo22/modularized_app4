@@ -20,11 +20,12 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Environment
+.env
+.venv
+env/
 venv/
 ENV/
-env/
-.env/
 
 # IDE
 .idea/
@@ -32,22 +33,49 @@ env/
 *.swp
 *.swo
 
-# Google API credentials
-**/credentials.json
-**/*.token.json
+# Local development
+app/config/token.json
+app/config/credentials.json
+*.bak
+*.log
 
-# Streamlit
+# Cloud secrets
+app/config/cloud_token.json
+app/config/cloud_credentials.json
 .streamlit/secrets.toml
 
-# Data files
+# Data and cache
+*.db
+*.sqlite3
+.cache/
 processed_data/
-*.xlsx
-*.csv
+raw_data/
 
-# Operating System
-.DS_Store
-Thumbs.db
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
 
-# Keep Parquet files
-!*.parquet
-!data/
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
