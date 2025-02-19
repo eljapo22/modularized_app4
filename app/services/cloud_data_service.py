@@ -11,20 +11,38 @@ import streamlit as st
 
 logger = logging.getLogger(__name__)
 
-class DataService:
+class CloudDataService:
     def __init__(self):
         """Initialize cloud data service with MotherDuck connection"""
+        self.conn = None
         self.setup_motherduck()
     
     def setup_motherduck(self):
         """Setup MotherDuck connection"""
         try:
             token = os.getenv("MOTHERDUCK_TOKEN") or st.secrets["MOTHERDUCK_TOKEN"]
-            self.conn = duckdb.connect(f'md:ModApp4DB?motherduck_token={token}')
+            if not token:
+                raise ValueError("MotherDuck token not found")
+                
+            # Set the token in environment variable as recommended by MotherDuck
+            os.environ["motherduck_token"] = token
+            
+            # Connect using the simpler connection string
+            self.conn = duckdb.connect('md:ModApp4DB')
             logger.info("Successfully connected to MotherDuck")
         except Exception as e:
             logger.error(f"MotherDuck connection failed: {str(e)}")
-            raise RuntimeError("Failed to connect to MotherDuck. Cloud environment requires MotherDuck connection.")
+            raise RuntimeError(f"Failed to connect to MotherDuck: {str(e)}")
+    
+    def query(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
+        """Execute a query and return results as DataFrame"""
+        try:
+            if params:
+                return self.conn.execute(query, params).df()
+            return self.conn.execute(query).df()
+        except Exception as e:
+            logger.error(f"Query failed: {str(e)}")
+            return None
     
     @st.cache_data(ttl="1h")
     def get_feeder_data(self, feeder: int) -> pd.DataFrame:
@@ -35,7 +53,7 @@ class DataService:
             WHERE feeder_id = ?
             AND timestamp >= CURRENT_DATE - INTERVAL '30 days'
         """
-        return self.conn.execute(query, [feeder]).df()
+        return self.query(query, [feeder])
     
     @st.cache_data(ttl="24h")
     def get_transformer_ids(self, feeder: int) -> List[str]:
@@ -46,67 +64,34 @@ class DataService:
             WHERE feeder_id = ?
             ORDER BY transformer_id
         """
-        return self.conn.execute(query, [feeder]).df()['transformer_id'].tolist()
+        result = self.query(query, [feeder])
+        return result['transformer_id'].tolist() if result is not None else []
     
     @st.cache_data(ttl="1h")
-    def get_transformer_data(self, transformer_id: str, selected_date: date) -> pd.DataFrame:
-        """Get data for a specific transformer on a specific date"""
+    def get_transformer_data(self, transformer_id: str, start_date: date, end_date: Optional[date] = None) -> pd.DataFrame:
+        """Get data for a specific transformer within a date range"""
+        if end_date is None:
+            end_date = datetime.now().date()
+            
         query = """
-            SELECT 
-                timestamp,
-                transformer_id,
-                power_kw,
-                current_a,
-                voltage_v,
-                power_factor,
-                size_kva,
-                loading_percentage,
-                feeder_id
+            SELECT *
             FROM transformer_readings
             WHERE transformer_id = ?
-            AND DATE(timestamp) = ?
+            AND DATE(timestamp) BETWEEN ? AND ?
             ORDER BY timestamp
         """
-        return self.conn.execute(query, [transformer_id, selected_date]).df()
+        return self.query(query, [transformer_id, start_date, end_date])
     
     @st.cache_data(ttl="24h")
-    def get_available_dates(self) -> tuple[date, date]:
-        """Get available date range"""
-        query = """
-            SELECT 
-                MIN(DATE(timestamp)) as min_date,
-                MAX(DATE(timestamp)) as max_date
-            FROM transformer_readings
-        """
-        result = self.conn.execute(query).df()
-        return result['min_date'].iloc[0], result['max_date'].iloc[0]
-    
-    @st.cache_data(ttl="24h")
-    def get_available_feeders(self) -> List[str]:
-        """Get list of available feeders"""
+    def get_feeder_list(self) -> List[int]:
+        """Get list of all feeder IDs"""
         query = """
             SELECT DISTINCT feeder_id
             FROM transformer_readings
             ORDER BY feeder_id
         """
-        feeders = self.conn.execute(query).df()['feeder_id'].tolist()
-        return [f"Feeder {fid}" for fid in feeders]
-    
-    @st.cache_data(ttl="1h")
-    def get_customer_data(self, transformer_id: str, selected_date: date) -> pd.DataFrame:
-        """Get customer data for a transformer"""
-        query = """
-            SELECT 
-                customer_id,
-                consumption_kwh,
-                peak_demand_kw,
-                power_factor,
-                connection_type
-            FROM customer_readings
-            WHERE transformer_id = ?
-            AND DATE(timestamp) = ?
-        """
-        return self.conn.execute(query, [transformer_id, selected_date]).df()
+        result = self.query(query)
+        return result['feeder_id'].tolist() if result is not None else []
 
 # Initialize the service
-data_service = DataService()
+data_service = CloudDataService()
