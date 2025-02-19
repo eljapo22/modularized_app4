@@ -71,8 +71,13 @@ def get_available_dates() -> Tuple[date, date]:
 
 @st.cache_data
 @log_performance
-def get_transformer_options() -> List[str]:
-    """Get list of transformers for all feeders"""
+def get_transformer_options(feeder: str = None) -> List[str]:
+    """
+    Get list of transformers for all feeders or a specific feeder
+    
+    Args:
+        feeder: Optional feeder name to filter transformers. If None, returns all transformers.
+    """
     try:
         base_path = get_data_path()
                                
@@ -81,7 +86,10 @@ def get_transformer_options() -> List[str]:
             return []
             
         # Find all feeder directories
-        feeder_dirs = [d for d in os.listdir(base_path) if d.startswith('feeder')]
+        if feeder:
+            feeder_dirs = [feeder] if os.path.exists(base_path / feeder) else []
+        else:
+            feeder_dirs = [d for d in os.listdir(base_path) if d.startswith('feeder')]
         
         if not feeder_dirs:
             st.warning(f"No feeder directories found in {base_path}")
@@ -98,16 +106,14 @@ def get_transformer_options() -> List[str]:
                 
             # Get transformer IDs from first file
             first_file = str(feeder_path / parquet_files[0])  # Convert to string
-            
-            with SuppressOutput():
-                query = """
-                SELECT DISTINCT transformer_id
-                FROM read_parquet(?)
-                ORDER BY transformer_id
-                """
-                result = st.session_state.db_con.execute(query, [first_file]).fetchdf()
-                transformer_ids.update(result['transformer_id'].tolist())
+            try:
+                df = pd.read_parquet(first_file)
+                transformer_ids.update(df['transformer_id'].unique())
+            except Exception as e:
+                logger.error(f"Error reading transformer IDs from {first_file}: {str(e)}")
+                continue
                 
+        # Convert to sorted list
         return sorted(list(transformer_ids))
     except Exception as e:
         logger.error(f"Error getting transformer options: {str(e)}")
