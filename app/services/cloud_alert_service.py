@@ -21,7 +21,7 @@ from app.services.alert_service import (
     generate_dashboard_link,
     check_alert_condition
 )
-from app.config.constants import SCOPES
+from app.config.cloud_config import GmailConfig, SCOPES
 
 class CloudAlertService(AlertService):
     """Cloud implementation of alert service using Streamlit secrets"""
@@ -29,10 +29,10 @@ class CloudAlertService(AlertService):
     def __init__(self):
         """Initialize cloud alert service with Streamlit secrets"""
         try:
-            self.token_info = st.secrets.get("GMAIL_TOKEN")
-            if isinstance(self.token_info, str):
-                self.token_info = json.loads(self.token_info)
-            self.default_recipient = st.secrets.get("DEFAULT_RECIPIENT")
+            self.token_info = GmailConfig.get_token()
+            self.default_recipient = GmailConfig.get_recipient()
+            if not self.token_info or not self.default_recipient:
+                raise ValueError("Failed to initialize Gmail configuration")
         except Exception as e:
             st.error(f"Failed to initialize cloud alert service: {str(e)}")
             self.token_info = None
