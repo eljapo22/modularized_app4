@@ -1,5 +1,5 @@
 """
-Cloud-specific alert service implementation using Streamlit secrets and Gmail API
+Cloud-specific alert service implementation using Amazon SES via SMTP
 """
 
 import os
@@ -7,163 +7,139 @@ import json
 import streamlit as st
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-import base64
+import smtplib
+import ssl
 from typing import Optional, List, Dict, Any
 import pandas as pd
 from datetime import datetime
 
 from app.services.alert_service import (
     AlertService, 
-    get_status_color, 
     extract_feeder,
     generate_dashboard_link,
-    check_alert_condition
+    check_alert_condition,
+    get_loading_status
 )
-from app.config.cloud_config import GmailConfig, SCOPES
+from app.config.cloud_config import EmailConfig
 
 class CloudAlertService(AlertService):
-    """Cloud implementation of alert service using Streamlit secrets"""
+    """Cloud-specific implementation of alert service using Amazon SES"""
     
     def __init__(self):
-        """Initialize cloud alert service with Streamlit secrets"""
-        try:
-            self.token_info = GmailConfig.get_token()
-            self.default_recipient = GmailConfig.get_recipient()
-            if not self.token_info or not self.default_recipient:
-                raise ValueError("Failed to initialize Gmail configuration")
-        except Exception as e:
-            st.error(f"Failed to initialize cloud alert service: {str(e)}")
-            self.token_info = None
-            self.default_recipient = None
+        """Initialize the cloud alert service"""
+        self.smtp_settings = EmailConfig.get_smtp_settings()
+        self.sender_email = EmailConfig.get_sender()
+        self.default_recipient = EmailConfig.get_recipient()
         
-    def _get_gmail_service(self):
-        """Initialize Gmail API service using cloud token"""
+        if not EmailConfig.is_configured():
+            st.warning("Email service is not fully configured. Alerts will not be sent.")
+            
+    def _get_smtp_connection(self):
+        """Create an SMTP connection with TLS"""
         try:
-            creds = Credentials.from_authorized_user_info(self.token_info, SCOPES)
-            return build('gmail', 'v1', credentials=creds)
+            if not self.smtp_settings:
+                st.error("Cannot create SMTP connection: missing settings")
+                return None
+                
+            # Create secure SSL/TLS context
+            context = ssl.create_default_context()
+            
+            # Connect to SMTP server
+            server = smtplib.SMTP(
+                self.smtp_settings['host'],
+                self.smtp_settings['port']
+            )
+            server.starttls(context=context)
+            server.login(
+                self.smtp_settings['username'],
+                self.smtp_settings['password']
+            )
+            
+            return server
+            
         except Exception as e:
-            st.error(f"Failed to initialize Gmail service: {str(e)}")
+            st.error(f"Failed to create SMTP connection: {str(e)}")
             return None
             
-    def _create_email_content(self, alert_data: pd.DataFrame, date: datetime, hour: int) -> str:
-        """Create HTML content for alert email"""
-        html = f"""
-        <html>
-        <head>
-            <style>
-                table {{ border-collapse: collapse; width: 100%; }}
-                th, td {{ border: 1px solid black; padding: 8px; text-align: left; }}
-                th {{ background-color: #f2f2f2; }}
-                .critical {{ color: #FF0000; }}
-                .overloaded {{ color: #FFA500; }}
-                .warning {{ color: #FFFF00; }}
-            </style>
-        </head>
-        <body>
-            <h2>Transformer Loading Alert</h2>
-            <p>The following transformers require attention:</p>
-            <table>
-                <tr>
-                    <th>Transformer</th>
-                    <th>Loading Status</th>
-                    <th>Loading %</th>
-                    <th>Dashboard Link</th>
-                </tr>
-        """
-        
-        for _, row in alert_data.iterrows():
-            transformer_id = row['transformer_id']
-            feeder = extract_feeder(transformer_id)
-            status = row['load_range']  
-            loading = row['loading_percentage']
-            color = get_status_color(status)
-            dashboard_url = generate_dashboard_link(transformer_id, feeder, date, hour)
+    def _get_status_color(self, status: str) -> str:
+        """Get HTML color for status."""
+        return {
+            'Critical': '#FF0000',      # Red
+            'Overloaded': '#FFA500',    # Orange
+            'Warning': '#FFD700',       # Gold
+            'Pre-Warning': '#FFFF00',   # Yellow
+            'Normal': '#90EE90'         # Light Green
+        }.get(status, '#FFFFFF')        # White as default
             
-            html += f"""
-                <tr>
-                    <td>{transformer_id}</td>
-                    <td style="color: {color}">{status}</td>
-                    <td>{loading:.1f}%</td>
-                    <td><a href="{dashboard_url}">View Details</a></td>
-                </tr>
-            """
-            
-        html += """
-            </table>
-            <p><small>This is an automated alert. Please do not reply to this email.</small></p>
-        </body>
-        </html>
-        """
-        return html
-        
-    def send_alert(self, alert_data: pd.DataFrame, date: datetime, hour: int, recipients: Optional[List[str]] = None) -> bool:
-        """Send alert email using Gmail API"""
-        try:
-            service = self._get_gmail_service()
-            if not service:
-                return False
-                
-            if recipients is None:
-                recipients = [self.default_recipient]
-                
-            message = MIMEMultipart('alternative')
-            message['to'] = ', '.join(recipients)
-            message['subject'] = f'Transformer Loading Alert - {date.strftime("%Y-%m-%d")} Hour {hour}'
-            
-            html_content = self._create_email_content(alert_data, date, hour)
-            message.attach(MIMEText(html_content, 'html'))
-            
-            raw = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-            service.users().messages().send(userId='me', body={'raw': raw}).execute()
-            
-            return True
-        except Exception as e:
-            st.error(f"Failed to send alert email: {str(e)}")
-            return False
-            
-    def test_alert(self, transformer_id: str, date: datetime, hour: int, recipients: Optional[List[str]] = None) -> bool:
-        """Send test alert email"""
-        test_data = pd.DataFrame({
-            'transformer_id': [transformer_id],
-            'load_range': ['Warning'],
-            'loading_percentage': [99.9]
-        })
-        return self.send_alert(test_data, date, hour, recipients)
-        
     def process_alerts(self, results_df: pd.DataFrame, selected_date: datetime, selected_hour: int, recipients: Optional[List[str]] = None) -> bool:
-        """Process alerts and send if conditions are met"""
-        alerts = check_alert_condition(results_df, selected_hour)
-        if alerts is not None:
-            return self.send_alert(alerts, selected_date, selected_hour, recipients)
-        return True  # No alerts needed to be sent
-
-    def process_and_send_alert(self, results_df: pd.DataFrame, transformer_id: str, selected_date: datetime, selected_hour: int, recipients: Optional[List[str]] = None) -> bool:
-        """
-        Process transformer data and send alert if conditions are met
-        
-        Args:
-            results_df: DataFrame with transformer loading results
-            transformer_id: ID of the transformer
-            selected_date: Date to check
-            selected_hour: Hour to check
-            recipients: Optional list of email recipients
-            
-        Returns:
-            bool: True if alert was processed and sent successfully
-        """
+        """Process transformer data and send alerts if conditions are met"""
         try:
-            # Check alert conditions
-            alert_data = check_alert_condition(results_df, selected_hour, transformer_id)
-            
-            # If there are alerts, send email
+            alert_data = check_alert_condition(results_df, selected_hour)
             if alert_data is not None and not alert_data.empty:
                 return self.send_alert(alert_data, selected_date, selected_hour, recipients)
-            else:
-                st.info("No alerts needed for the selected parameters.")
-                return True
-                
+            return True
         except Exception as e:
-            st.error(f"Failed to process and send alert: {str(e)}")
+            st.error(f"Failed to process alerts: {str(e)}")
+            return False
+
+    def test_alert(self, transformer_id: str, date: datetime, hour: int, recipients: Optional[List[str]] = None) -> bool:
+        """Send a test alert email"""
+        try:
+            test_data = pd.DataFrame({
+                'transformer_id': [transformer_id],
+                'loading_percentage': [120.0],  # Critical level for testing
+                'voltage': [230.0],
+                'current': [100.0]
+            })
+            return self.send_alert(test_data, date, hour, recipients)
+        except Exception as e:
+            st.error(f"Failed to send test alert: {str(e)}")
+            return False
+
+    def send_alert(self, alert_data: pd.DataFrame, date: datetime, hour: int, recipients: Optional[List[str]] = None) -> bool:
+        """Send alert email with transformer loading data"""
+        if not self.smtp_settings or not self.sender_email:
+            st.error("Email configuration is incomplete. Cannot send alerts.")
+            return False
+
+        try:
+            server = self._get_smtp_connection()
+            if not server:
+                return False
+
+            recipient_list = recipients if recipients else [self.default_recipient]
+            
+            for _, row in alert_data.iterrows():
+                transformer_id = row['transformer_id']
+                loading = row['loading_percentage']
+                status = get_loading_status(loading)
+                color = self._get_status_color(status)
+                feeder = extract_feeder(transformer_id)
+                
+                subject = f"Transformer Alert: {transformer_id} - {status}"
+                html_content = f"""
+                <h2>Transformer Loading Alert</h2>
+                <p><strong>Transformer:</strong> {transformer_id}</p>
+                <p><strong>Feeder:</strong> {feeder}</p>
+                <p><strong>Date:</strong> {date.strftime('%Y-%m-%d')}</p>
+                <p><strong>Time:</strong> {hour}:00</p>
+                <p><strong>Loading:</strong> <span style="color: {color}">{loading:.1f}%</span></p>
+                <p><strong>Status:</strong> <span style="color: {color}">{status}</span></p>
+                <p><a href="{generate_dashboard_link(transformer_id, feeder, date, hour)}">View in Dashboard</a></p>
+                """
+
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = subject
+                msg['From'] = self.sender_email
+                msg['To'] = ', '.join(recipient_list)
+                msg.attach(MIMEText(html_content, 'html'))
+
+                server.send_message(msg)
+
+            server.quit()
+            st.success("Alert emails sent successfully!")
+            return True
+
+        except Exception as e:
+            st.error(f"Failed to send alert email: {str(e)}")
             return False

@@ -18,13 +18,17 @@ def validate_cloud_secrets() -> Tuple[bool, List[str]]:
     errors = []
     
     # Check if we're actually in cloud environment
-    if not os.getenv('STREAMLIT_CLOUD'):
+    if not (os.getenv('STREAMLIT_CLOUD') or os.getenv('STREAMLIT_SHARING')):
         return False, ["Not running in Streamlit Cloud environment"]
     
     # Required secrets
     required_secrets = {
         "GMAIL_TOKEN": "Gmail API token for sending alerts",
-        "DEFAULT_RECIPIENT": "Default email recipient for alerts",
+        "DEFAULT_RECIPIENT": "Default email recipient for alerts"
+    }
+    
+    # Optional secrets
+    optional_secrets = {
         "USE_MOTHERDUCK": "Flag to enable MotherDuck database"
     }
     
@@ -40,7 +44,7 @@ def validate_cloud_secrets() -> Tuple[bool, List[str]]:
             if isinstance(token, str):
                 try:
                     token_dict = json.loads(token)
-                    required_fields = ["token", "refresh_token", "token_uri", "client_id", "client_secret"]
+                    required_fields = ["client_id", "client_secret", "refresh_token", "token_uri"]
                     missing_fields = [field for field in required_fields if field not in token_dict]
                     if missing_fields:
                         errors.append(f"GMAIL_TOKEN missing required fields: {', '.join(missing_fields)}")
@@ -48,6 +52,11 @@ def validate_cloud_secrets() -> Tuple[bool, List[str]]:
                     errors.append("GMAIL_TOKEN is not valid JSON")
             else:
                 errors.append("GMAIL_TOKEN must be a JSON string")
+    
+    # Check optional secrets and log warnings
+    for secret_name, description in optional_secrets.items():
+        if secret_name not in st.secrets:
+            st.info(f"Optional secret not set: {secret_name} ({description})")
     
     return len(errors) == 0, errors
 
@@ -59,7 +68,7 @@ def debug_cloud_environment() -> Dict[str, str]:
         Dict[str, str]: Dictionary of debug information
     """
     debug_info = {
-        "Environment": "Streamlit Cloud" if os.getenv('STREAMLIT_CLOUD') else "Local",
+        "Environment": "Streamlit Cloud" if (os.getenv('STREAMLIT_CLOUD') or os.getenv('STREAMLIT_SHARING')) else "Local",
         "Python Path": str(Path(__file__).resolve()),
         "Available Secrets": ", ".join(st.secrets.keys()) if hasattr(st, 'secrets') else "No secrets available",
         "Environment Variables": ", ".join(
@@ -98,17 +107,17 @@ def display_environment_status():
             st.warning(error)
     
     # Show debug information
-    with st.expander("Show Debug Information"):
-        debug_info = debug_cloud_environment()
-        for key, value in debug_info.items():
-            st.text(f"{key}: {value}")
-            
-        st.info("""
-        If you're seeing issues:
-        1. Check that all required secrets are set in Streamlit Cloud
-        2. Verify the Gmail token format
-        3. Ensure environment variables are correctly set
-        """)
+    st.markdown("### Debug Information")
+    debug_info = debug_cloud_environment()
+    for key, value in debug_info.items():
+        st.text(f"{key}: {value}")
+        
+    st.info("""
+    If you're seeing issues:
+    1. Check that all required secrets are set in Streamlit Cloud
+    2. Verify the Gmail token format
+    3. Ensure environment variables are correctly set
+    """)
 
 def is_cloud_ready() -> bool:
     """
@@ -118,4 +127,4 @@ def is_cloud_ready() -> bool:
         bool: True if cloud environment is properly configured
     """
     is_valid, _ = validate_cloud_secrets()
-    return is_valid and os.getenv('STREAMLIT_CLOUD') is not None
+    return is_valid and (os.getenv('STREAMLIT_CLOUD') or os.getenv('STREAMLIT_SHARING')) is not None
