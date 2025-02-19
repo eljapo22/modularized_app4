@@ -76,7 +76,7 @@ class CloudAlertService(AlertService):
         for _, row in alert_data.iterrows():
             transformer_id = row['transformer_id']
             feeder = extract_feeder(transformer_id)
-            status = row['loading_status']
+            status = row['load_range']  
             loading = row['loading_percentage']
             color = get_status_color(status)
             dashboard_url = generate_dashboard_link(transformer_id, feeder, date, hour)
@@ -92,6 +92,7 @@ class CloudAlertService(AlertService):
             
         html += """
             </table>
+            <p><small>This is an automated alert. Please do not reply to this email.</small></p>
         </body>
         </html>
         """
@@ -126,7 +127,7 @@ class CloudAlertService(AlertService):
         """Send test alert email"""
         test_data = pd.DataFrame({
             'transformer_id': [transformer_id],
-            'loading_status': ['Test Alert'],
+            'load_range': ['Warning'],
             'loading_percentage': [99.9]
         })
         return self.send_alert(test_data, date, hour, recipients)
