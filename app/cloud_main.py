@@ -113,7 +113,11 @@ def main():
     st.title("⚡ Transformer Loading Analysis")
     
     # Initialize alert service for cloud
-    alert_service = CloudAlertService()
+    try:
+        alert_service = CloudAlertService()
+    except Exception as e:
+        st.warning("Email alerts are currently unavailable. Please check your Gmail configuration.")
+        alert_service = None
     
     # Sidebar
     with st.sidebar:
@@ -124,17 +128,25 @@ def main():
         selected_feeder = st.selectbox("Select Feeder", feeder_options)
         
         # Get transformer options for selected feeder
-        transformer_options = get_transformer_options(selected_feeder)
-        selected_transformer = st.selectbox("Select Transformer", transformer_options)
+        try:
+            transformer_options = get_transformer_options(selected_feeder)
+            selected_transformer = st.selectbox("Select Transformer", transformer_options)
+        except Exception as e:
+            st.error(f"Error loading transformer options: {str(e)}")
+            st.stop()
         
         # Date selection
-        min_date, max_date = get_available_dates()
-        selected_date = st.date_input(
-            "Select Date",
-            value=max_date,
-            min_value=min_date,
-            max_value=max_date
-        )
+        try:
+            min_date, max_date = get_available_dates()
+            selected_date = st.date_input(
+                "Select Date",
+                value=max_date,
+                min_value=min_date,
+                max_value=max_date
+            )
+        except Exception as e:
+            st.error(f"Error loading available dates: {str(e)}")
+            st.stop()
         
         # Hour selection
         selected_hour = st.slider(
@@ -145,24 +157,25 @@ def main():
             format="%H:00"
         )
         
-        # Alert button
-        if st.button("Search & Alert"):
-            with st.spinner("Analyzing transformer status..."):
-                try:
-                    results = get_analysis_results(
-                        selected_transformer,
-                        selected_date,
-                        time_range=(selected_hour, selected_hour + 1)
-                    )
-                    if results is not None and not results.empty:
-                        alert_service.process_and_send_alert(
-                            results,
+        # Alert button - only show if alert service is available
+        if alert_service is not None:
+            if st.button("Search & Alert"):
+                with st.spinner("Analyzing transformer status..."):
+                    try:
+                        results = get_analysis_results(
                             selected_transformer,
                             selected_date,
-                            selected_hour
+                            time_range=(selected_hour, selected_hour + 1)
                         )
-                except Exception as e:
-                    st.error(f"Error processing alert: {str(e)}")
+                        if results is not None and not results.empty:
+                            alert_service.process_and_send_alert(
+                                results,
+                                selected_transformer,
+                                selected_date,
+                                selected_hour
+                            )
+                    except Exception as e:
+                        st.error(f"Error processing alert: {str(e)}")
     
     # Main content
     try:
