@@ -174,97 +174,60 @@ def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: i
             )
         )
     
-    # Add transformer size line
-    transformer_size = 75.0  # kVA
-    
-    # First, extend the x-axis range to make room for the label
-    x_max = results_df['timestamp'].max()
-    x_min = results_df['timestamp'].min()
-    time_range = x_max - x_min
-    x_extension = pd.Timedelta(minutes=int(time_range.total_seconds() * 0.02 / 60))  # 2% of total range
-    extended_x_max = x_max + x_extension
-    
-    # Add the red dashed line
-    fig.add_shape(
-        type="line",
-        x0=x_min,
-        x1=extended_x_max,
-        y0=100,
-        y1=100,
-        line=dict(
-            color='red',
-            width=1,
-            dash='dash'
-        )
-    )
-    
-    # Add transformer size annotation near the end of the line
-    fig.add_annotation(
-        text=f"Transformer Size: {transformer_size} kVA",
-        x=x_max,  # Place at the last data point
-        y=100,
-        xanchor="right",  # Anchor to right side
-        yanchor="middle",
-        showarrow=False,
-        font=dict(
-            color='red',
-            size=12
-        ),
-        bgcolor="rgba(255, 255, 255, 0.8)",  # Add semi-transparent white background
-        bordercolor="red",
-        borderwidth=1
-    )
-    
-    # Add hour indicator if specified
+    # Add hour indicator if selected
     if selected_hour is not None:
-        y_range = (
-            results_df['loading_percentage'].min(),
-            results_df['loading_percentage'].max()
+        # Get y-axis range from data
+        y_min = results_df['loading_percentage'].min()
+        y_max = results_df['loading_percentage'].max()
+        y_padding = (y_max - y_min) * 0.1  # Add 10% padding
+        y_range = (y_min - y_padding, y_max + y_padding)
+        
+        # Get first timestamp and create indicator time
+        first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
+        indicator_time = pd.Timestamp(first_timestamp.date()) + pd.Timedelta(hours=selected_hour)
+        
+        # Add the vertical line
+        fig.add_shape(
+            type="line",
+            x0=indicator_time,
+            x1=indicator_time,
+            y0=y_range[0],
+            y1=y_range[1],
+            line=dict(
+                color='#9ca3af',
+                width=1,
+                dash='dash'
+            )
         )
-        fig = add_hour_indicator(fig, selected_hour, y_range)
+        
+        # Add the annotation
+        fig.add_annotation(
+            text=f"{selected_hour:02d}:00",
+            x=indicator_time,
+            y=y_range[1],
+            yanchor="bottom",
+            showarrow=False,
+            textangle=-90,
+            font=dict(
+                color='#2f4f4f',
+                size=12
+            )
+        )
     
     # Update layout
     fig.update_layout(
-        margin=dict(l=0, r=50, t=0, b=0),
-        yaxis=dict(
-            range=[0, max(120, results_df['loading_percentage'].max() * 1.1)],
-            title=dict(
-                text="Loading (%)",
-                font=dict(size=12),
-                standoff=15
-            ),
-            title_standoff=0,
-            automargin=True,
-            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
-        xaxis=dict(
-            title=None,
-            range=[x_min, extended_x_max]  # Set the extended range
-        ),
         showlegend=True,
         legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01,
+            bgcolor="rgba(255, 255, 255, 0.8)"
         ),
-        shapes=[
-            dict(
-                type="rect",
-                xref="paper",
-                yref="paper",
-                x0=0,
-                y0=1,
-                x1=1,
-                y1=1.05,
-                fillcolor="#f8f9fa",
-                line_width=0,
-                layer="below"
-            )
-        ]
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis_title="Time",
+        yaxis_title="Loading (%)",
+        hovermode='closest'
     )
     
     # Display the figure
@@ -694,11 +657,16 @@ def display_transformer_dashboard(results_df, selected_hour: int = None):
 
     # Filter data based on selected hour if provided
     if selected_hour is not None:
-        hour_start = pd.Timestamp(results_df.index[0].date()) + pd.Timedelta(hours=selected_hour)
+        # Convert timestamp to pandas timestamp if needed
+        first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
+        hour_start = pd.Timestamp(first_timestamp.date()) + pd.Timedelta(hours=selected_hour)
         hour_end = hour_start + pd.Timedelta(hours=1)
+        
+        # Convert timestamps to pandas timestamps for comparison
+        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
         filtered_results = results_df[
-            (results_df.index >= hour_start) &
-            (results_df.index < hour_end)
+            (results_df['timestamp'] >= hour_start) &
+            (results_df['timestamp'] < hour_end)
         ]
     else:
         filtered_results = results_df
