@@ -196,13 +196,13 @@ def get_loading_status(loading_percentage: float) -> str:
         return 'Normal'
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_analysis_results(transformer_id: str, selected_date: Union[date, datetime, str], time_range: tuple = (0, 24), loading_range: tuple = (0, 200)) -> pd.DataFrame:
+def get_analysis_results(transformer_id: str, selected_date: Union[date, datetime, str, int, np.integer], time_range: tuple = (0, 24), loading_range: tuple = (0, 200)) -> pd.DataFrame:
     """
     Get analysis results for the selected transformer and date
     
     Args:
         transformer_id: ID of the transformer
-        selected_date: Date to analyze (can be date object, datetime object, or string in YYYY-MM-DD format)
+        selected_date: Date to analyze (can be date object, datetime object, string in YYYY-MM-DD format, or integer timestamp)
         time_range: Tuple of (start_hour, end_hour) to filter
         loading_range: Tuple of (min_loading, max_loading) percentage to filter
     """
@@ -214,9 +214,9 @@ def get_analysis_results(transformer_id: str, selected_date: Union[date, datetim
             selected_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
         elif isinstance(selected_date, datetime):
             selected_date = selected_date.date()
-        elif isinstance(selected_date, int):
-            # Handle Unix timestamp if that's what we're getting
-            selected_date = datetime.fromtimestamp(selected_date).date()
+        elif isinstance(selected_date, (int, np.integer)):
+            # Handle integer timestamps (both Python int and numpy.int64)
+            selected_date = pd.Timestamp(selected_date).date()
         elif not isinstance(selected_date, date):
             raise ValueError(f"Invalid date type: {type(selected_date)}")
         
