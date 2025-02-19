@@ -184,40 +184,28 @@ def main():
         
         if results is not None and not results.empty:
             # Display transformer dashboard
-            display_transformer_dashboard(results, selected_transformer)
+            display_transformer_dashboard(results, selected_hour)
             
-            # Display loading status chart
-            display_loading_status_line_chart(results)
-            add_hour_indicator(selected_hour)
+            # Display loading status chart with hour indicator
+            display_loading_status_line_chart(results, selected_hour)
             
             # Display time series charts
             col1, col2 = st.columns(2)
             with col1:
-                display_power_time_series(results)
-                add_hour_indicator(selected_hour)
+                display_power_time_series(results, selected_hour)
             with col2:
-                display_current_time_series(results)
-                add_hour_indicator(selected_hour)
+                display_current_time_series(results, selected_hour)
             
-            # Display voltage chart
-            display_voltage_time_series(results)
-            add_hour_indicator(selected_hour)
-            
-            # Get and display customer data
-            customer_data = get_customer_data(selected_transformer, selected_date)
-            if customer_data is not None and not customer_data.empty:
-                st.subheader("Customer Information")
-                st.dataframe(customer_data)
-            
-            # Get and display transformer attributes
-            transformer_attrs = get_transformer_attributes(selected_transformer)
-            if transformer_attrs is not None and not transformer_attrs.empty:
-                st.subheader("Transformer Attributes")
-                st.dataframe(transformer_attrs)
-        else:
-            st.warning("No data available for the selected transformer and date.")
+            # Display voltage analysis
+            col3, col4 = st.columns(2)
+            with col3:
+                display_voltage_time_series(results, selected_hour)
+            with col4:
+                display_loading_status(results, selected_hour)
+                
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
+        logger.error(f"Error in main: {str(e)}", exc_info=True)
 
 if __name__ == "__main__":
     main()
