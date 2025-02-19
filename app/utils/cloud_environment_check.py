@@ -24,13 +24,12 @@ def validate_cloud_secrets() -> Tuple[bool, List[str]]:
     # Required secrets
     required_secrets = {
         "GMAIL_TOKEN": "Gmail API token for sending alerts",
-        "DEFAULT_RECIPIENT": "Default email recipient for alerts"
+        "DEFAULT_RECIPIENT": "Default email recipient for alerts",
+        "MOTHERDUCK_TOKEN": "MotherDuck database access token"
     }
     
     # Optional secrets
-    optional_secrets = {
-        "USE_MOTHERDUCK": "Flag to enable MotherDuck database"
-    }
+    optional_secrets = {}
     
     # Check each required secret
     for secret_name, description in required_secrets.items():

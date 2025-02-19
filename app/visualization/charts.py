@@ -137,10 +137,17 @@ def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
 
 def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: int = None):
     """Display a scatter plot of loading status events with detailed hover data"""
-    if results_df.empty:
-        st.warning("No data available for loading status visualization")
+    if results_df is None or results_df.empty:
+        st.warning("No data available for loading status visualization. Please check your database connection and try again.")
         return
         
+    # Ensure required columns exist
+    required_columns = ['timestamp', 'loading_percentage', 'load_range']
+    missing_columns = [col for col in required_columns if col not in results_df.columns]
+    if missing_columns:
+        st.error(f"Missing required columns: {', '.join(missing_columns)}")
+        return
+    
     # Create figure
     fig = create_base_figure(
         None,
@@ -232,8 +239,8 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     """Display power consumption time series visualization"""
     logger.info(f"display_power_time_series called with is_transformer_view={is_transformer_view}")
     
-    if results_df.empty:
-        st.warning("No data available for power consumption visualization")
+    if results_df is None or results_df.empty:
+        st.warning("No data available for power consumption visualization. Please check your database connection and try again.")
         return
     
     logger.info(f"DataFrame columns: {results_df.columns.tolist()}")
@@ -337,8 +344,8 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
 
 def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = None):
     """Display current analysis time series visualization"""
-    if results_df.empty:
-        st.warning("No data available for current analysis visualization")
+    if results_df is None or results_df.empty:
+        st.warning("No data available for current analysis visualization. Please check your database connection and try again.")
         return
         
     # Create figure
@@ -385,8 +392,8 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
 
 def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = None):
     """Display voltage analysis time series visualization"""
-    if results_df.empty:
-        st.warning("No data available for voltage analysis visualization")
+    if results_df is None or results_df.empty:
+        st.warning("No data available for voltage analysis visualization. Please check your database connection and try again.")
         return
         
     # Create figure
@@ -433,6 +440,10 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
 
 def display_voltage_over_time(results_df: pd.DataFrame):
     """Display voltage over time chart."""
+    if results_df is None or results_df.empty:
+        st.warning("No data available for voltage over time visualization. Please check your database connection and try again.")
+        return
+
     # Create sample voltage data
     voltage_df = get_sample_voltage_data(results_df)
     
@@ -521,8 +532,8 @@ def display_voltage_over_time(results_df: pd.DataFrame):
 
 def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
     """Display loading status visualization."""
-    if results_df.empty:
-        st.warning("No data available for loading status visualization")
+    if results_df is None or results_df.empty:
+        st.warning("No data available for loading status visualization. Please check your database connection and try again.")
         return
 
     # Calculate loading percentage
@@ -588,8 +599,8 @@ def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
 
 def display_transformer_dashboard(results_df, selected_hour: int = None):
     """Display the complete transformer analysis dashboard with filtering options"""
-    if results_df.empty:
-        st.warning("No data available for the selected filters.")
+    if results_df is None or results_df.empty:
+        st.warning("No data available for the selected filters. Please check your database connection and try again.")
         return results_df
 
     # Create two columns for the visualizations

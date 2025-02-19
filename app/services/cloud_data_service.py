@@ -20,10 +20,12 @@ class CloudDataService:
     def setup_motherduck(self):
         """Setup MotherDuck connection"""
         try:
-            token = os.getenv("MOTHERDUCK_TOKEN") or st.secrets["MOTHERDUCK_TOKEN"]
-            if not token:
-                raise ValueError("MotherDuck token not found")
+            # Get token from Streamlit secrets only
+            if not hasattr(st, 'secrets') or 'MOTHERDUCK_TOKEN' not in st.secrets:
+                raise ValueError("MotherDuck token not found in Streamlit secrets")
                 
+            token = st.secrets["MOTHERDUCK_TOKEN"]
+            
             # Set the token in environment variable as recommended by MotherDuck
             os.environ["motherduck_token"] = token
             
@@ -32,6 +34,7 @@ class CloudDataService:
             logger.info("Successfully connected to MotherDuck")
         except Exception as e:
             logger.error(f"MotherDuck connection failed: {str(e)}")
+            st.error("Failed to connect to MotherDuck database. Please check your configuration.")
             raise RuntimeError(f"Failed to connect to MotherDuck: {str(e)}")
     
     def query(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
