@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
 
 # App imports with app. prefix for cloud
-from app.services.cloud_data_service import data_service
+from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
 from app.utils.logging_utils import Timer, logger, log_performance
 from app.utils.cloud_environment_check import display_environment_status, is_cloud_ready
@@ -42,6 +42,10 @@ from app.visualization.charts import (
     display_transformer_dashboard,
     add_hour_indicator
 )
+
+# Initialize services
+data_service = CloudDataService()
+alert_service = CloudAlertService(data_service)
 
 def create_tile(title: str, value: str, has_multiline_title: bool = False, is_clickable: bool = False):
     """Create a styled tile using Streamlit components"""
@@ -167,9 +171,6 @@ def main():
                 results = data_service.get_transformer_data(selected_transformer, selected_date)
                 
                 if results is not None and not results.empty:
-                    # Initialize cloud alert service
-                    alert_service = CloudAlertService()
-                    
                     # Process alerts
                     alert_sent = alert_service.process_alerts(
                         results,

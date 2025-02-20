@@ -12,10 +12,19 @@ import streamlit as st
 logger = logging.getLogger(__name__)
 
 class CloudDataService:
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.conn = None
+            cls._instance.setup_motherduck()
+        return cls._instance
+    
     def __init__(self):
         """Initialize cloud data service with MotherDuck connection"""
-        self.conn = None
-        self.setup_motherduck()
+        # Initialization is done in __new__
+        pass
     
     @st.cache_resource
     def setup_motherduck(self):
@@ -173,5 +182,5 @@ class CloudDataService:
         result = self.query(query, [transformer_id])
         return result['customer_id'].tolist() if result is not None else []
 
-# Initialize the service
+# Initialize the service as a singleton
 data_service = CloudDataService()
