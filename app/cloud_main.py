@@ -193,18 +193,21 @@ def main():
                                         alert_time = datetime.fromisoformat(alert_time_str)
                                         alert_hour = alert_time.hour
                                     except ValueError:
-                                        pass
+                                        logger.warning("Invalid alert time format")
                                 
                                 display_transformer_dashboard(results, alert_hour)
                                 
                                 # Check and send alerts if needed
                                 if alert_service is not None and alert_clicked:
+                                    logger.info("Attempting to send alert email for date range...")
                                     if alert_service.check_and_send_alerts(
-                                        results_df=results,
-                                        start_date=start_date,
-                                        recipient="jhnapo2213@gmail.com"
+                                        results,
+                                        start_date,
+                                        alert_time if alert_time_str else None
                                     ):
                                         st.success("Alert email sent successfully")
+                                    else:
+                                        st.warning("No alert conditions met or email sending failed")
                             else:
                                 st.warning("No data available for the selected criteria.")
                 

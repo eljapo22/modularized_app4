@@ -97,18 +97,17 @@ class CloudAlertService:
             return None
     
     def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
-        """
-        Create deep link back to app with context
-        
-        Args:
-            start_date: Start date of the analysis range
-            alert_time: Timestamp of the alert point
-            transformer_id: ID of the transformer
-            
-        Returns:
-            str: Deep link URL
-        """
-        return f"{self.app_url}?view=alert&id={transformer_id}&start={start_date}&alert_time={alert_time.isoformat()}"
+        """Create deep link back to app with context"""
+        params = {
+            'view': 'alert',
+            'id': transformer_id,
+            'start': start_date.isoformat() if start_date else None,
+            'alert_time': alert_time.isoformat() if alert_time else None
+        }
+        # Remove None values
+        params = {k: v for k, v in params.items() if v is not None}
+        query_string = '&'.join(f"{k}={v}" for k, v in params.items())
+        return f"{self.app_url}?{query_string}"
 
     def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
         """
@@ -172,7 +171,7 @@ class CloudAlertService:
         Check loading conditions and send alert if needed
         """
         if not self.email_enabled:
-            logger.warning("Email alerts are disabled - skipping alert check")
+            logger.warning("Email alerts disabled - skipping alert check")
             return False
 
         try:
@@ -190,8 +189,8 @@ class CloudAlertService:
             
             # Create deep link
             deep_link = self._create_deep_link(
-                start_date or alert_point.name.date(),
-                alert_point.name,
+                start_date,
+                alert_time or alert_point.name,
                 alert_point['transformer_id']
             )
             
