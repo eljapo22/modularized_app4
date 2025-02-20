@@ -9,27 +9,27 @@ def create_tile(title: str, value: str, has_multiline_title: bool = False, is_cl
     st.markdown(
         f"""
         <div style="
-            background-color: #f8f9fa;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background-color: white;
+            padding: 0.75rem;
+            border: 1px solid #e9ecef;
+            border-radius: 0.25rem;
             height: 100%;
             {'cursor: pointer;' if is_clickable else ''}
         ">
-            <h3 style="
+            <p style="
                 margin: 0;
                 color: #6c757d;
-                font-size: 0.9rem;
-                font-weight: 600;
-                {'white-space: normal;' if has_multiline_title else 'white-space: nowrap;'}
-                overflow: hidden;
-                text-overflow: ellipsis;
-            ">{title}</h3>
+                font-size: 0.75rem;
+                font-weight: 400;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            ">{title}</p>
             <p style="
-                margin: 0.5rem 0 0 0;
+                margin: 0.25rem 0 0 0;
                 color: #212529;
-                font-size: 1.1rem;
+                font-size: 1.25rem;
                 font-weight: 500;
+                font-family: monospace;
             ">{value}</p>
         </div>
         """,

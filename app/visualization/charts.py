@@ -612,39 +612,51 @@ def display_transformer_dashboard(results_df, selected_hour: int = None):
     # Get transformer ID from results
     transformer_id = results_df['transformer_id'].iloc[0]
     
+    # Get transformer attributes from data service
+    try:
+        from app.services.cloud_data_service import data_service
+        transformer_data = data_service.get_transformer_attributes(transformer_id)
+        
+        # Extract attributes
+        connected_customers = transformer_data.get('number_of_customers', 0)
+        latitude = transformer_data.get('latitude', 0.0)
+        longitude = transformer_data.get('longitude', 0.0)
+    except Exception as e:
+        logger.error(f"Failed to get transformer attributes: {str(e)}")
+        connected_customers = 0
+        latitude = 0.0
+        longitude = 0.0
+    
     # Create tiles for transformer attributes
     st.markdown("### Transformer Overview")
     cols = st.columns(4)
     
-    # Basic transformer info
+    # Transformer ID
     with cols[0]:
         create_tile(
             "Transformer ID",
             transformer_id
         )
     
-    # Size info
+    # Connected Customers
     with cols[1]:
-        size_kva = results_df['size_kva'].iloc[0]
         create_tile(
-            "Size",
-            f"{size_kva} kVA"
+            "Connected Customers",
+            str(connected_customers)
         )
     
-    # Loading info
+    # Latitude
     with cols[2]:
-        current_loading = results_df['loading_percentage'].iloc[0]
         create_tile(
-            "Current Loading",
-            f"{current_loading:.1f}%"
+            "Latitude",
+            f"{latitude:.4f}"
         )
     
-    # Power Factor
+    # Longitude
     with cols[3]:
-        power_factor = results_df['power_factor'].iloc[0]
         create_tile(
-            "Power Factor",
-            f"{power_factor:.2f}"
+            "Longitude",
+            f"{longitude:.4f}"
         )
 
     # Create two columns for the visualizations
