@@ -177,6 +177,8 @@ class CloudAlertService:
         recipient: str = None
     ) -> bool:
         """Check loading conditions and send alert if needed"""
+        logger.info("Starting alert check process...")
+        
         if not self.email_enabled:
             msg = "Email alerts disabled - Gmail app password not found in secrets.toml"
             logger.warning(msg)
@@ -184,6 +186,10 @@ class CloudAlertService:
             return False
 
         try:
+            # Log the data we're checking
+            logger.info(f"Checking {len(results_df)} data points from {results_df.index[0]} to {results_df.index[-1]}")
+            logger.info(f"Current email settings - From: {self.email}, App password configured: {bool(self.app_password)}")
+            
             # Create an expander for detailed alert info
             with st.expander("📋 Alert Check Details", expanded=True):
                 st.write("**Checking Alert Conditions**")
@@ -193,10 +199,12 @@ class CloudAlertService:
                 alert_point = self._select_alert_point(results_df)
                 
                 if alert_point is None:
+                    logger.info("No alert point selected - conditions not met")
                     return False
                 
                 # Get alert status and color
                 status, color = get_alert_status(alert_point['loading_percentage'])
+                logger.info(f"Alert status: {status} ({alert_point['loading_percentage']:.1f}%)")
                 st.write(f"**Alert Status:** {status}")
                 st.write(f"**Loading:** {alert_point['loading_percentage']:.1f}%")
                 st.write(f"**Time:** {alert_point.name}")
@@ -207,6 +215,7 @@ class CloudAlertService:
                     alert_time or alert_point.name,
                     alert_point['transformer_id']
                 )
+                logger.info(f"Created deep link: {deep_link}")
                 
                 # Create and send email
                 msg = MIMEMultipart('alternative')
@@ -214,6 +223,7 @@ class CloudAlertService:
                 msg['From'] = self.email
                 msg['To'] = recipient or self.email
                 
+                logger.info(f"Preparing email to: {msg['To']}")
                 st.write("**Sending Email Alert**")
                 st.write(f"To: {msg['To']}")
                 

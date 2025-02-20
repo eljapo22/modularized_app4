@@ -128,7 +128,34 @@ def main():
                 with col1:
                     search_clicked = st.button("Search & Analyze")
                 with col2:
-                    alert_clicked = st.button("Set Alert")
+                    alert_col1, alert_col2 = st.columns([1, 5])
+                    alert_clicked = alert_col1.button("Set Alert", key="set_alert")
+                
+                if alert_clicked:
+                    logger.info("Alert button clicked")
+                    if alert_service is None:
+                        logger.warning("Alert service not available")
+                        st.error("Alert service is not available")
+                    else:
+                        logger.info("Checking alert conditions...")
+                        if search_mode == "Single Day":
+                            if not all([selected_date, selected_hour is not None, selected_feeder, selected_transformer]):
+                                logger.warning("Missing required parameters for alert")
+                                st.error("Please select all required parameters")
+                            else:
+                                query_datetime = datetime.combine(selected_date, time(selected_hour))
+                                logger.info(f"Checking alerts for {query_datetime}")
+                                
+                                # Check and send alerts if needed
+                                if alert_service.check_and_send_alerts(
+                                    results,
+                                    selected_date,
+                                    query_datetime
+                                ):
+                                    logger.info("Alert email sent successfully")
+                                    st.success("Alert email sent successfully")
+                                else:
+                                    logger.warning("Alert check completed without sending email")
                 
                 if search_clicked or (from_alert and alert_transformer):
                     if search_mode == "Single Day":
