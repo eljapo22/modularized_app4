@@ -21,27 +21,31 @@ class SuppressOutput:
 @st.cache_resource
 def get_database_connection():
     """Get a cached database connection"""
-    if use_motherduck():
-        # Get MotherDuck token from secrets
-        token = st.secrets.get('MOTHERDUCK_TOKEN')
-        st.write(f"Using MotherDuck with token: {token[:10]}...")
-        if not token:
-            st.error("MotherDuck token not found in secrets")
-            return None
+    try:
+        if use_motherduck():
+            # Get MotherDuck token from secrets
+            token = st.secrets.get('MOTHERDUCK_TOKEN')
+            if not token:
+                st.error("MotherDuck token not found in secrets")
+                return None
+                
+            # Set token in environment as recommended by MotherDuck
+            os.environ["motherduck_token"] = token
             
-        # Connect directly to MotherDuck with token
-        connection_string = f'md:ModApp4DB?motherduck_token={token}'
-        st.write(f"Connecting with string: {connection_string[:30]}...")
-        con = duckdb.connect(connection_string)
-        
-        # Configure connection
-        con.execute("SET enable_progress_bar=false")
-        con.execute("SET errors_as_json=true")
-        
-        return con
-    else:
-        # Use local in-memory DuckDB
-        con = duckdb.connect(database=':memory:', read_only=False)
-        con.execute("SET enable_progress_bar=false")
-        con.execute("SET errors_as_json=true")
-        return con
+            # Connect using simple connection string
+            con = duckdb.connect('md:ModApp4DB')
+            
+            # Configure connection
+            con.execute("SET enable_progress_bar=false")
+            con.execute("SET errors_as_json=true")
+            
+            return con
+        else:
+            # Use local in-memory DuckDB
+            con = duckdb.connect(database=':memory:', read_only=False)
+            con.execute("SET enable_progress_bar=false")
+            con.execute("SET errors_as_json=true")
+            return con
+    except Exception as e:
+        st.error(f"Database connection failed: {str(e)}")
+        return None

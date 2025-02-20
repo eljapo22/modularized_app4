@@ -11,8 +11,13 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 def use_motherduck() -> bool:
     """Check if MotherDuck should be used"""
-    # Always use MotherDuck if token is available
-    return bool(st.secrets.get('MOTHERDUCK_TOKEN'))
+    try:
+        # Always use MotherDuck if token is available and we're in cloud or token is explicitly set
+        has_token = bool(st.secrets.get('MOTHERDUCK_TOKEN'))
+        is_cloud = bool(os.getenv('STREAMLIT_CLOUD') or os.getenv('STREAMLIT_SHARING'))
+        return has_token and (is_cloud or os.getenv('USE_MOTHERDUCK') == 'true')
+    except:
+        return False
 
 def is_local_dev() -> bool:
     """Check if running in local development mode"""
