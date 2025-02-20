@@ -25,8 +25,9 @@ from app.config.cloud_config import GmailConfig, SCOPES
 class CloudAlertService(AlertService):
     """Cloud implementation of alert service using Streamlit secrets"""
     
-    def __init__(self):
-        """Initialize cloud alert service with Streamlit secrets"""
+    def __init__(self, data_service):
+        """Initialize cloud alert service with Streamlit secrets and data service"""
+        self.data_service = data_service
         try:
             self.token_info = GmailConfig.get_token()
             self.default_recipient = GmailConfig.get_recipient()
