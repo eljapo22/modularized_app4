@@ -5,6 +5,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
+from typing import Optional
 
 def create_banner(title: str):
     """Create a page banner with title"""
@@ -198,130 +199,191 @@ def create_loading_chart(data: pd.DataFrame, selected_hour: int) -> go.Figure:
     
     return fig
 
-def display_transformer_dashboard(data: pd.DataFrame, selected_hour: int = None):
+def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[int] = None) -> None:
     """
-    Display transformer dashboard with metrics and charts
+    Display transformer loading dashboard with optional time marker
     
     Args:
-        data: DataFrame with transformer data
-        selected_hour: Selected hour for vertical line indicator (optional)
+        results: DataFrame with transformer data
+        marker_hour: Optional hour to mark with vertical line (e.g., alert time)
     """
     try:
-        # Display metrics
-        col1, col2, col3, col4 = st.columns(4)
+        # Create tabs for different visualizations
+        tab1, tab2, tab3 = st.tabs(["Loading Status", "Power Analysis", "Detailed Data"])
         
-        with col1:
-            st.metric(
-                "Average Loading",
-                f"{data['loading_percentage'].mean():.1f}%"
+        with tab1:
+            st.markdown("### Loading Status Over Time")
+            
+            # Create loading status chart
+            fig = go.Figure()
+            
+            # Add loading percentage line
+            fig.add_trace(go.Scatter(
+                x=results.index,
+                y=results['loading_percentage'],
+                name='Loading %',
+                line=dict(color='#0d6efd', width=2),
+                hovertemplate='%{y:.1f}%<br>%{x}<extra></extra>'
+            ))
+            
+            # Add threshold lines
+            thresholds = [
+                (120, 'Critical', '#dc3545'),
+                (100, 'Overloaded', '#fd7e14'),
+                (80, 'Warning', '#ffc107'),
+                (50, 'Pre-Warning', '#6f42c1')
+            ]
+            
+            for threshold, label, color in thresholds:
+                fig.add_hline(
+                    y=threshold,
+                    line=dict(color=color, width=1, dash='dash'),
+                    annotation=dict(
+                        text=f"{label} ({threshold}%)",
+                        font=dict(color=color),
+                        xref='paper',
+                        x=1.02,
+                        showarrow=False
+                    )
+                )
+            
+            # Add marker for alert time if provided
+            if marker_hour is not None:
+                # Find the timestamp for the marker hour
+                marker_date = results.index[0].date()  # Use first date in range
+                marker_time = pd.Timestamp.combine(marker_date, pd.Timestamp(f"{marker_hour:02d}:00").time())
+                
+                if marker_time in results.index:
+                    marker_value = results.loc[marker_time, 'loading_percentage']
+                    
+                    fig.add_vline(
+                        x=marker_time,
+                        line=dict(color='gray', width=2, dash='dash'),
+                        annotation=dict(
+                            text=f"Alert Time ({marker_hour:02d}:00)<br>{marker_value:.1f}%",
+                            font=dict(size=12),
+                            bgcolor='rgba(255,255,255,0.8)',
+                            bordercolor='gray',
+                            borderwidth=1,
+                            showarrow=True,
+                            arrowhead=2,
+                            ax=40,
+                            ay=-40
+                        )
+                    )
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Transformer {results['transformer_id'].iloc[0]} Loading Status",
+                xaxis_title="Time",
+                yaxis_title="Loading Percentage (%)",
+                hovermode='x unified',
+                showlegend=False,
+                margin=dict(r=150)  # Extra right margin for threshold labels
             )
-        with col2:
-            st.metric(
-                "Max Loading",
-                f"{data['loading_percentage'].max():.1f}%"
-            )
-        with col3:
-            st.metric(
-                "Power Factor",
-                f"{data['power_factor'].mean():.2f}"
-            )
-        with col4:
-            st.metric(
-                "Size",
-                f"{data['size_kva'].iloc[0]:.0f} kVA"
-            )
-        
-        # Create loading status chart
-        fig_loading = go.Figure()
-        
-        # Add threshold lines
-        fig_loading.add_hline(y=120, line_dash="dash", line_color="red", annotation_text="Critical (120%)")
-        fig_loading.add_hline(y=100, line_dash="dash", line_color="orange", annotation_text="Overloaded (100%)")
-        fig_loading.add_hline(y=80, line_dash="dash", line_color="yellow", annotation_text="Warning (80%)")
-        fig_loading.add_hline(y=50, line_dash="dash", line_color="purple", annotation_text="Pre-Warning (50%)")
-        
-        # Add loading percentage line
-        fig_loading.add_trace(go.Scatter(
-            x=data.index,
-            y=data['loading_percentage'],
-            mode='lines',
-            name='Loading %',
-            line=dict(color='blue', width=2)
-        ))
-        
-        # Add vertical line for selected hour if in single-day mode
-        if selected_hour is not None:
-            selected_time = data.index[0].replace(hour=selected_hour)
-            fig_loading.add_vline(
-                x=selected_time,
-                line_dash="dash",
-                line_color="gray",
-                annotation_text=f"Selected Hour ({selected_hour:02d}:00)"
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Add status summary
+            current_loading = results['loading_percentage'].iloc[-1]
+            status, color = get_alert_status(current_loading)
+            st.markdown(
+                f"""
+                <div style="padding: 1rem; border-radius: 0.5rem; background-color: {color}25; border: 1px solid {color}">
+                    <h4 style="color: {color}; margin: 0">Current Status: {status}</h4>
+                    <p style="margin: 0.5rem 0 0 0">Loading: {current_loading:.1f}%</p>
+                </div>
+                """,
+                unsafe_allow_html=True
             )
         
-        fig_loading.update_layout(
-            title="Transformer Loading Over Time",
-            xaxis_title="Time",
-            yaxis_title="Loading (%)",
-            height=400,
-            hovermode='x unified'
-        )
-        st.plotly_chart(fig_loading, use_container_width=True)
+        with tab2:
+            st.markdown("### Power Analysis")
+            
+            # Create power analysis chart
+            fig = go.Figure()
+            
+            # Add power trace
+            fig.add_trace(go.Scatter(
+                x=results.index,
+                y=results['power_kw'],
+                name='Power (kW)',
+                line=dict(color='#198754', width=2),
+                hovertemplate='%{y:.1f} kW<br>%{x}<extra></extra>'
+            ))
+            
+            # Add marker for alert time if provided
+            if marker_hour is not None and marker_time in results.index:
+                marker_power = results.loc[marker_time, 'power_kw']
+                fig.add_vline(
+                    x=marker_time,
+                    line=dict(color='gray', width=2, dash='dash'),
+                    annotation=dict(
+                        text=f"Alert Time ({marker_hour:02d}:00)<br>{marker_power:.1f} kW",
+                        font=dict(size=12),
+                        bgcolor='rgba(255,255,255,0.8)',
+                        bordercolor='gray',
+                        borderwidth=1,
+                        showarrow=True,
+                        arrowhead=2,
+                        ax=40,
+                        ay=-40
+                    )
+                )
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Power Consumption Over Time",
+                xaxis_title="Time",
+                yaxis_title="Power (kW)",
+                hovermode='x unified',
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
         
-        # Create power consumption chart
-        fig_power = go.Figure()
-        fig_power.add_trace(go.Scatter(
-            x=data.index,
-            y=data['power_kw'],
-            mode='lines',
-            name='Power (kW)',
-            line=dict(color='green', width=2)
-        ))
-        fig_power.update_layout(
-            title="Power Consumption Over Time",
-            xaxis_title="Time",
-            yaxis_title="Power (kW)",
-            height=300,
-            hovermode='x unified'
-        )
-        st.plotly_chart(fig_power, use_container_width=True)
-        
-        # Create current chart
-        fig_current = go.Figure()
-        fig_current.add_trace(go.Scatter(
-            x=data.index,
-            y=data['current_a'],
-            mode='lines',
-            name='Current (A)',
-            line=dict(color='red', width=2)
-        ))
-        fig_current.update_layout(
-            title="Current Over Time",
-            xaxis_title="Time",
-            yaxis_title="Current (A)",
-            height=300,
-            hovermode='x unified'
-        )
-        st.plotly_chart(fig_current, use_container_width=True)
-        
-        # Create voltage chart
-        fig_voltage = go.Figure()
-        fig_voltage.add_trace(go.Scatter(
-            x=data.index,
-            y=data['voltage_v'],
-            mode='lines',
-            name='Voltage (V)',
-            line=dict(color='orange', width=2)
-        ))
-        fig_voltage.update_layout(
-            title="Voltage Over Time",
-            xaxis_title="Time",
-            yaxis_title="Voltage (V)",
-            height=300,
-            hovermode='x unified'
-        )
-        st.plotly_chart(fig_voltage, use_container_width=True)
-        
+        with tab3:
+            st.markdown("### Detailed Readings")
+            
+            # Format the data for display
+            display_df = results.copy()
+            display_df.index = display_df.index.strftime('%Y-%m-%d %H:%M')
+            display_df = display_df.round(2)
+            
+            # Highlight the alert time row if provided
+            if marker_hour is not None and marker_time in results.index:
+                marker_time_str = marker_time.strftime('%Y-%m-%d %H:%M')
+                st.dataframe(
+                    display_df.style.apply(
+                        lambda x: ['background-color: #f8f9fa' if i == marker_time_str else '' 
+                                 for i in display_df.index],
+                        axis=0
+                    )
+                )
+            else:
+                st.dataframe(display_df)
+            
     except Exception as e:
         logger.error(f"Error displaying transformer dashboard: {str(e)}")
-        st.error("Error displaying transformer dashboard. Check the logs for details.")
+        st.error("An error occurred while displaying the dashboard. Please try refreshing the page.")
+
+def get_alert_status(loading_percentage: float) -> tuple:
+    """
+    Determine the alert status based on the loading percentage
+    
+    Args:
+        loading_percentage: Current loading percentage
+    
+    Returns:
+        tuple: (status, color)
+    """
+    if loading_percentage >= 120:
+        return "Critical", "#dc3545"
+    elif loading_percentage >= 100:
+        return "Overloaded", "#fd7e14"
+    elif loading_percentage >= 80:
+        return "Warning", "#ffc107"
+    elif loading_percentage >= 50:
+        return "Pre-Warning", "#6f42c1"
+    else:
+        return "Normal", "#198754"

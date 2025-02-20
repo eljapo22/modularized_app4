@@ -7,9 +7,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from datetime import datetime
+from datetime import datetime, date
 import pandas as pd
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 import smtplib
 
 logger = logging.getLogger(__name__)
@@ -66,15 +66,50 @@ class CloudAlertService:
             return "PRE-WARNING", "#6f42c1", "📊"
         else:
             return "NORMAL", "#198754", "✅"
+
+    def select_alert_point(self, results: pd.DataFrame) -> Tuple[Optional[pd.Series], Optional[datetime]]:
+        """
+        Find the latest point that exceeds the threshold in the date range.
+        
+        Args:
+            results: DataFrame with transformer data
+            
+        Returns:
+            tuple: (DataFrame row of the alert point, timestamp of the alert) or (None, None) if no alert needed
+        """
+        try:
+            # Filter points exceeding threshold (80%)
+            exceeding_points = results[results['loading_percentage'] >= 80]
+            
+            if not exceeding_points.empty:
+                # Get the latest exceeding point
+                alert_point = exceeding_points.iloc[-1]
+                alert_time = alert_point.name  # Get timestamp from index
+                logger.info(f"Found alert point at {alert_time} with loading {alert_point['loading_percentage']:.1f}%")
+                return alert_point, alert_time
+                
+            logger.info("No points exceed the alert threshold")
+            return None, None
+            
+        except Exception as e:
+            logger.error(f"Error selecting alert point: {str(e)}")
+            return None, None
     
-    def _create_email_content(self, data: pd.DataFrame, date: datetime, hour: int) -> str:
-        """Create HTML content for alert email"""
-        transformer_id = data['transformer_id'].iloc[0]
-        loading_pct = data['loading_percentage'].iloc[-1]
+    def _create_email_content(self, data: pd.Series, alert_time: datetime, start_date: date) -> str:
+        """
+        Create HTML content for alert email with context
+        
+        Args:
+            data: Series with transformer data at alert point
+            alert_time: Timestamp of the alert point
+            start_date: Start date of the analysis range
+        """
+        transformer_id = data['transformer_id']
+        loading_pct = data['loading_percentage']
         status, color, emoji = self._get_status_color(loading_pct)
         
-        # Create deep link back to app
-        deep_link = f"{self.app_url}?view=alert&id={transformer_id}"
+        # Create deep link back to app with context
+        deep_link = f"{self.app_url}?view=alert&id={transformer_id}&start={start_date}&alert_time={alert_time.isoformat()}"
         
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -84,196 +119,91 @@ class CloudAlertService:
                 <h3 style="color: {color};">Status: {status}</h3>
                 <p><strong>Transformer:</strong> {transformer_id}</p>
                 <p><strong>Loading:</strong> {loading_pct:.1f}%</p>
-                <p><strong>Time:</strong> {date.strftime('%Y-%m-%d')} {hour:02d}:00</p>
+                <p><strong>Alert Time:</strong> {alert_time.strftime('%Y-%m-%d %H:%M')}</p>
+                <p><strong>Analysis Start:</strong> {start_date.strftime('%Y-%m-%d')}</p>
             </div>
             
             <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
                 <h4>Detailed Readings:</h4>
                 <ul>
-                    <li>Power: {data['power_kw'].iloc[-1]:.1f} kW</li>
-                    <li>Current: {data['current_a'].iloc[-1]:.1f} A</li>
-                    <li>Voltage: {data['voltage_v'].iloc[-1]:.1f} V</li>
-                    <li>Power Factor: {data['power_factor'].iloc[-1]:.2f}</li>
+                    <li>Power: {data['power_kw']:.1f} kW</li>
+                    <li>Current: {data['current_a']:.1f} A</li>
+                    <li>Voltage: {data['voltage_v']:.1f} V</li>
+                    <li>Power Factor: {data['power_factor']:.2f}</li>
                 </ul>
             </div>
             
             <div style="text-align: center; margin: 30px 0;">
                 <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                    View in Dashboard
+                    View Loading History
                 </a>
             </div>
             
             <p style="color: #6c757d; font-size: 12px; text-align: center;">
-                This is an automated alert from your Transformer Loading Analysis System.
+                This is an automated alert from your Transformer Loading Analysis System.<br>
+                Click the button above to view the loading history leading up to this alert.
             </p>
         </div>
         """
         return html
     
-    def create_email_content(self, transformer_data: pd.DataFrame, date: datetime, hour: int) -> str:
-        """Create HTML email content with transformer data"""
-        
-        html_parts = []
-        for _, row in transformer_data.iterrows():
-            transformer_id = row['transformer_id']
-            loading_pct = row['loading_percentage']
-            status, color = get_alert_status(loading_pct)
-            emoji = get_status_emoji(status)
-            
-            # Create deep link back to app
-            alert_link = f"{self.app_url}?view=alert&id={transformer_id}"
-            
-            html_parts.append(f"""
-            <div style="margin-bottom: 20px; font-family: Arial, sans-serif;">
-                <h2 style="color: #2f4f4f;">Transformer Loading Alert</h2>
-                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
-                    <h3>Transformer {transformer_id}</h3>
-                    <p style="color: {color};">
-                        {emoji} Status: {status}<br>
-                        Loading: {loading_pct:.1f}%
-                    </p>
-                    
-                    <h4>Current Readings:</h4>
-                    <ul>
-                        <li>Power: {row.get('power_kw', 'N/A'):.1f} kW</li>
-                        <li>Current: {row.get('current_a', 'N/A'):.1f} A</li>
-                        <li>Voltage: {row.get('voltage_v', 'N/A'):.1f} V</li>
-                        <li>Power Factor: {row.get('power_factor', 'N/A'):.2f}</li>
-                    </ul>
-                    
-                    <p>Time: {date.strftime('%Y-%m-%d')} {hour:02d}:00</p>
-                    
-                    <p>
-                        <a href="{alert_link}" 
-                           style="background-color: #0d6efd; color: white; padding: 10px 20px; 
-                                  text-decoration: none; border-radius: 5px; display: inline-block;">
-                            View Details
-                        </a>
-                    </p>
-                </div>
-            </div>
-            """)
-        
-        return "\n".join(html_parts)
-    
-    def send_alert(self, transformer_data: pd.DataFrame, date: datetime, hour: int, recipient: str) -> bool:
-        """
-        Send an alert email for transformer loading conditions
-        
-        Args:
-            transformer_data: DataFrame with transformer readings
-            date: Date of the readings
-            hour: Hour of the readings
-            recipient: Email recipient
-            
-        Returns:
-            bool: True if email sent successfully, False otherwise
-        """
-        try:
-            if not self.gmail_creds:
-                logger.error("Gmail credentials not configured")
-                return False
-            
-            # Create email message
-            message = MIMEMultipart()
-            message["to"] = recipient
-            
-            # Get status of first transformer for subject
-            first_row = transformer_data.iloc[0]
-            status, _ = get_alert_status(first_row['loading_percentage'])
-            message["subject"] = f"Transformer Alert: {first_row['transformer_id']} - {status}"
-            
-            # Create and attach HTML content
-            html_content = self.create_email_content(transformer_data, date, hour)
-            message.attach(MIMEText(html_content, "html"))
-            
-            # Send email using Gmail API
-            service = build('gmail', 'v1', credentials=self.gmail_creds)
-            service.users().messages().send(
-                userId="me",
-                body={"raw": message.as_string()}
-            ).execute()
-            
-            logger.info(f"Alert email sent for {len(transformer_data)} transformers")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error sending alert email: {str(e)}")
-            return False
-    
-    def check_and_send_alerts(self, results_df: pd.DataFrame, date: datetime, hour: int, recipient: str) -> bool:
-        """
-        Check transformer data and send alerts if needed
-        
-        Args:
-            results_df: DataFrame with transformer readings
-            date: Date of the readings
-            hour: Hour of the readings
-            recipient: Email recipient
-            
-        Returns:
-            bool: True if alerts processed successfully
-        """
-        try:
-            # Filter transformers above threshold
-            alerts_df = results_df[results_df['loading_percentage'] >= 80.0].copy()
-            
-            if alerts_df.empty:
-                logger.info("No alerts needed")
-                return True
-            
-            # Send alert email
-            return self.send_alert(alerts_df, date, hour, recipient)
-            
-        except Exception as e:
-            logger.error(f"Error processing alerts: {str(e)}")
-            return False
-    
-    def check_and_send_alerts_smtp(self, results_df: pd.DataFrame, date: datetime, hour: int, recipient: str) -> bool:
+    def check_and_send_alerts(
+        self,
+        results_df: pd.DataFrame,
+        start_date: Optional[date] = None,
+        alert_time: Optional[datetime] = None,
+        recipient: str = "jhnapo2213@gmail.com"
+    ) -> bool:
         """
         Check loading conditions and send alert if needed
         
         Args:
             results_df: DataFrame with transformer data
-            date: Date of the data
-            hour: Hour of the data
+            start_date: Start date of the analysis range (optional)
+            alert_time: Specific time to check for alert (optional)
             recipient: Email recipient
             
         Returns:
             bool: True if alert was sent or would have been sent, False otherwise
         """
         try:
-            loading_pct = results_df['loading_percentage'].iloc[-1]
+            # If no alert_time provided, find the latest exceeding point
+            if alert_time is None:
+                alert_point, alert_time = self.select_alert_point(results_df)
+                if alert_point is None:
+                    logger.info("No alert conditions found")
+                    return False
+            else:
+                # Use the specific time point
+                alert_point = results_df.loc[alert_time]
             
-            # Check if loading is above warning threshold
-            if loading_pct >= 80:
-                logger.info(f"High loading detected ({loading_pct:.1f}%)")
-                
-                # If email is not enabled, just log the alert
-                if not self.email_enabled:
-                    logger.warning("Alert would have been sent, but email is not enabled")
-                    st.warning("⚠️ High loading detected. Email alerts are currently disabled.")
-                    return True
-                
-                # Create and send email
-                msg = MIMEMultipart('alternative')
-                msg['Subject'] = f"Transformer Loading Alert - {loading_pct:.1f}% Loading"
-                msg['From'] = self.gmail_user
-                msg['To'] = recipient
-                
-                # Create HTML content
-                html_content = self._create_email_content(results_df, date, hour)
-                msg.attach(MIMEText(html_content, 'html'))
-                
-                # Send email
-                with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-                    smtp.login(self.gmail_user, self.gmail_password)
-                    smtp.send_message(msg)
-                
-                logger.info("Alert email sent successfully")
+            # If email is not enabled, just log the alert
+            if not self.email_enabled:
+                logger.warning("Alert would have been sent, but email is not enabled")
+                st.warning("⚠️ High loading detected. Email alerts are currently disabled.")
                 return True
             
-            return False
+            # Create and send email
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"Transformer Loading Alert - {alert_point['loading_percentage']:.1f}% Loading"
+            msg['From'] = self.gmail_user
+            msg['To'] = recipient
+            
+            # Create HTML content
+            html_content = self._create_email_content(
+                alert_point,
+                alert_time,
+                start_date or alert_time.date()
+            )
+            msg.attach(MIMEText(html_content, 'html'))
+            
+            # Send email
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                smtp.login(self.gmail_user, self.gmail_password)
+                smtp.send_message(msg)
+            
+            logger.info("Alert email sent successfully")
+            return True
             
         except Exception as e:
             logger.error(f"Error in alert system: {str(e)}")

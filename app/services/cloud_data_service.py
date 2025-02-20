@@ -185,6 +185,51 @@ class CloudDataService:
             logger.error(f"Error getting transformer data range: {str(e)}")
             return None
 
+    def get_transformer_data_to_point(
+        self,
+        start_date: date,
+        end_time: datetime,
+        feeder: str,
+        transformer_id: str
+    ) -> Optional[pd.DataFrame]:
+        """
+        Get transformer data from start date up to a specific point in time
+        
+        Args:
+            start_date: Start date for the query
+            end_time: End datetime for the query
+            feeder: Feeder identifier
+            transformer_id: Transformer identifier
+            
+        Returns:
+            DataFrame with transformer data or None if error
+        """
+        try:
+            # Get feeder number from feeder string
+            feeder_num = feeder.split('_')[-1]
+            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
+            
+            # Use the range query but with a specific end time
+            query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
+            params = (transformer_id, start_date, end_time)
+            
+            results = execute_query(query, params)
+            if not results:
+                logger.warning(f"No data found for transformer {transformer_id} in range")
+                return None
+                
+            # Convert to DataFrame and process
+            df = pd.DataFrame(results)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df.set_index('timestamp', inplace=True)
+            df.sort_index(inplace=True)
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error getting transformer data to point: {str(e)}")
+            return None
+
     def get_customer_data(
             self,
             transformer_id: str,

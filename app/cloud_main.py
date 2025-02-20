@@ -4,8 +4,9 @@ Uses app.-prefixed imports required by Streamlit Cloud
 """
 import streamlit as st
 import traceback
-from datetime import datetime, time
+from datetime import datetime, time, date
 import logging
+import pandas as pd
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
@@ -39,6 +40,8 @@ def main():
         params = st.query_params
         from_alert = params.get('view', '') == 'alert'
         alert_transformer = params.get('id', '') if from_alert else None
+        start_date_str = params.get('start', '')
+        alert_time_str = params.get('alert_time', '')
         
         create_banner("Transformer Loading Analysis")
         
@@ -69,10 +72,20 @@ def main():
                         format_func=lambda x: f"{x:02d}:00"
                     )
                 else:
-                    # Date range inputs
+                    # Date range inputs with URL parameter handling
+                    if from_alert and start_date_str:
+                        try:
+                            url_start_date = datetime.fromisoformat(start_date_str).date()
+                            url_end_date = datetime.fromisoformat(alert_time_str).date() if alert_time_str else max_date
+                            date_range = (url_start_date, url_end_date)
+                        except ValueError:
+                            date_range = (min_date, max_date)
+                    else:
+                        date_range = (min_date, max_date)
+                    
                     start_date, end_date = st.date_input(
                         "Date Range",
-                        value=(min_date, max_date),
+                        value=date_range,
                         min_value=min_date,
                         max_value=max_date
                     )
@@ -122,28 +135,65 @@ def main():
                                 display_transformer_dashboard(results, selected_hour)
                                 
                                 # Check and send alerts if needed
-                                if alert_service is not None and alert_service.check_and_send_alerts(
-                                    results_df=results,
-                                    date=query_datetime,
-                                    hour=selected_hour,
-                                    recipient="jhnapo2213@gmail.com"
-                                ):
-                                    if results['loading_percentage'].max() >= 80:
-                                        st.warning("Alert email sent due to high loading condition")
+                                if alert_service is not None and alert_clicked:
+                                    if alert_service.check_and_send_alerts(
+                                        results_df=results,
+                                        alert_time=query_datetime,
+                                        recipient="jhnapo2213@gmail.com"
+                                    ):
+                                        st.success("Alert email sent successfully")
                             else:
                                 st.warning("No data available for the selected criteria.")
                     else:
                         if not all([start_date, end_date, selected_feeder, selected_transformer]):
                             st.error("Please select all required parameters")
                         else:
-                            results = data_service.get_transformer_data_range(
-                                start_date,
-                                end_date,
-                                selected_feeder,
-                                selected_transformer
-                            )
+                            # Handle alert URL parameters
+                            if from_alert and alert_time_str:
+                                try:
+                                    alert_time = datetime.fromisoformat(alert_time_str)
+                                    results = data_service.get_transformer_data_to_point(
+                                        start_date,
+                                        alert_time,
+                                        selected_feeder,
+                                        selected_transformer
+                                    )
+                                except ValueError:
+                                    logger.warning("Invalid alert time format in URL")
+                                    results = data_service.get_transformer_data_range(
+                                        start_date,
+                                        end_date,
+                                        selected_feeder,
+                                        selected_transformer
+                                    )
+                            else:
+                                results = data_service.get_transformer_data_range(
+                                    start_date,
+                                    end_date,
+                                    selected_feeder,
+                                    selected_transformer
+                                )
+                            
                             if results is not None and not results.empty:
-                                display_transformer_dashboard(results, None)
+                                # Display dashboard with alert time marker if available
+                                alert_hour = None
+                                if alert_time_str:
+                                    try:
+                                        alert_time = datetime.fromisoformat(alert_time_str)
+                                        alert_hour = alert_time.hour
+                                    except ValueError:
+                                        pass
+                                
+                                display_transformer_dashboard(results, alert_hour)
+                                
+                                # Check and send alerts if needed
+                                if alert_service is not None and alert_clicked:
+                                    if alert_service.check_and_send_alerts(
+                                        results_df=results,
+                                        start_date=start_date,
+                                        recipient="jhnapo2213@gmail.com"
+                                    ):
+                                        st.success("Alert email sent successfully")
                             else:
                                 st.warning("No data available for the selected criteria.")
                 
