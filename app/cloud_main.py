@@ -4,6 +4,14 @@ Uses app.-prefixed imports required by Streamlit Cloud
 """
 
 import streamlit as st
+import logging
+import traceback
+from datetime import datetime
+from app.services.cloud_data_service import CloudDataService
+from app.services.cloud_alert_service import CloudAlertService
+from app.visualization.charts import display_transformer_dashboard
+from app.utils.ui_components import create_tile, create_banner, create_section_banner
+from app.utils.performance import log_performance
 
 # Configure page - must be first Streamlit command
 st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
@@ -44,23 +52,6 @@ st.markdown("""
         background-color: white;
     }
 </style>""", unsafe_allow_html=True)
-
-import logging
-import traceback
-from datetime import datetime
-from app.services.cloud_data_service import CloudDataService
-from app.services.cloud_alert_service import CloudAlertService
-from app.visualization.charts import (
-    display_transformer_dashboard,
-    display_loading_status_line_chart,
-    display_power_time_series,
-    display_current_time_series,
-    display_voltage_time_series,
-    display_loading_status,
-    add_hour_indicator
-)
-from app.utils.ui_components import create_tile, create_banner, create_section_banner
-from app.utils.performance import log_performance
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -104,11 +95,12 @@ def main():
             st.markdown("### Search Controls")
             
             try:
-                # Date selection
+                # Get available date range
                 logger.info("Getting available dates...")
                 min_date, max_date = data_service.get_available_dates()
                 logger.info(f"Got date range: {min_date} to {max_date}")
                 
+                # Date selection
                 selected_date = st.date_input(
                     "Date",
                     value=max_date,
@@ -123,60 +115,73 @@ def main():
                     format_func=lambda x: f"{x:02d}:00"
                 )
                 
-                # Feeder selection
+                # Get feeder options
                 logger.info("Getting feeder list...")
-                feeders = data_service.get_feeder_list()
-                logger.info(f"Found {len(feeders)} feeders")
+                feeder_options = data_service.get_feeder_options()
+                logger.info(f"Found {len(feeder_options)} feeders")
                 
+                # Feeder selection
                 selected_feeder = st.selectbox(
                     "Feeder",
-                    options=feeders,
-                    format_func=lambda x: f"Feeder {x}"
+                    options=feeder_options
                 )
                 
                 if selected_feeder:
-                    logger.info(f"Getting transformers for feeder {selected_feeder}...")
-                    transformers = data_service.get_transformer_ids(selected_feeder)
-                    logger.info(f"Found {len(transformers)} transformers")
+                    # Get load options for selected feeder
+                    load_options = data_service.get_load_options(selected_feeder)
+                    logger.info(f"Found {len(load_options)} load numbers for feeder {selected_feeder}")
                     
-                    selected_transformer = st.selectbox(
+                    # Load number selection
+                    selected_load = st.selectbox(
                         "Load Number",
-                        options=transformers
+                        options=load_options
                     )
                     
-                    if selected_transformer:
-                        # Action buttons
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            search_clicked = st.button("Search", use_container_width=True)
-                        with col2:
-                            merge_clicked = st.button("Merge", use_container_width=True)
+                    # Action buttons
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        search_clicked = st.button("Search", use_container_width=True)
+                    with col2:
+                        merge_clicked = st.button("Merge", use_container_width=True)
+                    
+                    # Reset Data Configuration
+                    with st.expander("Reset Data Configuration"):
+                        st.checkbox("Reset on next search")
+                    
+                    # Handle search action
+                    if search_clicked and selected_load:
+                        results_df = data_service.get_transformer_data(
+                            selected_date,
+                            selected_hour,
+                            selected_feeder,
+                            selected_load
+                        )
                         
-                        # Reset Data Configuration
-                        with st.expander("Reset Data Configuration"):
-                            st.checkbox("Reset on next search")
+                        if results_df is not None and not results_df.empty:
+                            display_transformer_dashboard(results_df, selected_hour)
+                        else:
+                            st.warning("No data available for the selected criteria.")
             
             except Exception as e:
                 logger.error(f"Error in sidebar: {str(e)}\nTraceback: {traceback.format_exc()}")
-                st.error("An error occurred while loading the sidebar. Please try again.")
-                return
+                st.error("An error occurred while loading the interface. Please try again.")
         
         # Main content area
-        if selected_transformer:
+        if selected_load:
             try:
-                logger.info(f"Getting data for transformer {selected_transformer}...")
-                results = data_service.get_transformer_data(selected_transformer, selected_date)
+                logger.info(f"Getting data for load {selected_load}...")
+                results = data_service.get_transformer_data(selected_date, selected_hour, selected_feeder, selected_load)
                 
                 if results is not None and not results.empty:
                     logger.info("Displaying transformer dashboard...")
                     display_transformer_dashboard(results, selected_hour)
                 else:
-                    st.warning("No data available for the selected transformer and date.")
+                    st.warning("No data available for the selected load and date.")
             except Exception as e:
                 logger.error(f"Error displaying dashboard: {str(e)}\nTraceback: {traceback.format_exc()}")
                 st.error("An error occurred while displaying the dashboard. Please try again.")
         else:
-            st.info("Please select a transformer to view analysis.")
+            st.info("Please select a load to view analysis.")
             
     except Exception as e:
         logger.error(f"Main application error: {str(e)}\nTraceback: {traceback.format_exc()}")
