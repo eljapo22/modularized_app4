@@ -5,8 +5,6 @@ import logging
 import streamlit as st
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
 from datetime import datetime, date
 import pandas as pd
 from typing import Optional, List, Dict, Tuple
@@ -43,34 +41,15 @@ class CloudAlertService:
     def __init__(self):
         """Initialize the alert service"""
         self.app_url = st.secrets.get("APP_URL", "https://modularized-app4.streamlit.app")
-        self.default_recipient = st.secrets.get("DEFAULT_EMAIL", "jhnapo2213@gmail.com")
-        self.email_enabled = False
+        self.email = st.secrets.get("DEFAULT_EMAIL", "jhnapo2213@gmail.com")
+        self.app_password = st.secrets.get("GMAIL_APP_PASSWORD")
+        self.email_enabled = self.app_password is not None
         
-        # Try to get Gmail credentials, but don't fail if they're not available
-        try:
-            # Get Gmail OAuth2 credentials
-            client_id = st.secrets["GMAIL_CLIENT_ID"]
-            client_secret = st.secrets["GMAIL_CLIENT_SECRET"]
-            refresh_token = st.secrets["GMAIL_REFRESH_TOKEN"]
-            
-            # Create credentials using client config and refresh token
-            self.gmail_creds = Credentials(
-                None,  # No access token needed initially
-                refresh_token=refresh_token,
-                token_uri="https://oauth2.googleapis.com/token",
-                client_id=client_id,
-                client_secret=client_secret,
-                scopes=["https://www.googleapis.com/auth/gmail.send"]
-            )
-            
-            # Test if credentials work by trying to build the service
-            service = build('gmail', 'v1', credentials=self.gmail_creds)
-            self.email_enabled = True
+        if not self.email_enabled:
+            logger.warning("Email alerts disabled: Gmail app password not found in secrets")
+        else:
             logger.info("Email alerts enabled")
-        except Exception as e:
-            logger.error(f"Failed to initialize Gmail credentials: {str(e)}")
-            self.gmail_creds = None
-    
+
     def _get_status_color(self, loading_pct: float) -> tuple:
         """Get status and color based on loading percentage"""
         if loading_pct >= 120:
@@ -187,23 +166,21 @@ class CloudAlertService:
         return html
     
     def _send_email(self, msg: MIMEMultipart) -> bool:
-        """Send email using Gmail API with token refresh handling"""
+        """Send email using Gmail SMTP with app password"""
         try:
-            # Build Gmail service with auto-refreshing credentials
-            service = build('gmail', 'v1', credentials=self.gmail_creds)
+            # Connect to Gmail's SMTP server
+            server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+            server.login(self.email, self.app_password)
             
-            # Create the message
-            message = {'raw': base64.urlsafe_b64encode(msg.as_bytes()).decode()}
+            # Send email
+            server.send_message(msg)
+            server.quit()
             
-            # Send the email
-            sent_message = service.users().messages().send(userId='me', body=message).execute()
-            logger.info(f"Email sent successfully. Message Id: {sent_message.get('id')}")
+            logger.info("Email sent successfully")
             return True
             
         except Exception as e:
             logger.error(f"Failed to send email: {str(e)}")
-            if "invalid_grant" in str(e).lower():
-                logger.error("Gmail refresh token may have expired. Please re-authenticate.")
             return False
 
     def check_and_send_alerts(
@@ -249,8 +226,8 @@ class CloudAlertService:
                 # Create and send email
                 msg = MIMEMultipart('alternative')
                 msg['Subject'] = f"Transformer Loading Alert - {alert_point['loading_percentage']:.1f}% Loading"
-                msg['From'] = self.default_recipient
-                msg['To'] = recipient or self.default_recipient
+                msg['From'] = self.email
+                msg['To'] = recipient or self.email
                 
                 st.write("**Sending Email Alert**")
                 st.write(f"To: {msg['To']}")
@@ -261,7 +238,7 @@ class CloudAlertService:
                 )
                 msg.attach(MIMEText(html_content, 'html'))
                 
-                # Send the email using our helper method
+                # Send the email
                 if self._send_email(msg):
                     st.success(f"✉️ Alert email sent successfully")
                     return True
