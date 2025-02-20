@@ -43,18 +43,33 @@ class CloudAlertService:
     def __init__(self):
         """Initialize the alert service"""
         self.app_url = st.secrets.get("APP_URL", "https://modularized-app4.streamlit.app")
+        self.default_recipient = st.secrets.get("DEFAULT_EMAIL", "jhnapo2213@gmail.com")
+        self.email_enabled = False
         
         # Try to get Gmail credentials, but don't fail if they're not available
         try:
-            # Parse the GMAIL_TOKEN from secrets
-            gmail_token = json.loads(st.secrets["GMAIL_TOKEN"])
-            self.gmail_creds = Credentials.from_authorized_user_info(gmail_token)
-            self.default_recipient = st.secrets["DEFAULT_RECIPIENT"]
+            # Get Gmail OAuth2 credentials
+            client_id = st.secrets["GMAIL_CLIENT_ID"]
+            client_secret = st.secrets["GMAIL_CLIENT_SECRET"]
+            refresh_token = st.secrets["GMAIL_REFRESH_TOKEN"]
+            
+            # Create credentials using client config and refresh token
+            self.gmail_creds = Credentials(
+                None,  # No access token needed initially
+                refresh_token=refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=client_id,
+                client_secret=client_secret,
+                scopes=["https://www.googleapis.com/auth/gmail.send"]
+            )
+            
+            # Test if credentials work by trying to build the service
+            service = build('gmail', 'v1', credentials=self.gmail_creds)
             self.email_enabled = True
             logger.info("Email alerts enabled")
         except Exception as e:
-            logger.warning(f"Email alerts disabled: Gmail credentials not found in secrets - {str(e)}")
-            self.email_enabled = False
+            logger.error(f"Failed to initialize Gmail credentials: {str(e)}")
+            self.gmail_creds = None
     
     def _get_status_color(self, loading_pct: float) -> tuple:
         """Get status and color based on loading percentage"""
@@ -171,6 +186,26 @@ class CloudAlertService:
         """
         return html
     
+    def _send_email(self, msg: MIMEMultipart) -> bool:
+        """Send email using Gmail API with token refresh handling"""
+        try:
+            # Build Gmail service with auto-refreshing credentials
+            service = build('gmail', 'v1', credentials=self.gmail_creds)
+            
+            # Create the message
+            message = {'raw': base64.urlsafe_b64encode(msg.as_bytes()).decode()}
+            
+            # Send the email
+            sent_message = service.users().messages().send(userId='me', body=message).execute()
+            logger.info(f"Email sent successfully. Message Id: {sent_message.get('id')}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to send email: {str(e)}")
+            if "invalid_grant" in str(e).lower():
+                logger.error("Gmail refresh token may have expired. Please re-authenticate.")
+            return False
+
     def check_and_send_alerts(
         self,
         results_df: pd.DataFrame,
@@ -226,19 +261,12 @@ class CloudAlertService:
                 )
                 msg.attach(MIMEText(html_content, 'html'))
                 
-                try:
-                    # Send email using Gmail API
-                    service = build('gmail', 'v1', credentials=self.gmail_creds)
-                    message = {'raw': base64.urlsafe_b64encode(msg.as_bytes()).decode()}
-                    service.users().messages().send(userId='me', body=message).execute()
-                    success_msg = "Alert email sent successfully"
-                    logger.info(success_msg)
-                    st.success(f"✉️ {success_msg}")
+                # Send the email using our helper method
+                if self._send_email(msg):
+                    st.success(f"✉️ Alert email sent successfully")
                     return True
-                except Exception as e:
-                    error_msg = f"Failed to send email: {str(e)}"
-                    logger.error(error_msg)
-                    st.error(f"❌ {error_msg}")
+                else:
+                    st.error(f"❌ Failed to send alert email")
                     return False
                 
         except Exception as e:
