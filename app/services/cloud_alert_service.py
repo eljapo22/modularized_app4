@@ -5,7 +5,7 @@ import logging
 import streamlit as st
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, date
+from datetime import datetime, date, time
 import pandas as pd
 from typing import Optional, List, Dict, Tuple
 import smtplib
@@ -64,19 +64,19 @@ class CloudAlertService:
     def _select_alert_point(self, results_df: pd.DataFrame) -> Optional[pd.Series]:
         """Select the point to alert on"""
         try:
-            # Find the highest loading percentage
+            # Find the row with maximum loading
             max_loading_idx = results_df['loading_percentage'].idxmax()
-            max_loading = results_df.loc[max_loading_idx]
+            max_loading_row = results_df.loc[max_loading_idx]
             
             # Log the max loading found
-            logger.info(f"Found max loading: {max_loading['loading_percentage']:.1f}% at {max_loading.name}")
+            logger.info(f"Found max loading: {max_loading_row['loading_percentage']:.1f}% at {max_loading_idx}")
             
             # Only alert if loading is high enough
-            if max_loading['loading_percentage'] >= 80:
-                return max_loading
+            if max_loading_row['loading_percentage'] >= 80:
+                return max_loading_row
             else:
-                logger.info(f"Max loading {max_loading['loading_percentage']:.1f}% below alert threshold (80%)")
-                st.info(f"🔍 Maximum loading ({max_loading['loading_percentage']:.1f}%) is below alert threshold (80%)")
+                logger.info(f"Max loading {max_loading_row['loading_percentage']:.1f}% below alert threshold (80%)")
+                st.info(f"🔍 Maximum loading ({max_loading_row['loading_percentage']:.1f}%) is below alert threshold (80%)")
                 return None
                 
         except Exception as e:
@@ -84,17 +84,36 @@ class CloudAlertService:
             return None
 
     def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
-        """Create deep link back to app with context"""
-        params = {
-            'view': 'alert',
-            'id': transformer_id,
-            'start': start_date.isoformat() if start_date else None,
-            'alert_time': alert_time.isoformat() if alert_time else None
-        }
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
-        query_string = '&'.join(f"{k}={v}" for k, v in params.items())
-        return f"{self.app_url}?{query_string}"
+        """Create a deep link to the dashboard with alert parameters"""
+        try:
+            if not isinstance(alert_time, datetime):
+                logger.warning(f"Alert time {alert_time} is not a datetime object")
+                # If it's just a date, use noon as the default time
+                if isinstance(alert_time, date):
+                    alert_time = datetime.combine(alert_time, time(12, 0))
+                else:
+                    # Default to current date at noon if we can't parse it
+                    alert_time = datetime.combine(date.today(), time(12, 0))
+            
+            # Format the parameters
+            params = {
+                'from_alert': 'true',
+                'alert_time': alert_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'start_date': start_date.strftime('%Y-%m-%d'),
+                'transformer': transformer_id
+            }
+            
+            # Create the query string
+            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+            base_url = "https://modularized-app4.streamlit.app/"
+            
+            deep_link = f"{base_url}?{query_string}"
+            logger.info(f"Created deep link: {deep_link}")
+            return deep_link
+            
+        except Exception as e:
+            logger.error(f"Error creating deep link: {str(e)}")
+            return "#"  # Return a safe default
 
     def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
         """
@@ -187,7 +206,9 @@ class CloudAlertService:
 
         try:
             # Log the data we're checking
-            logger.info(f"Checking {len(results_df)} data points from {results_df.index[0]} to {results_df.index[-1]}")
+            logger.info(f"Checking {len(results_df)} data points")
+            if not results_df.empty:
+                logger.info(f"Data range: {results_df.index[0]} to {results_df.index[-1]}")
             logger.info(f"Current email settings - From: {self.email}, App password configured: {bool(self.app_password)}")
             
             # Create an expander for detailed alert info
@@ -209,13 +230,18 @@ class CloudAlertService:
                 st.write(f"**Loading:** {alert_point['loading_percentage']:.1f}%")
                 st.write(f"**Time:** {alert_point.name}")
                 
+                # Use the alert point's time if none provided
+                if alert_time is None:
+                    alert_time = alert_point.name if isinstance(alert_point.name, datetime) else datetime.now()
+                if start_date is None:
+                    start_date = alert_time.date() if isinstance(alert_time, datetime) else date.today()
+                
                 # Create deep link
                 deep_link = self._create_deep_link(
                     start_date,
-                    alert_time or alert_point.name,
+                    alert_time,
                     alert_point['transformer_id']
                 )
-                logger.info(f"Created deep link: {deep_link}")
                 
                 # Create and send email
                 msg = MIMEMultipart('alternative')
