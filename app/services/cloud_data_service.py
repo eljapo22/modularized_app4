@@ -4,9 +4,9 @@ Cloud-specific data service implementation
 
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -28,6 +28,22 @@ class CloudDataService:
     def get_load_options(self, feeder: str) -> List[str]:
         """Get list of available load numbers for a feeder"""
         return self.load_options.get(feeder, [])
+    
+    def get_available_dates(self) -> Tuple[date, date]:
+        """Get the available date range for data queries"""
+        try:
+            # For demo purposes, return a fixed date range
+            # In production, this would query the actual database
+            today = datetime.now().date()
+            min_date = today - timedelta(days=30)
+            max_date = today
+            logger.info(f"Available date range: {min_date} to {max_date}")
+            return min_date, max_date
+        except Exception as e:
+            logger.error(f"Error getting available dates: {str(e)}")
+            # Return a sensible default if there's an error
+            default_date = datetime.now().date()
+            return default_date, default_date
     
     def get_transformer_data(
         self,
