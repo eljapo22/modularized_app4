@@ -58,23 +58,23 @@ class CloudDataService:
         # Initialization is done in __new__
         pass
     
-    @st.cache_data(ttl="1h", allow_output_mutation=True)
-    def query(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
+    @st.cache_data(ttl=3600)  # 1 hour in seconds
+    def query(_self, query: str, params: Optional[List] = None) -> pd.DataFrame:
         """Execute a query and return results as DataFrame"""
         try:
             logger.info(f"Executing query: {query} with params: {params}")
             if params:
-                result = self.conn.execute(query, params).df()
+                result = _self.conn.execute(query, params).df()
             else:
-                result = self.conn.execute(query).df()
+                result = _self.conn.execute(query).df()
             logger.info(f"Query returned {len(result)} rows")
             return result
         except Exception as e:
             logger.error(f"Query failed: {str(e)}\nQuery: {query}\nParams: {params}\nTraceback: {traceback.format_exc()}")
             return None
     
-    @st.cache_data(ttl="1h", allow_output_mutation=True)
-    def get_feeder_data(self, feeder: int) -> pd.DataFrame:
+    @st.cache_data(ttl=86400)  # 24 hours in seconds
+    def get_feeder_data(_self, feeder: int) -> pd.DataFrame:
         """Get data for a specific feeder"""
         logger.info(f"Getting data for feeder {feeder}")
         query = """
@@ -93,10 +93,10 @@ class CloudDataService:
             WHERE timestamp >= CURRENT_DATE - INTERVAL '30 days'
             ORDER BY timestamp
         """.format(feeder)
-        return self.query(query)
+        return _self.query(query)
     
-    @st.cache_data(ttl="24h", allow_output_mutation=True)
-    def get_transformer_ids(self, feeder: int) -> List[str]:
+    @st.cache_data(ttl=86400)  # 24 hours in seconds
+    def get_transformer_ids(_self, feeder: int) -> List[str]:
         """Get transformer IDs for a feeder"""
         logger.info(f"Getting transformer IDs for feeder {feeder}")
         query = """
@@ -104,13 +104,13 @@ class CloudDataService:
             FROM ModApp4DB.main."Transformer Feeder {}"
             ORDER BY transformer_id
         """.format(feeder)
-        result = self.query(query)
+        result = _self.query(query)
         ids = result['transformer_id'].tolist() if result is not None else []
         logger.info(f"Found {len(ids)} transformers for feeder {feeder}")
         return ids
     
-    @st.cache_data(ttl="1h", allow_output_mutation=True)
-    def get_transformer_data(self, transformer_id: str, start_date: date, end_date: Optional[date] = None) -> pd.DataFrame:
+    @st.cache_data(ttl=3600)  # 1 hour in seconds
+    def get_transformer_data(_self, transformer_id: str, start_date: date, end_date: Optional[date] = None) -> pd.DataFrame:
         """Get data for a specific transformer within a date range"""
         logger.info(f"Getting data for transformer {transformer_id} from {start_date} to {end_date}")
         if end_date is None:
@@ -136,18 +136,18 @@ class CloudDataService:
             AND CAST(timestamp AS DATE) BETWEEN ? AND ?
             ORDER BY timestamp
         """.format(feeder_num)
-        return self.query(query, [transformer_id, start_date, end_date])
+        return _self.query(query, [transformer_id, start_date, end_date])
     
-    @st.cache_data(ttl="24h", allow_output_mutation=True)
-    def get_feeder_list(self) -> List[int]:
+    @st.cache_data(ttl=86400)  # 24 hours in seconds
+    def get_feeder_list(_self) -> List[int]:
         """Get list of all feeder IDs"""
         logger.info("Getting list of all feeders")
         # Since tables are named "Transformer Feeder 1", "Transformer Feeder 2", etc.
         # We'll return [1, 2, 3, 4] as that's what we see in the database
         return [1, 2, 3, 4]
     
-    @st.cache_data(ttl="1h", allow_output_mutation=True)
-    def get_available_dates(self) -> tuple[date, date]:
+    @st.cache_data(ttl=3600)  # 1 hour in seconds
+    def get_available_dates(_self) -> tuple[date, date]:
         """Get available date range from the data"""
         logger.info("Getting available date range")
         try:
@@ -158,7 +158,7 @@ class CloudDataService:
                 MAX(CAST(timestamp AS DATE)) as max_date
             FROM ModApp4DB.main."Transformer Feeder 1"
             """
-            result = self.conn.execute(query).fetchone()
+            result = _self.conn.execute(query).fetchone()
             if not result or not result[0] or not result[1]:
                 logger.error("No dates found in MotherDuck")
                 default_date = datetime(2024, 2, 14).date()
@@ -173,8 +173,8 @@ class CloudDataService:
             default_date = datetime(2024, 2, 14).date()
             return default_date, default_date
     
-    @st.cache_data(ttl="1h", allow_output_mutation=True)
-    def get_customer_data(self, feeder: int) -> pd.DataFrame:
+    @st.cache_data(ttl=3600)  # 1 hour in seconds
+    def get_customer_data(_self, feeder: int) -> pd.DataFrame:
         """Get customer data for a specific feeder"""
         logger.info(f"Getting customer data for feeder {feeder}")
         query = """
@@ -191,10 +191,10 @@ class CloudDataService:
             WHERE timestamp >= CURRENT_DATE - INTERVAL '30 days'
             ORDER BY timestamp
         """.format(feeder)
-        return self.query(query)
+        return _self.query(query)
     
-    @st.cache_data(ttl="24h", allow_output_mutation=True)
-    def get_customer_ids(self, transformer_id: str) -> List[str]:
+    @st.cache_data(ttl=86400)  # 24 hours in seconds
+    def get_customer_ids(_self, transformer_id: str) -> List[str]:
         """Get customer IDs for a transformer"""
         logger.info(f"Getting customer IDs for transformer {transformer_id}")
         # Extract feeder number from transformer_id (e.g., S1F1ATF003 -> 1)
@@ -206,7 +206,7 @@ class CloudDataService:
             WHERE transformer_id = ?
             ORDER BY customer_id
         """.format(feeder_num)
-        result = self.query(query, [transformer_id])
+        result = _self.query(query, [transformer_id])
         ids = result['customer_id'].tolist() if result is not None else []
         logger.info(f"Found {len(ids)} customers for transformer {transformer_id}")
         return ids
