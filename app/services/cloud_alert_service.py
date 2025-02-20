@@ -80,22 +80,33 @@ class CloudAlertService:
             tuple: (DataFrame row of the alert point) or (None) if no alert needed
         """
         try:
+            # Log the data range we're checking
+            date_range = f"{results.index[0]} to {results.index[-1]}"
+            logger.info(f"Checking for alerts in date range: {date_range}")
+            st.info(f"📊 Analyzing data from {date_range}")
+            
             # Filter points exceeding threshold (80%)
             exceeding_points = results[results['loading_percentage'] >= 80]
             
             if not exceeding_points.empty:
                 # Get the latest exceeding point
                 alert_point = exceeding_points.iloc[-1]
-                logger.info(f"Found alert point at {alert_point.name} with loading {alert_point['loading_percentage']:.1f}%")
+                alert_msg = f"Found alert condition: {alert_point['loading_percentage']:.1f}% loading at {alert_point.name}"
+                logger.info(alert_msg)
+                st.warning(f"⚠️ {alert_msg}")
                 return alert_point
-                
-            logger.info("No points exceed the alert threshold")
+            
+            no_alert_msg = f"No points exceed the 80% threshold. Max loading: {results['loading_percentage'].max():.1f}%"
+            logger.info(no_alert_msg)
+            st.info(f"✓ {no_alert_msg}")
             return None
             
         except Exception as e:
-            logger.error(f"Error selecting alert point: {str(e)}")
+            error_msg = f"Error selecting alert point: {str(e)}"
+            logger.error(error_msg)
+            st.error(f"❌ {error_msg}")
             return None
-    
+
     def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
         """Create deep link back to app with context"""
         params = {
@@ -171,52 +182,67 @@ class CloudAlertService:
         Check loading conditions and send alert if needed
         """
         if not self.email_enabled:
-            logger.warning("Email alerts disabled - skipping alert check")
+            msg = "Email alerts disabled - skipping alert check"
+            logger.warning(msg)
+            st.warning(f"📧 {msg}")
             return False
 
         try:
-            # Select the alert point
-            alert_point = self._select_alert_point(results_df)
-            
-            if alert_point is None:
-                logger.info("No alert conditions met")
-                return False
-            
-            logger.info(f"Alert condition met: {alert_point['loading_percentage']:.1f}% loading")
-            
-            # Get alert status and color
-            status, color = get_alert_status(alert_point['loading_percentage'])
-            
-            # Create deep link
-            deep_link = self._create_deep_link(
-                start_date,
-                alert_time or alert_point.name,
-                alert_point['transformer_id']
-            )
-            
-            # Create and send email
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = f"Transformer Loading Alert - {alert_point['loading_percentage']:.1f}% Loading"
-            msg['From'] = self.default_recipient  # Use default_recipient as From address
-            msg['To'] = recipient or self.default_recipient
-            
-            # Create HTML content
-            html_content = self._create_email_content(
-                alert_point, status, color, deep_link
-            )
-            msg.attach(MIMEText(html_content, 'html'))
-            
-            try:
-                # Send email using Gmail API
-                service = build('gmail', 'v1', credentials=self.gmail_creds)
-                message = {'raw': base64.urlsafe_b64encode(msg.as_bytes()).decode()}
-                service.users().messages().send(userId='me', body=message).execute()
-                logger.info("Alert email sent successfully")
-                return True
-            except Exception as e:
-                logger.error(f"Failed to send email: {str(e)}")
-                return False
+            # Create an expander for detailed alert info
+            with st.expander("📋 Alert Check Details", expanded=True):
+                st.write("**Checking Alert Conditions**")
+                
+                # Select the alert point
+                alert_point = self._select_alert_point(results_df)
+                
+                if alert_point is None:
+                    return False
+                
+                # Get alert status and color
+                status, color = get_alert_status(alert_point['loading_percentage'])
+                st.write(f"**Alert Status:** {status}")
+                st.write(f"**Loading:** {alert_point['loading_percentage']:.1f}%")
+                st.write(f"**Time:** {alert_point.name}")
+                
+                # Create deep link
+                deep_link = self._create_deep_link(
+                    start_date,
+                    alert_time or alert_point.name,
+                    alert_point['transformer_id']
+                )
+                
+                # Create and send email
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = f"Transformer Loading Alert - {alert_point['loading_percentage']:.1f}% Loading"
+                msg['From'] = self.default_recipient
+                msg['To'] = recipient or self.default_recipient
+                
+                st.write("**Sending Email Alert**")
+                st.write(f"To: {msg['To']}")
+                
+                # Create HTML content
+                html_content = self._create_email_content(
+                    alert_point, status, color, deep_link
+                )
+                msg.attach(MIMEText(html_content, 'html'))
+                
+                try:
+                    # Send email using Gmail API
+                    service = build('gmail', 'v1', credentials=self.gmail_creds)
+                    message = {'raw': base64.urlsafe_b64encode(msg.as_bytes()).decode()}
+                    service.users().messages().send(userId='me', body=message).execute()
+                    success_msg = "Alert email sent successfully"
+                    logger.info(success_msg)
+                    st.success(f"✉️ {success_msg}")
+                    return True
+                except Exception as e:
+                    error_msg = f"Failed to send email: {str(e)}"
+                    logger.error(error_msg)
+                    st.error(f"❌ {error_msg}")
+                    return False
                 
         except Exception as e:
-            logger.error(f"Error in check_and_send_alerts: {str(e)}")
+            error_msg = f"Error in check_and_send_alerts: {str(e)}"
+            logger.error(error_msg)
+            st.error(f"❌ {error_msg}")
             return False
