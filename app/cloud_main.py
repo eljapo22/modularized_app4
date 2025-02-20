@@ -33,16 +33,6 @@ def main():
         min_date, max_date = data_service.get_available_dates()
         logger.info(f"Got date range: {min_date} to {max_date}")
             
-        # Initialize session state for dates if not exists
-        if 'start_date' not in st.session_state:
-            st.session_state.start_date = min_date
-        if 'end_date' not in st.session_state:
-            st.session_state.end_date = max_date
-        if 'selected_date' not in st.session_state:
-            st.session_state.selected_date = max_date
-        if 'selected_hour' not in st.session_state:
-            st.session_state.selected_hour = 0
-        
         # Set page config
         st.set_page_config(
             page_title="Transformer Loading Analysis",
@@ -69,32 +59,48 @@ def main():
                 
                 if search_mode == "Single Day":
                     # Single day inputs
+                    default_date = max_date
+                    if 'selected_date' in st.session_state:
+                        try:
+                            default_date = st.session_state.selected_date
+                        except:
+                            pass
+                            
                     selected_date = st.date_input(
                         "Date",
-                        value=st.session_state.selected_date,
+                        value=default_date,
                         min_value=min_date,
                         max_value=max_date
                     )
                     st.session_state.selected_date = selected_date
                     
+                    default_hour = 0
+                    if 'selected_hour' in st.session_state:
+                        try:
+                            default_hour = st.session_state.selected_hour
+                        except:
+                            pass
+                            
                     selected_hour = st.selectbox(
                         "Time",
                         range(24),
-                        index=st.session_state.selected_hour,
+                        index=default_hour,
                         format_func=lambda x: f"{x:02d}:00"
                     )
                     st.session_state.selected_hour = selected_hour
                 else:
                     # Date range inputs with URL parameter handling
-                    if from_alert and start_date_str:
-                        try:
+                    try:
+                        if from_alert and start_date_str:
                             url_start_date = datetime.fromisoformat(start_date_str).date()
                             url_end_date = datetime.fromisoformat(alert_time_str).date() if alert_time_str else max_date
                             initial_dates = [url_start_date, url_end_date]
-                        except ValueError:
+                        elif 'start_date' in st.session_state and 'end_date' in st.session_state:
                             initial_dates = [st.session_state.start_date, st.session_state.end_date]
-                    else:
-                        initial_dates = [st.session_state.start_date, st.session_state.end_date]
+                        else:
+                            initial_dates = [min_date, max_date]
+                    except:
+                        initial_dates = [min_date, max_date]
                     
                     # Always use list for value to ensure we get a range
                     date_input = st.date_input(
@@ -106,13 +112,14 @@ def main():
                     
                     # Handle both list and tuple returns
                     if isinstance(date_input, (list, tuple)) and len(date_input) >= 2:
-                        st.session_state.start_date = date_input[0]
-                        st.session_state.end_date = date_input[-1]
-                        start_date, end_date = st.session_state.start_date, st.session_state.end_date
+                        start_date = date_input[0]
+                        end_date = date_input[-1]
+                        st.session_state.start_date = start_date
+                        st.session_state.end_date = end_date
                     else:
                         # If somehow we get a single date, use it for both
-                        st.session_state.start_date = st.session_state.end_date = date_input
                         start_date = end_date = date_input
+                        st.session_state.start_date = st.session_state.end_date = date_input
                 
                 # Feeder selection
                 with st.spinner("Loading feeders..."):
