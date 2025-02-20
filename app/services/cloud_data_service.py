@@ -58,7 +58,7 @@ class CloudDataService:
         # Initialization is done in __new__
         pass
     
-    @st.cache_data(ttl="1h")
+    @st.cache_data(ttl="1h", allow_output_mutation=True)
     def query(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
         """Execute a query and return results as DataFrame"""
         try:
@@ -73,7 +73,7 @@ class CloudDataService:
             logger.error(f"Query failed: {str(e)}\nQuery: {query}\nParams: {params}\nTraceback: {traceback.format_exc()}")
             return None
     
-    @st.cache_data(ttl="1h")
+    @st.cache_data(ttl="1h", allow_output_mutation=True)
     def get_feeder_data(self, feeder: int) -> pd.DataFrame:
         """Get data for a specific feeder"""
         logger.info(f"Getting data for feeder {feeder}")
@@ -95,7 +95,7 @@ class CloudDataService:
         """.format(feeder)
         return self.query(query)
     
-    @st.cache_data(ttl="24h")
+    @st.cache_data(ttl="24h", allow_output_mutation=True)
     def get_transformer_ids(self, feeder: int) -> List[str]:
         """Get transformer IDs for a feeder"""
         logger.info(f"Getting transformer IDs for feeder {feeder}")
@@ -109,7 +109,7 @@ class CloudDataService:
         logger.info(f"Found {len(ids)} transformers for feeder {feeder}")
         return ids
     
-    @st.cache_data(ttl="1h")
+    @st.cache_data(ttl="1h", allow_output_mutation=True)
     def get_transformer_data(self, transformer_id: str, start_date: date, end_date: Optional[date] = None) -> pd.DataFrame:
         """Get data for a specific transformer within a date range"""
         logger.info(f"Getting data for transformer {transformer_id} from {start_date} to {end_date}")
@@ -138,7 +138,7 @@ class CloudDataService:
         """.format(feeder_num)
         return self.query(query, [transformer_id, start_date, end_date])
     
-    @st.cache_data(ttl="24h")
+    @st.cache_data(ttl="24h", allow_output_mutation=True)
     def get_feeder_list(self) -> List[int]:
         """Get list of all feeder IDs"""
         logger.info("Getting list of all feeders")
@@ -146,7 +146,7 @@ class CloudDataService:
         # We'll return [1, 2, 3, 4] as that's what we see in the database
         return [1, 2, 3, 4]
     
-    @st.cache_data(ttl="1h")
+    @st.cache_data(ttl="1h", allow_output_mutation=True)
     def get_available_dates(self) -> tuple[date, date]:
         """Get available date range from the data"""
         logger.info("Getting available date range")
@@ -173,7 +173,7 @@ class CloudDataService:
             default_date = datetime(2024, 2, 14).date()
             return default_date, default_date
     
-    @st.cache_data(ttl="1h")
+    @st.cache_data(ttl="1h", allow_output_mutation=True)
     def get_customer_data(self, feeder: int) -> pd.DataFrame:
         """Get customer data for a specific feeder"""
         logger.info(f"Getting customer data for feeder {feeder}")
@@ -193,7 +193,7 @@ class CloudDataService:
         """.format(feeder)
         return self.query(query)
     
-    @st.cache_data(ttl="24h")
+    @st.cache_data(ttl="24h", allow_output_mutation=True)
     def get_customer_ids(self, transformer_id: str) -> List[str]:
         """Get customer IDs for a transformer"""
         logger.info(f"Getting customer IDs for transformer {transformer_id}")
