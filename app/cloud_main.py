@@ -131,7 +131,7 @@ def main():
         st.header("Analysis Parameters")
         
         # Date selection
-        min_date, max_date = data_service.available_dates
+        min_date, max_date = data_service.get_available_dates()  # Use method instead of property
         selected_date = st.date_input(
             "Select Date",
             value=max_date,
