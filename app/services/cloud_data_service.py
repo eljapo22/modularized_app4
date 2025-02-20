@@ -11,38 +11,38 @@ import streamlit as st
 
 logger = logging.getLogger(__name__)
 
+@st.cache_resource
+def get_motherduck_connection():
+    """Get a cached MotherDuck connection"""
+    try:
+        # Get token from Streamlit secrets only
+        if not hasattr(st, 'secrets') or 'MOTHERDUCK_TOKEN' not in st.secrets:
+            raise ValueError("MotherDuck token not found in Streamlit secrets")
+            
+        token = st.secrets["MOTHERDUCK_TOKEN"]
+        
+        # Connect with proper token in connection string
+        conn = duckdb.connect(f'md:ModApp4DB?motherduck_token={token}')
+        logger.info("Successfully connected to MotherDuck")
+        return conn
+    except Exception as e:
+        logger.error(f"MotherDuck connection failed: {str(e)}")
+        st.error("Failed to connect to MotherDuck database. Please check your configuration.")
+        raise RuntimeError(f"Failed to connect to MotherDuck: {str(e)}")
+
 class CloudDataService:
     _instance = None
     
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance.conn = None
-            cls._instance.setup_motherduck()
+            cls._instance.conn = get_motherduck_connection()
         return cls._instance
     
     def __init__(self):
         """Initialize cloud data service with MotherDuck connection"""
         # Initialization is done in __new__
         pass
-    
-    @st.cache_resource
-    def setup_motherduck(self):
-        """Setup MotherDuck connection"""
-        try:
-            # Get token from Streamlit secrets only
-            if not hasattr(st, 'secrets') or 'MOTHERDUCK_TOKEN' not in st.secrets:
-                raise ValueError("MotherDuck token not found in Streamlit secrets")
-                
-            token = st.secrets["MOTHERDUCK_TOKEN"]
-            
-            # Connect with proper token in connection string
-            self.conn = duckdb.connect(f'md:ModApp4DB?motherduck_token={token}')
-            logger.info("Successfully connected to MotherDuck")
-        except Exception as e:
-            logger.error(f"MotherDuck connection failed: {str(e)}")
-            st.error("Failed to connect to MotherDuck database. Please check your configuration.")
-            raise RuntimeError(f"Failed to connect to MotherDuck: {str(e)}")
     
     @st.cache_data(ttl="1h")
     def query(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
