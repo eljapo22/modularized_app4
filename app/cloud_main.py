@@ -179,71 +179,58 @@ def main():
                         if not all([selected_date, selected_hour is not None, selected_feeder, selected_transformer]):
                             st.error("Please select all required parameters")
                         else:
+                            # Create proper datetime object
                             query_datetime = datetime.combine(selected_date, time(selected_hour))
+                            logger.info(f"Querying data for {query_datetime}")
+                            
                             results = data_service.get_transformer_data(
-                                query_datetime, 
+                                selected_transformer,
+                                query_datetime,
                                 selected_hour,
-                                selected_feeder,
-                                selected_transformer
+                                selected_feeder
                             )
+                            
                             if results is not None and not results.empty:
                                 logger.info("Data retrieved successfully")
-                                st.session_state.results = results  # Store results immediately
+                                # Create datetime index
+                                results['timestamp'] = pd.to_datetime(results['timestamp'])
+                                results.set_index('timestamp', inplace=True)
+                                results.sort_index(inplace=True)
+                                st.session_state.results = results
                                 
-                                # Format dates for display
                                 logger.info(f"Displaying data for {query_datetime}")
-                                
-                                logger.info("Displaying transformer dashboard...")
-                                display_transformer_dashboard(results, selected_hour)
+                                display_transformer_dashboard(results, query_datetime)
                             else:
                                 st.warning("No data available for the selected criteria.")
                     else:
+                        # Date Range mode
                         if not all([start_date, end_date, selected_feeder, selected_transformer]):
                             st.error("Please select all required parameters")
                         else:
-                            # Handle alert URL parameters
-                            if from_alert and alert_time_str:
-                                try:
-                                    alert_time = datetime.fromisoformat(alert_time_str)
-                                    results = data_service.get_transformer_data_to_point(
-                                        start_date,
-                                        alert_time,
-                                        selected_feeder,
-                                        selected_transformer
-                                    )
-                                except ValueError:
-                                    logger.warning("Invalid alert time format in URL")
-                                    results = data_service.get_transformer_data_range(
-                                        start_date,
-                                        end_date,
-                                        selected_feeder,
-                                        selected_transformer
-                                    )
-                            else:
-                                results = data_service.get_transformer_data_range(
-                                    start_date,
-                                    end_date,
-                                    selected_feeder,
-                                    selected_transformer
-                                )
+                            logger.info(f"Querying data from {start_date} to {end_date}")
+                            
+                            results = data_service.get_transformer_data_range(
+                                selected_transformer,
+                                start_date,
+                                end_date,
+                                selected_feeder
+                            )
                             
                             if results is not None and not results.empty:
-                                # Display dashboard with alert time marker if available
+                                logger.info("Data retrieved successfully")
+                                st.session_state.results = results
+                                
+                                # Get alert time if provided
                                 alert_hour = None
                                 if alert_time_str:
                                     try:
-                                        alert_time = datetime.fromisoformat(alert_time_str)
+                                        alert_time = datetime.strptime(alert_time_str, "%Y-%m-%d %H:%M:%S")
                                         alert_hour = alert_time.hour
+                                        logger.info(f"Using alert time: {alert_time}")
                                     except ValueError:
                                         logger.warning("Invalid alert time format")
                                 
-                                logger.info("Data retrieved successfully")
-                                st.session_state.results = results  # Store results immediately
-                                
-                                # Format dates for display
                                 logger.info(f"Displaying data from {start_date} to {end_date}")
-                                
-                                logger.info("Displaying transformer dashboard...")
                                 display_transformer_dashboard(results, alert_hour)
                             else:
                                 st.warning("No data available for the selected criteria.")
