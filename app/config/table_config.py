@@ -2,30 +2,38 @@
 Table configuration for MotherDuck database
 """
 
-# Table names
-TRANSFORMER_TABLE_TEMPLATE = "Transformer Feeder {}"  # 1-4
-CUSTOMER_TABLE_TEMPLATE = "Customer Feeder {}"        # 1-4
+# Table names - with proper quoting for SQL
+TRANSFORMER_TABLE_TEMPLATE = '"Transformer Feeder {}"'  # Already includes quotes for SQL
+CUSTOMER_TABLE_TEMPLATE = '"Customer Feeder {}"'        # Already includes quotes for SQL
 
 # List of available feeder numbers
-FEEDER_NUMBERS = [1, 2, 3, 4]
+FEEDER_NUMBERS = [1]  # Start with just feeder 1 for now
 
-# Common column names
-COMMON_COLUMNS = {
-    'timestamp': 'timestamp',
-    'transformer_id': 'transformer_id',
-    'power_kw': 'power_kw',
-    'power_factor': 'power_factor',
-    'voltage_v': 'voltage_v',
-    'current_a': 'current_a'
-}
-
+# Transformer table columns with their exact types from MotherDuck
 TRANSFORMER_COLUMNS = {
-    **COMMON_COLUMNS,
-    'power_kva': 'power_kva',
-    'loading_percentage': 'loading_percentage'
+    'timestamp': 'TIMESTAMP_NS',
+    'voltage_v': 'DOUBLE',
+    'size_kva': 'DOUBLE',
+    'loading_percentage': 'DOUBLE',  # Will be rounded to xx.xx in queries
+    'current_a': 'DOUBLE',          # Will be rounded to xx.xx in queries
+    'power_kw': 'DOUBLE',          # Will be rounded to xx.xx in queries
+    'power_kva': 'DOUBLE',
+    'power_factor': 'DOUBLE',
+    'transformer_id': 'VARCHAR',
+    'load_range': 'VARCHAR'
 }
 
+# Customer table columns with their exact types from MotherDuck
 CUSTOMER_COLUMNS = {
-    **COMMON_COLUMNS,
-    'customer_id': 'customer_id'
+    'index_level_0': 'BIGINT',
+    'current_a': 'DOUBLE',         # Will be rounded to x.xx in queries
+    'customer_id': 'VARCHAR',
+    'hour': 'VARCHAR',
+    'power_factor': 'DOUBLE',
+    'power_kva': 'DOUBLE',        # Will be rounded to x.xx in queries
+    'power_kw': 'DOUBLE',         # Will be rounded to x.xx in queries
+    'size_kva': 'DOUBLE',
+    'timestamp': 'TIMESTAMP_NS',
+    'transformer_id': 'VARCHAR',
+    'voltage_v': 'INTEGER'
 }
