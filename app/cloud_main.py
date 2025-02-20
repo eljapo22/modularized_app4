@@ -4,159 +4,48 @@ Uses app.-prefixed imports required by Streamlit Cloud
 """
 
 import streamlit as st
-import os
-import sys
-from pathlib import Path
-import warnings
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta, time
 import logging
-import plotly.graph_objects as go
-from dateutil import parser
 import traceback
+from datetime import datetime
+from app.services.cloud_data_service import CloudDataService
+from app.services.cloud_alert_service import CloudAlertService
+from app.visualization.charts import (
+    display_transformer_dashboard,
+    display_loading_status_line_chart,
+    display_power_time_series,
+    display_current_time_series,
+    display_voltage_time_series,
+    display_loading_status,
+    add_hour_indicator
+)
+from app.utils.ui_components import create_banner, create_section_banner
+from app.utils.performance import log_performance
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(pathname)s:%(lineno)d',
     handlers=[
-        logging.StreamHandler(sys.stdout)
+        logging.StreamHandler()
     ]
 )
-logger = logging.getLogger(__name__)
 
-# Set page config - must be first Streamlit command
+# Initialize services
+try:
+    logger.info("Initializing services...")
+    data_service = CloudDataService()
+    alert_service = CloudAlertService(data_service)
+    logger.info("Services initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize services: {str(e)}\nTraceback: {traceback.format_exc()}")
+    st.error("Failed to initialize application services. Please check the logs for details.")
+    st.stop()
+
+# Configure page
 st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
-
-# App imports with app. prefix for cloud
-from app.services.cloud_data_service import CloudDataService
-from app.services.cloud_alert_service import CloudAlertService
-from app.utils.logging_utils import Timer, logger, log_performance
-from app.utils.cloud_environment_check import display_environment_status, is_cloud_ready
-from app.visualization.charts import (
-    display_loading_status_line_chart,
-    display_power_time_series,
-    display_current_time_series,
-    display_voltage_time_series,
-    display_loading_status,
-    display_transformer_dashboard,
-    add_hour_indicator
-)
-
-# Initialize services
-try:
-    logger.info("Initializing services...")
-    data_service = CloudDataService()
-    alert_service = CloudAlertService(data_service)
-    logger.info("Services initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize services: {str(e)}\nTraceback: {traceback.format_exc()}")
-    st.error("Failed to initialize application services. Please check the logs for details.")
-    st.stop()
-
-# App imports with app. prefix for cloud
-from app.services.cloud_data_service import CloudDataService
-from app.services.cloud_alert_service import CloudAlertService
-from app.utils.logging_utils import Timer, logger, log_performance
-from app.utils.cloud_environment_check import display_environment_status, is_cloud_ready
-from app.visualization.charts import (
-    display_loading_status_line_chart,
-    display_power_time_series,
-    display_current_time_series,
-    display_voltage_time_series,
-    display_loading_status,
-    display_transformer_dashboard,
-    add_hour_indicator
-)
-
-# Initialize services
-try:
-    logger.info("Initializing services...")
-    data_service = CloudDataService()
-    alert_service = CloudAlertService(data_service)
-    logger.info("Services initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize services: {str(e)}\nTraceback: {traceback.format_exc()}")
-    st.error("Failed to initialize application services. Please check the logs for details.")
-    st.stop()
-
-def create_tile(title: str, value: str, has_multiline_title: bool = False, is_clickable: bool = False):
-    """Create a styled tile using Streamlit components"""
-    st.markdown(
-        f"""
-        <div style="
-            background-color: #f8f9fa;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            height: 100%;
-            {'cursor: pointer;' if is_clickable else ''}
-        ">
-            <h3 style="
-                margin: 0;
-                color: #6c757d;
-                font-size: 0.9rem;
-                font-weight: 600;
-                {'white-space: normal;' if has_multiline_title else 'white-space: nowrap;'}
-                overflow: hidden;
-                text-overflow: ellipsis;
-            ">{title}</h3>
-            <p style="
-                margin: 0.5rem 0 0 0;
-                color: #212529;
-                font-size: 1.1rem;
-                font-weight: 500;
-            ">{value}</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-def create_banner(title: str):
-    """Create a professional banner with title"""
-    st.markdown(
-        f"""
-        <div style="
-            background-color: #f8f9fa;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        ">
-            <h1 style="
-                margin: 0;
-                color: #2f4f4f;
-                font-size: 1.5rem;
-                font-weight: 600;
-                text-align: center;
-            ">{title}</h1>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-def create_section_banner(title: str):
-    """Create a section banner with professional styling"""
-    st.markdown(
-        f"""
-        <div style="
-            background-color: #f8f9fa;
-            padding: 0.5rem 1rem;
-            margin-bottom: 1rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        ">
-            <h2 style="
-                margin: 0;
-                color: #2f4f4f;
-                font-size: 1.2rem;
-                font-weight: 600;
-            ">{title}</h2>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
 @log_performance
 def main():

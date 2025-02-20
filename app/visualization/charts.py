@@ -10,7 +10,7 @@ from app.config.constants import STATUS_COLORS
 from datetime import datetime, timedelta
 import numpy as np
 import logging
-from app.cloud_main import create_tile
+from app.utils.ui_components import create_tile
 
 # Initialize logger
 logger = logging.getLogger(__name__)
