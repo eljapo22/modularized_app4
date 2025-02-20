@@ -198,129 +198,130 @@ def create_loading_chart(data: pd.DataFrame, selected_hour: int) -> go.Figure:
     
     return fig
 
-def display_transformer_dashboard(data: pd.DataFrame, selected_hour: int):
+def display_transformer_dashboard(data: pd.DataFrame, selected_hour: int = None):
     """
-    Display transformer data dashboard
+    Display transformer dashboard with metrics and charts
     
     Args:
         data: DataFrame with transformer data
-        selected_hour: Currently selected hour
+        selected_hour: Selected hour for vertical line indicator (optional)
     """
-    # Create loading chart
-    fig = go.Figure()
-    
-    # Add loading percentage line
-    fig.add_trace(go.Scatter(
-        x=data.index,
-        y=data['loading_percentage'],
-        mode='lines+markers',
-        name='Loading %',
-        line=dict(color='#0d6efd', width=2)
-    ))
-    
-    # Add threshold lines
-    thresholds = [
-        (120, 'Critical', '#dc3545'),
-        (100, 'Overloaded', '#fd7e14'),
-        (80, 'Warning', '#ffc107'),
-        (50, 'Pre-Warning', '#6f42c1')
-    ]
-    
-    for threshold, label, color in thresholds:
-        fig.add_hline(
-            y=threshold,
-            line_dash="dot",
-            line_color=color,
-            annotation_text=f"{label} ({threshold}%)",
-            annotation_position="left"
+    try:
+        # Display metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                "Average Loading",
+                f"{data['loading_percentage'].mean():.1f}%"
+            )
+        with col2:
+            st.metric(
+                "Max Loading",
+                f"{data['loading_percentage'].max():.1f}%"
+            )
+        with col3:
+            st.metric(
+                "Power Factor",
+                f"{data['power_factor'].mean():.2f}"
+            )
+        with col4:
+            st.metric(
+                "Size",
+                f"{data['size_kva'].iloc[0]:.0f} kVA"
+            )
+        
+        # Create loading status chart
+        fig_loading = go.Figure()
+        
+        # Add threshold lines
+        fig_loading.add_hline(y=120, line_dash="dash", line_color="red", annotation_text="Critical (120%)")
+        fig_loading.add_hline(y=100, line_dash="dash", line_color="orange", annotation_text="Overloaded (100%)")
+        fig_loading.add_hline(y=80, line_dash="dash", line_color="yellow", annotation_text="Warning (80%)")
+        fig_loading.add_hline(y=50, line_dash="dash", line_color="purple", annotation_text="Pre-Warning (50%)")
+        
+        # Add loading percentage line
+        fig_loading.add_trace(go.Scatter(
+            x=data.index,
+            y=data['loading_percentage'],
+            mode='lines',
+            name='Loading %',
+            line=dict(color='blue', width=2)
+        ))
+        
+        # Add vertical line for selected hour if in single-day mode
+        if selected_hour is not None:
+            selected_time = data.index[0].replace(hour=selected_hour)
+            fig_loading.add_vline(
+                x=selected_time,
+                line_dash="dash",
+                line_color="gray",
+                annotation_text=f"Selected Hour ({selected_hour:02d}:00)"
+            )
+        
+        fig_loading.update_layout(
+            title="Transformer Loading Over Time",
+            xaxis_title="Time",
+            yaxis_title="Loading (%)",
+            height=400,
+            hovermode='x unified'
         )
-    
-    # Add vertical line for selected hour
-    fig.add_vline(
-        x=selected_hour,
-        line_dash="dash",
-        line_color="gray",
-        annotation_text=f"Selected Hour: {selected_hour:02d}:00",
-        annotation_position="top right"
-    )
-    
-    # Update layout
-    fig.update_layout(
-        title="Transformer Loading Over Time",
-        xaxis_title="Hour",
-        yaxis_title="Loading Percentage",
-        showlegend=True,
-        hovermode='x unified',
-        height=400
-    )
-    
-    # Display metrics
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Average Loading", f"{data['loading_percentage'].mean():.1f}%")
-    with col2:
-        st.metric("Max Loading", f"{data['loading_percentage'].max():.1f}%")
-    with col3:
-        st.metric("Power Factor", f"{data['power_factor'].mean():.2f}")
-    with col4:
-        st.metric("Size", f"{data['size_kva'].iloc[0]:.0f} kVA")
-    
-    # Display chart
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Create power chart
-    power_fig = go.Figure()
-    power_fig.add_trace(go.Scatter(
-        x=data.index,
-        y=data['power_kw'],
-        mode='lines+markers',
-        name='Power (kW)',
-        line=dict(color='#198754', width=2)
-    ))
-    power_fig.update_layout(
-        title="Power Consumption Over Time",
-        xaxis_title="Hour",
-        yaxis_title="Power (kW)",
-        showlegend=True,
-        hovermode='x unified',
-        height=300
-    )
-    st.plotly_chart(power_fig, use_container_width=True)
-    
-    # Create current chart
-    current_fig = go.Figure()
-    current_fig.add_trace(go.Scatter(
-        x=data.index,
-        y=data['current_a'],
-        mode='lines+markers',
-        name='Current (A)',
-        line=dict(color='#dc3545', width=2)
-    ))
-    current_fig.update_layout(
-        title="Current Over Time",
-        xaxis_title="Hour",
-        yaxis_title="Current (A)",
-        showlegend=True,
-        hovermode='x unified',
-        height=300
-    )
-    st.plotly_chart(current_fig, use_container_width=True)
-    
-    # Create voltage chart
-    voltage_fig = go.Figure()
-    voltage_fig.add_trace(go.Scatter(
-        x=data.index,
-        y=data['voltage_v'],
-        mode='lines+markers',
-        name='Voltage (V)',
-        line=dict(color='#ffc107', width=2)
-    ))
-    voltage_fig.update_layout(
-        title="Voltage Over Time",
-        xaxis_title="Hour",
-        yaxis_title="Voltage (V)",
-        showlegend=True,
-        hovermode='x unified',
-        height=300
-    )
-    st.plotly_chart(voltage_fig, use_container_width=True)
+        st.plotly_chart(fig_loading, use_container_width=True)
+        
+        # Create power consumption chart
+        fig_power = go.Figure()
+        fig_power.add_trace(go.Scatter(
+            x=data.index,
+            y=data['power_kw'],
+            mode='lines',
+            name='Power (kW)',
+            line=dict(color='green', width=2)
+        ))
+        fig_power.update_layout(
+            title="Power Consumption Over Time",
+            xaxis_title="Time",
+            yaxis_title="Power (kW)",
+            height=300,
+            hovermode='x unified'
+        )
+        st.plotly_chart(fig_power, use_container_width=True)
+        
+        # Create current chart
+        fig_current = go.Figure()
+        fig_current.add_trace(go.Scatter(
+            x=data.index,
+            y=data['current_a'],
+            mode='lines',
+            name='Current (A)',
+            line=dict(color='red', width=2)
+        ))
+        fig_current.update_layout(
+            title="Current Over Time",
+            xaxis_title="Time",
+            yaxis_title="Current (A)",
+            height=300,
+            hovermode='x unified'
+        )
+        st.plotly_chart(fig_current, use_container_width=True)
+        
+        # Create voltage chart
+        fig_voltage = go.Figure()
+        fig_voltage.add_trace(go.Scatter(
+            x=data.index,
+            y=data['voltage_v'],
+            mode='lines',
+            name='Voltage (V)',
+            line=dict(color='orange', width=2)
+        ))
+        fig_voltage.update_layout(
+            title="Voltage Over Time",
+            xaxis_title="Time",
+            yaxis_title="Voltage (V)",
+            height=300,
+            hovermode='x unified'
+        )
+        st.plotly_chart(fig_voltage, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying transformer dashboard: {str(e)}")
+        st.error("Error displaying transformer dashboard. Check the logs for details.")

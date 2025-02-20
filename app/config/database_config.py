@@ -73,3 +73,22 @@ SELECT
 FROM latest_data
 WHERE rn = 1
 """
+
+TRANSFORMER_DATA_RANGE_QUERY = """
+SELECT 
+    "timestamp",
+    "voltage_v",
+    "size_kva",
+    ROUND("loading_percentage", 2) as "loading_percentage",
+    ROUND("current_a", 2) as "current_a",
+    ROUND("power_kw", 2) as "power_kw",
+    "power_kva",
+    "power_factor",
+    "transformer_id",
+    "load_range"
+FROM {table_name}
+WHERE "transformer_id" = ? 
+  AND DATE_TRUNC('day', "timestamp") >= ?
+  AND DATE_TRUNC('day', "timestamp") <= ?
+ORDER BY "timestamp"
+"""

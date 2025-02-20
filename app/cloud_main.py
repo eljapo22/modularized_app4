@@ -52,39 +52,45 @@ def main():
                     min_date, max_date = data_service.get_available_dates()
                     logger.info(f"Got date range: {min_date} to {max_date}")
                 
-                # Date selection
-                selected_date = st.date_input(
-                    "Date",
-                    value=max_date,
-                    min_value=min_date,
-                    max_value=max_date
-                )
+                # Search mode toggle
+                search_mode = st.radio("Search Mode", ("Single Day", "Date Range"))
                 
-                # Hour selection
-                selected_hour = st.selectbox(
-                    "Time",
-                    range(24),
-                    format_func=lambda x: f"{x:02d}:00"
-                )
+                if search_mode == "Single Day":
+                    # Single day inputs
+                    selected_date = st.date_input(
+                        "Date",
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date
+                    )
+                    selected_hour = st.selectbox(
+                        "Time",
+                        range(24),
+                        format_func=lambda x: f"{x:02d}:00"
+                    )
+                else:
+                    # Date range inputs
+                    start_date, end_date = st.date_input(
+                        "Date Range",
+                        value=(min_date, max_date),
+                        min_value=min_date,
+                        max_value=max_date
+                    )
                 
-                # Get feeder options
+                # Feeder selection
                 with st.spinner("Loading feeders..."):
                     feeder_options = data_service.get_feeder_options()
                     logger.info(f"Found {len(feeder_options)} feeders")
-                
-                # Feeder selection (disabled)
                 selected_feeder = st.selectbox(
                     "Feeder",
                     options=feeder_options,
-                    disabled=True  # Make it visible but not interactive
+                    disabled=True
                 )
                 
-                # Get transformer IDs
+                # Transformer ID selection
                 with st.spinner("Loading transformers..."):
                     transformer_ids = data_service.get_load_options(selected_feeder)
                     logger.info(f"Found {len(transformer_ids)} transformers")
-                
-                # Transformer ID selection - pre-select if from alert
                 transformer_index = transformer_ids.index(alert_transformer) if alert_transformer in transformer_ids else 0
                 selected_transformer = st.selectbox(
                     "Transformer ID",
@@ -100,38 +106,46 @@ def main():
                     alert_clicked = st.button("Set Alert")
                 
                 if search_clicked or (from_alert and alert_transformer):
-                    if not all([selected_date, selected_hour is not None, selected_feeder, selected_transformer]):
-                        st.error("Please select all required parameters")
-                    else:
-                        try:
-                            with st.spinner("Fetching transformer data..."):
-                                # Convert date to datetime for query
-                                query_datetime = datetime.combine(selected_date, time(selected_hour))
-                                results = data_service.get_transformer_data(
-                                    query_datetime, 
-                                    selected_hour,
-                                    selected_feeder,
-                                    selected_transformer
-                                )
+                    if search_mode == "Single Day":
+                        if not all([selected_date, selected_hour is not None, selected_feeder, selected_transformer]):
+                            st.error("Please select all required parameters")
+                        else:
+                            query_datetime = datetime.combine(selected_date, time(selected_hour))
+                            results = data_service.get_transformer_data(
+                                query_datetime, 
+                                selected_hour,
+                                selected_feeder,
+                                selected_transformer
+                            )
+                            if results is not None and not results.empty:
+                                logger.info("Displaying transformer dashboard...")
+                                display_transformer_dashboard(results, selected_hour)
                                 
-                                if results is not None and not results.empty:
-                                    logger.info("Displaying transformer dashboard...")
-                                    display_transformer_dashboard(results, selected_hour)
-                                    
-                                    # Check and send alerts if needed
-                                    if alert_service is not None and alert_service.check_and_send_alerts(
-                                        results_df=results,
-                                        date=query_datetime,
-                                        hour=selected_hour,
-                                        recipient="jhnapo2213@gmail.com"
-                                    ):
-                                        if results['loading_percentage'].max() >= 80:
-                                            st.warning("Alert email sent due to high loading condition")
-                                else:
-                                    st.warning("No data available for the selected criteria.")
-                        except Exception as e:
-                            logger.error(f"Error fetching data: {str(e)}\nTraceback: {traceback.format_exc()}")
-                            st.error(f"Error fetching data: {str(e)}")
+                                # Check and send alerts if needed
+                                if alert_service is not None and alert_service.check_and_send_alerts(
+                                    results_df=results,
+                                    date=query_datetime,
+                                    hour=selected_hour,
+                                    recipient="jhnapo2213@gmail.com"
+                                ):
+                                    if results['loading_percentage'].max() >= 80:
+                                        st.warning("Alert email sent due to high loading condition")
+                            else:
+                                st.warning("No data available for the selected criteria.")
+                    else:
+                        if not all([start_date, end_date, selected_feeder, selected_transformer]):
+                            st.error("Please select all required parameters")
+                        else:
+                            results = data_service.get_transformer_data_range(
+                                start_date,
+                                end_date,
+                                selected_feeder,
+                                selected_transformer
+                            )
+                            if results is not None and not results.empty:
+                                display_transformer_dashboard(results, None)
+                            else:
+                                st.warning("No data available for the selected criteria.")
                 
             except Exception as e:
                 logger.error(f"Error in sidebar: {str(e)}\nTraceback: {traceback.format_exc()}")

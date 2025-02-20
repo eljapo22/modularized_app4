@@ -3,12 +3,13 @@ Cloud-specific data service implementation
 """
 
 import pandas as pd
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import logging
 from typing import List, Optional, Dict
 
 from app.config.database_config import (
     TRANSFORMER_DATA_QUERY,
+    TRANSFORMER_DATA_RANGE_QUERY,
     CUSTOMER_DATA_QUERY,
     TRANSFORMER_LIST_QUERY,
     CUSTOMER_AGGREGATION_QUERY
@@ -126,6 +127,63 @@ class CloudDataService:
         except Exception as e:
             logger.error(f"Error getting transformer data: {str(e)}")
             raise
+
+    def get_transformer_data_range(
+        self, 
+        start_date: date, 
+        end_date: date, 
+        feeder: str, 
+        transformer_id: str
+    ) -> Optional[pd.DataFrame]:
+        """
+        Get transformer data for a date range.
+        
+        Args:
+            start_date (date): Start date for the query
+            end_date (date): End date for the query
+            feeder (str): Feeder identifier
+            transformer_id (str): Transformer identifier
+            
+        Returns:
+            Optional[pd.DataFrame]: DataFrame with transformer data or None if error
+        """
+        try:
+            logger.info(f"Fetching transformer data for {transformer_id} from {start_date} to {end_date}")
+            
+            # Extract feeder number
+            feeder_num = int(feeder.split()[-1])
+            if feeder_num not in FEEDER_NUMBERS:
+                logger.error(f"Invalid feeder number: {feeder_num}")
+                return None
+            
+            # Get table name
+            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
+            
+            # Execute query
+            query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
+            results = execute_query(
+                query, 
+                params=(transformer_id, start_date, end_date)
+            )
+            
+            if not results:
+                logger.warning(f"No data found for transformer {transformer_id} in date range")
+                return None
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(results)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df.set_index('timestamp', inplace=True)
+            
+            # Sort by timestamp
+            df.sort_index(inplace=True)
+            
+            logger.info(f"Retrieved {len(df)} records for transformer {transformer_id}")
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error getting transformer data range: {str(e)}")
+            return None
 
     def get_customer_data(
             self,
