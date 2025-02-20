@@ -149,23 +149,30 @@ def main():
                             logger.warning("Missing required parameters for alert")
                             st.error("Please select a feeder and transformer")
                         else:
-                            # For alerts, we'll use the timestamp of the highest loading point
-                            max_loading_idx = st.session_state.results['loading_percentage'].idxmax()
-                            alert_time = st.session_state.results.index[max_loading_idx]
-                            alert_date = alert_time.date()
-                            
-                            logger.info(f"Checking alerts for highest loading at {alert_time}")
-                            
-                            # Check and send alerts if needed
-                            if alert_service.check_and_send_alerts(
-                                st.session_state.results,
-                                alert_date,
-                                alert_time
-                            ):
-                                logger.info("Alert email sent successfully")
-                                st.success("Alert email sent successfully")
-                            else:
-                                logger.warning("Alert check completed without sending email")
+                            try:
+                                # Find the row with maximum loading
+                                max_loading_row = st.session_state.results.loc[
+                                    st.session_state.results['loading_percentage'].idxmax()
+                                ]
+                                alert_time = max_loading_row.name  # This is the datetime index
+                                alert_date = alert_time.date()
+                                
+                                logger.info(f"Checking alerts for highest loading ({max_loading_row['loading_percentage']:.1f}%) at {alert_time}")
+                                
+                                # Check and send alerts if needed
+                                if alert_service.check_and_send_alerts(
+                                    st.session_state.results,
+                                    alert_date,
+                                    alert_time
+                                ):
+                                    logger.info("Alert email sent successfully")
+                                    st.success("Alert email sent successfully")
+                                else:
+                                    logger.warning("Alert check completed without sending email")
+                            except Exception as e:
+                                error_msg = f"Error processing alert: {str(e)}"
+                                logger.error(error_msg)
+                                st.error(f"❌ {error_msg}")
                 
                 if search_clicked or (from_alert and alert_transformer):
                     if search_mode == "Single Day":
