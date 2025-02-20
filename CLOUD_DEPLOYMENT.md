@@ -192,6 +192,110 @@ git push origin feature/new-feature
    - [ ] Requirements installation
    - [ ] Environment variables
 
+## Streamlit Cloud Deployment Checklist
+
+### Pre-Deployment Steps
+
+#### 1. Code Organization
+- [x] Separate cloud and local entry points
+  - `app/cloud_main.py` for cloud
+  - `app/local_main.py` for local
+  - `main.py` as router
+- [x] All imports use `app.` prefix in cloud code
+- [x] No local-only files imported in cloud code
+
+#### 2. Environment Setup
+- [ ] Set Streamlit Cloud secrets
+  ```toml
+  # .streamlit/secrets.toml in Streamlit Cloud Dashboard
+  [gmail]
+  token = "YOUR_CLOUD_TOKEN_JSON"
+  recipient = "your.email@example.com"
+  ```
+- [ ] Configure environment variables
+  ```
+  STREAMLIT_CLOUD=true
+  ```
+
+#### 3. Data Access
+- [ ] Upload data to cloud storage
+  ```bash
+  python scripts/prepare_cloud_data.py
+  ```
+- [ ] Verify data paths in cloud code
+  ```python
+  # Should use cloud paths
+  data_path = Path("/mount/src/modularized_app4/data")
+  ```
+
+#### 4. Gmail Integration
+- [ ] Generate cloud Gmail token
+  ```bash
+  python scripts/generate_cloud_token.py
+  ```
+- [ ] Add token to Streamlit secrets
+- [ ] Test email functionality in cloud
+
+### Deployment Process
+
+1. Push code to GitHub:
+   ```bash
+   git checkout cloud
+   git push origin cloud
+   ```
+
+2. In Streamlit Cloud Dashboard:
+   - Connect to GitHub repository
+   - Select `cloud` branch
+   - Set Python version to 3.10
+   - Add required secrets
+   - Deploy app
+
+3. Post-Deployment Verification:
+   - Check "Environment Status" in sidebar
+   - Test email alerts
+   - Verify data loading
+   - Check all visualizations
+
+### Troubleshooting
+
+#### Common Issues
+
+1. Import Errors
+   ```
+   ImportError: No module named 'app'
+   ```
+   Solution: Ensure all imports use `app.` prefix
+
+2. Data Access Errors
+   ```
+   FileNotFoundError: data not found
+   ```
+   Solution: Check cloud data paths and mounting
+
+3. Gmail Authentication
+   ```
+   google.auth.exceptions.DefaultCredentialsError
+   ```
+   Solution: Verify cloud token in secrets
+
+### Quick Fixes
+
+1. Refresh Cloud Token:
+   ```bash
+   python scripts/generate_cloud_token.py --cloud
+   ```
+
+2. Update Secrets:
+   - Go to Streamlit Cloud Dashboard
+   - App Settings → Secrets
+   - Paste new token
+
+3. Clear Cache:
+   - Stop app in Streamlit Cloud
+   - Clear browser cache
+   - Restart app
+
 ## Post-Deployment Validation
 
 ### 1. Environment Check

@@ -32,7 +32,7 @@ class LocalAlertService(AlertService):
         """Initialize local alert service with file paths"""
         self.credentials_path = Path(__file__).parent.parent / 'config' / 'credentials.json'
         self.token_path = Path(__file__).parent.parent / 'config' / 'token.json'
-        self.default_recipient = "jhnapo2213@gmail.com"  # Local development recipient
+        self.default_recipient = os.getenv('DEFAULT_RECIPIENT', 'jhnapo2213@gmail.com')
         
         # Verify credentials exist
         if not self.credentials_path.exists():

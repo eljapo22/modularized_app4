@@ -21,7 +21,7 @@ from app.services.alert_service import (
     generate_dashboard_link,
     check_alert_condition
 )
-from app.config.constants import SCOPES
+from app.config.cloud_config import GmailConfig, SCOPES
 
 class CloudAlertService(AlertService):
     """Cloud implementation of alert service using Streamlit secrets"""
@@ -29,10 +29,10 @@ class CloudAlertService(AlertService):
     def __init__(self):
         """Initialize cloud alert service with Streamlit secrets"""
         try:
-            self.token_info = st.secrets.get("GMAIL_TOKEN")
-            if isinstance(self.token_info, str):
-                self.token_info = json.loads(self.token_info)
-            self.default_recipient = st.secrets.get("DEFAULT_RECIPIENT")
+            self.token_info = GmailConfig.get_token()
+            self.default_recipient = GmailConfig.get_recipient()
+            if not self.token_info or not self.default_recipient:
+                raise ValueError("Failed to initialize Gmail configuration")
         except Exception as e:
             st.error(f"Failed to initialize cloud alert service: {str(e)}")
             self.token_info = None
@@ -76,7 +76,7 @@ class CloudAlertService(AlertService):
         for _, row in alert_data.iterrows():
             transformer_id = row['transformer_id']
             feeder = extract_feeder(transformer_id)
-            status = row['loading_status']
+            status = row['load_range']  
             loading = row['loading_percentage']
             color = get_status_color(status)
             dashboard_url = generate_dashboard_link(transformer_id, feeder, date, hour)
@@ -92,6 +92,7 @@ class CloudAlertService(AlertService):
             
         html += """
             </table>
+            <p><small>This is an automated alert. Please do not reply to this email.</small></p>
         </body>
         </html>
         """
@@ -126,7 +127,7 @@ class CloudAlertService(AlertService):
         """Send test alert email"""
         test_data = pd.DataFrame({
             'transformer_id': [transformer_id],
-            'loading_status': ['Test Alert'],
+            'load_range': ['Warning'],
             'loading_percentage': [99.9]
         })
         return self.send_alert(test_data, date, hour, recipients)
@@ -137,3 +138,32 @@ class CloudAlertService(AlertService):
         if alerts is not None:
             return self.send_alert(alerts, selected_date, selected_hour, recipients)
         return True  # No alerts needed to be sent
+
+    def process_and_send_alert(self, results_df: pd.DataFrame, transformer_id: str, selected_date: datetime, selected_hour: int, recipients: Optional[List[str]] = None) -> bool:
+        """
+        Process transformer data and send alert if conditions are met
+        
+        Args:
+            results_df: DataFrame with transformer loading results
+            transformer_id: ID of the transformer
+            selected_date: Date to check
+            selected_hour: Hour to check
+            recipients: Optional list of email recipients
+            
+        Returns:
+            bool: True if alert was processed and sent successfully
+        """
+        try:
+            # Check alert conditions
+            alert_data = check_alert_condition(results_df, selected_hour, transformer_id)
+            
+            # If there are alerts, send email
+            if alert_data is not None and not alert_data.empty:
+                return self.send_alert(alert_data, selected_date, selected_hour, recipients)
+            else:
+                st.info("No alerts needed for the selected parameters.")
+                return True
+                
+        except Exception as e:
+            st.error(f"Failed to process and send alert: {str(e)}")
+            return False

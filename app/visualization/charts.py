@@ -165,106 +165,64 @@ def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: i
                     color=color,
                     size=8
                 ),
-                hovertemplate=(
-                    "<b>%{x}</b><br>" +
-                    "Loading: %{y:.1f}%<br>" +
-                    f"Status: {status}<br>" +
-                    "<extra></extra>"
-                )
+                hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Loading: %{y:.1f}%<br>Status: ' + status + '<extra></extra>'
             )
         )
     
-    # Add transformer size line
-    transformer_size = 75.0  # kVA
-    
-    # First, extend the x-axis range to make room for the label
-    x_max = results_df['timestamp'].max()
-    x_min = results_df['timestamp'].min()
-    time_range = x_max - x_min
-    x_extension = pd.Timedelta(minutes=int(time_range.total_seconds() * 0.02 / 60))  # 2% of total range
-    extended_x_max = x_max + x_extension
-    
-    # Add the red dashed line
-    fig.add_shape(
-        type="line",
-        x0=x_min,
-        x1=extended_x_max,
-        y0=100,
-        y1=100,
-        line=dict(
-            color='red',
-            width=1,
-            dash='dash'
-        )
-    )
-    
-    # Add transformer size annotation near the end of the line
-    fig.add_annotation(
-        text=f"Transformer Size: {transformer_size} kVA",
-        x=x_max,  # Place at the last data point
-        y=100,
-        xanchor="right",  # Anchor to right side
-        yanchor="middle",
-        showarrow=False,
-        font=dict(
-            color='red',
-            size=12
-        ),
-        bgcolor="rgba(255, 255, 255, 0.8)",  # Add semi-transparent white background
-        bordercolor="red",
-        borderwidth=1
-    )
-    
-    # Add hour indicator if specified
+    # Add hour indicator if selected
     if selected_hour is not None:
-        y_range = (
-            results_df['loading_percentage'].min(),
-            results_df['loading_percentage'].max()
+        # Get y-axis range from data
+        y_min = results_df['loading_percentage'].min()
+        y_max = results_df['loading_percentage'].max()
+        y_padding = (y_max - y_min) * 0.1  # Add 10% padding
+        y_range = (y_min - y_padding, y_max + y_padding)
+        
+        # Get first timestamp and create indicator time
+        first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
+        indicator_time = pd.Timestamp(first_timestamp.date()) + pd.Timedelta(hours=selected_hour)
+        
+        # Add the vertical line
+        fig.add_shape(
+            type="line",
+            x0=indicator_time,
+            x1=indicator_time,
+            y0=y_range[0],
+            y1=y_range[1],
+            line=dict(
+                color='#9ca3af',
+                width=1,
+                dash='dash'
+            )
         )
-        fig = add_hour_indicator(fig, selected_hour, y_range)
+        
+        # Add the annotation
+        fig.add_annotation(
+            text=f"{selected_hour:02d}:00",
+            x=indicator_time,
+            y=y_range[1],
+            yanchor="bottom",
+            showarrow=False,
+            textangle=-90,
+            font=dict(
+                color='#2f4f4f',
+                size=12
+            )
+        )
     
     # Update layout
     fig.update_layout(
-        margin=dict(l=0, r=50, t=0, b=0),
-        yaxis=dict(
-            range=[0, max(120, results_df['loading_percentage'].max() * 1.1)],
-            title=dict(
-                text="Loading (%)",
-                font=dict(size=12),
-                standoff=15
-            ),
-            title_standoff=0,
-            automargin=True,
-            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
-        xaxis=dict(
-            title=None,
-            range=[x_min, extended_x_max]  # Set the extended range
-        ),
         showlegend=True,
         legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01,
+            bgcolor="rgba(255, 255, 255, 0.8)"
         ),
-        shapes=[
-            dict(
-                type="rect",
-                xref="paper",
-                yref="paper",
-                x0=0,
-                y0=1,
-                x1=1,
-                y1=1.05,
-                fillcolor="#f8f9fa",
-                line_width=0,
-                layer="below"
-            )
-        ]
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis_title="Time",
+        yaxis_title="Loading (%)",
+        hovermode='closest'
     )
     
     # Display the figure
@@ -283,19 +241,31 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         logger.info(f"size_kva value in visualization: {results_df['size_kva'].iloc[0]}")
 
     # Create figure
-    fig = go.Figure()
-
+    fig = create_base_figure(
+        None,
+        None,
+        "Power (kW)"
+    )
+    
     # Add power consumption trace
-    fig.add_trace(go.Scatter(
-        x=results_df['timestamp'],
-        y=results_df['power_kw'],
-        mode='lines+markers',
-        name='Power',
-        line=dict(color='#00ff00', width=2),  # Changed from #0078d4 to green
-        marker=dict(color='#00ff00', size=6)  # Changed marker color to match
-    ))
-    logger.info("Added power consumption trace with green color")
-
+    fig.add_trace(
+        go.Scatter(
+            x=results_df['timestamp'],
+            y=results_df['power_kw'],
+            mode='lines+markers',
+            name='Power',
+            line=dict(
+                color='#3b82f6',
+                width=2
+            ),
+            marker=dict(
+                color='#3b82f6',
+                size=6
+            ),
+            hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Power: %{y:.1f} kW<extra></extra>'
+        )
+    )
+    
     # Add transformer size line if in transformer view
     if is_transformer_view and 'size_kva' in results_df.columns:
         logger.info("Adding transformer size line")
@@ -303,13 +273,19 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         logger.info(f"Using size_kva value: {size_kva}")
         
         # Add size_kva limit line
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=[size_kva] * len(results_df),
-            mode='lines',
-            name='Transformer Capacity (kVA)',
-            line=dict(color='red', width=2, dash='dash')
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=results_df['timestamp'],
+                y=[size_kva] * len(results_df),
+                mode='lines',
+                name='Transformer Capacity (kVA)',
+                line=dict(
+                    color='red',
+                    width=2,
+                    dash='dash'
+                )
+            )
+        )
         logger.info("Added size_kva trace")
         
         # Add size_kva value annotation
@@ -320,7 +296,9 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
             showarrow=False,
             yshift=10,
             xshift=5,
-            font=dict(color='red')
+            font=dict(
+                color='red'
+            )
         )
         logger.info("Added size_kva annotation")
         
@@ -333,7 +311,6 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
 
     # Update layout
     fig.update_layout(
-        margin=dict(l=50, r=50, t=30, b=30),
         showlegend=True,
         yaxis=dict(
             title="Power (kW)",
@@ -361,13 +338,13 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
 def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = None):
     """Display current analysis time series visualization"""
     if results_df.empty:
-        st.warning("No data available for current visualization")
+        st.warning("No data available for current analysis visualization")
         return
         
     # Create figure
     fig = create_base_figure(
         None,
-        "Time",
+        None,
         "Current (A)"
     )
     
@@ -378,46 +355,29 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
             y=results_df['current_a'],
             mode='lines+markers',
             name='Current',
-            line=dict(color='red'),
-            hovertemplate=(
-                "<b>%{x}</b><br>" +
-                "Current: %{y:.1f} A<br>" +
-                "<extra></extra>"
-            )
+            line=dict(
+                color='#ef4444',
+                width=2
+            ),
+            marker=dict(
+                color='#ef4444',
+                size=6
+            ),
+            hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Current: %{y:.1f} A<extra></extra>'
         )
     )
     
     # Add hour indicator if specified
     if selected_hour is not None:
-        y_range = (
-            results_df['current_a'].min(),
-            results_df['current_a'].max()
-        )
-        fig = add_hour_indicator(fig, selected_hour, y_range)
+        fig = add_hour_indicator(fig, selected_hour)
     
     # Update layout
     fig.update_layout(
-        margin=dict(l=50, r=0, t=0, b=0),  # Add left margin for label
-        height=250,
-        yaxis=dict(
-            title=dict(
-                text="Current (A)",
-                font=dict(size=12),
-                standoff=25
-            ),
-            automargin=True,
-            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
-        xaxis=dict(
-            title=None,
-            gridcolor='#E1E1E1',  # Darker grey for x-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
         showlegend=False,
-        plot_bgcolor='white'  # White background to make grid more visible
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis_title="Time",
+        yaxis_title="Current (A)",
+        hovermode='closest'
     )
     
     # Display the figure
@@ -426,13 +386,13 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
 def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = None):
     """Display voltage analysis time series visualization"""
     if results_df.empty:
-        st.warning("No data available for voltage visualization")
+        st.warning("No data available for voltage analysis visualization")
         return
         
     # Create figure
     fig = create_base_figure(
         None,
-        "Time",
+        None,
         "Voltage (V)"
     )
     
@@ -443,90 +403,33 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
             y=results_df['voltage_v'],
             mode='lines+markers',
             name='Voltage',
-            line=dict(color='green'),
-            hovertemplate=(
-                "<b>%{x}</b><br>" +
-                "Voltage: %{y:.1f} V<br>" +
-                "<extra></extra>"
-            )
+            line=dict(
+                color='#22c55e',
+                width=2
+            ),
+            marker=dict(
+                color='#22c55e',
+                size=6
+            ),
+            hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Voltage: %{y:.1f} V<extra></extra>'
         )
     )
     
     # Add hour indicator if specified
     if selected_hour is not None:
-        y_range = (
-            results_df['voltage_v'].min(),
-            results_df['voltage_v'].max()
-        )
-        fig = add_hour_indicator(fig, selected_hour, y_range)
+        fig = add_hour_indicator(fig, selected_hour)
     
     # Update layout
     fig.update_layout(
-        margin=dict(l=50, r=0, t=0, b=0),  # Add left margin for label
-        height=250,
-        yaxis=dict(
-            title=dict(
-                text="Voltage (V)",
-                font=dict(size=12),
-                standoff=25
-            ),
-            automargin=True,
-            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
-        xaxis=dict(
-            title=None,
-            gridcolor='#E1E1E1',  # Darker grey for x-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
         showlegend=False,
-        plot_bgcolor='white'  # White background to make grid more visible
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis_title="Time",
+        yaxis_title="Voltage (V)",
+        hovermode='closest'
     )
     
     # Display the figure
     st.plotly_chart(fig, use_container_width=True)
-
-def get_sample_voltage_data(df):
-    """Generate sample three-phase voltage data."""
-    # Create a 24-hour time range with hourly points
-    if isinstance(df.index[0], (int, float)):
-        # If index is numeric, create a 24-hour range from midnight
-        start_time = pd.Timestamp.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    else:
-        # If index is timestamp, use its date
-        start_time = pd.Timestamp(df.index[0]).replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    end_time = start_time + pd.Timedelta(days=1)
-    time_index = pd.date_range(start=start_time, end=end_time, freq='5T')  # 5-minute intervals
-    
-    # Generate sample voltage data
-    n_points = len(time_index)
-    t = np.linspace(0, 8*np.pi, n_points)  # Increase cycles for 24-hour period
-    
-    # Base voltage with some random fluctuation
-    base_voltage = 120
-    noise_level = 0.5
-    
-    # Generate three phases with 120-degree shifts and realistic fluctuation
-    # Add slow variation over 24 hours
-    daily_variation = 1 * np.sin(np.linspace(0, 2*np.pi, n_points))  # ±1V daily swing
-    
-    phase_a = base_voltage + daily_variation + 2*np.sin(t) + noise_level * np.random.randn(n_points)
-    phase_b = base_voltage + daily_variation + 2*np.sin(t + 2*np.pi/3) + noise_level * np.random.randn(n_points)
-    phase_c = base_voltage + daily_variation + 2*np.sin(t + 4*np.pi/3) + noise_level * np.random.randn(n_points)
-    
-    # Ensure voltages stay within realistic bounds
-    phase_a = np.clip(phase_a, 117, 123)
-    phase_b = np.clip(phase_b, 117, 123)
-    phase_c = np.clip(phase_c, 117, 123)
-    
-    return pd.DataFrame({
-        'Red Phase': phase_a,
-        'Yellow Phase': phase_b,
-        'Blue Phase': phase_c
-    }, index=time_index)
 
 def display_voltage_over_time(results_df: pd.DataFrame):
     """Display voltage over time chart."""
@@ -694,11 +597,16 @@ def display_transformer_dashboard(results_df, selected_hour: int = None):
 
     # Filter data based on selected hour if provided
     if selected_hour is not None:
-        hour_start = pd.Timestamp(results_df.index[0].date()) + pd.Timedelta(hours=selected_hour)
+        # Convert timestamp to pandas timestamp if needed
+        first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
+        hour_start = pd.Timestamp(first_timestamp.date()) + pd.Timedelta(hours=selected_hour)
         hour_end = hour_start + pd.Timedelta(hours=1)
+        
+        # Convert timestamps to pandas timestamps for comparison
+        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
         filtered_results = results_df[
-            (results_df.index >= hour_start) &
-            (results_df.index < hour_end)
+            (results_df['timestamp'] >= hour_start) &
+            (results_df['timestamp'] < hour_end)
         ]
     else:
         filtered_results = results_df
@@ -715,3 +623,43 @@ def display_transformer_dashboard(results_df, selected_hour: int = None):
         display_voltage_over_time(filtered_results)
     
     return filtered_results  # Return filtered results for raw data display
+
+def get_sample_voltage_data(df):
+    """Generate sample three-phase voltage data."""
+    # Create a 24-hour time range with hourly points
+    if isinstance(df.index[0], (int, float)):
+        # If index is numeric, create a 24-hour range from midnight
+        start_time = pd.Timestamp.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        # If index is timestamp, use its date
+        start_time = pd.Timestamp(df.index[0]).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    end_time = start_time + pd.Timedelta(days=1)
+    time_index = pd.date_range(start=start_time, end=end_time, freq='5T')  # 5-minute intervals
+    
+    # Generate sample voltage data
+    n_points = len(time_index)
+    t = np.linspace(0, 8*np.pi, n_points)  # Increase cycles for 24-hour period
+    
+    # Base voltage with some random fluctuation
+    base_voltage = 120
+    noise_level = 0.5
+    
+    # Generate three phases with 120-degree shifts and realistic fluctuation
+    # Add slow variation over 24 hours
+    daily_variation = 1 * np.sin(np.linspace(0, 2*np.pi, n_points))  # ±1V daily swing
+    
+    phase_a = base_voltage + daily_variation + 2*np.sin(t) + noise_level * np.random.randn(n_points)
+    phase_b = base_voltage + daily_variation + 2*np.sin(t + 2*np.pi/3) + noise_level * np.random.randn(n_points)
+    phase_c = base_voltage + daily_variation + 2*np.sin(t + 4*np.pi/3) + noise_level * np.random.randn(n_points)
+    
+    # Ensure voltages stay within realistic bounds
+    phase_a = np.clip(phase_a, 117, 123)
+    phase_b = np.clip(phase_b, 117, 123)
+    phase_c = np.clip(phase_c, 117, 123)
+    
+    return pd.DataFrame({
+        'Red Phase': phase_a,
+        'Yellow Phase': phase_b,
+        'Blue Phase': phase_c
+    }, index=time_index)
