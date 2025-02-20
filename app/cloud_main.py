@@ -59,47 +59,30 @@ def main():
                 
                 if search_mode == "Single Day":
                     # Single day inputs
-                    default_date = max_date
-                    if 'selected_date' in st.session_state:
-                        try:
-                            default_date = st.session_state.selected_date
-                        except:
-                            pass
-                            
                     selected_date = st.date_input(
                         "Date",
-                        value=default_date,
+                        value=max_date,
                         min_value=min_date,
-                        max_value=max_date
+                        max_value=max_date,
+                        key="single_date"
                     )
-                    st.session_state.selected_date = selected_date
                     
-                    default_hour = 0
-                    if 'selected_hour' in st.session_state:
-                        try:
-                            default_hour = st.session_state.selected_hour
-                        except:
-                            pass
-                            
                     selected_hour = st.selectbox(
                         "Time",
                         range(24),
-                        index=default_hour,
-                        format_func=lambda x: f"{x:02d}:00"
+                        format_func=lambda x: f"{x:02d}:00",
+                        key="hour"
                     )
-                    st.session_state.selected_hour = selected_hour
                 else:
                     # Date range inputs with URL parameter handling
-                    try:
-                        if from_alert and start_date_str:
+                    if from_alert and start_date_str:
+                        try:
                             url_start_date = datetime.fromisoformat(start_date_str).date()
                             url_end_date = datetime.fromisoformat(alert_time_str).date() if alert_time_str else max_date
                             initial_dates = [url_start_date, url_end_date]
-                        elif 'start_date' in st.session_state and 'end_date' in st.session_state:
-                            initial_dates = [st.session_state.start_date, st.session_state.end_date]
-                        else:
+                        except ValueError:
                             initial_dates = [min_date, max_date]
-                    except:
+                    else:
                         initial_dates = [min_date, max_date]
                     
                     # Always use list for value to ensure we get a range
@@ -107,19 +90,17 @@ def main():
                         "Date Range",
                         value=initial_dates,
                         min_value=min_date,
-                        max_value=max_date
+                        max_value=max_date,
+                        key="date_range"
                     )
                     
                     # Handle both list and tuple returns
                     if isinstance(date_input, (list, tuple)) and len(date_input) >= 2:
                         start_date = date_input[0]
                         end_date = date_input[-1]
-                        st.session_state.start_date = start_date
-                        st.session_state.end_date = end_date
                     else:
                         # If somehow we get a single date, use it for both
                         start_date = end_date = date_input
-                        st.session_state.start_date = st.session_state.end_date = date_input
                 
                 # Feeder selection
                 with st.spinner("Loading feeders..."):
@@ -151,26 +132,26 @@ def main():
                 
                 if search_clicked or (from_alert and alert_transformer):
                     if search_mode == "Single Day":
-                        if not all([st.session_state.selected_date, st.session_state.selected_hour is not None, selected_feeder, selected_transformer]):
+                        if not all([selected_date, selected_hour is not None, selected_feeder, selected_transformer]):
                             st.error("Please select all required parameters")
                         else:
-                            query_datetime = datetime.combine(st.session_state.selected_date, time(st.session_state.selected_hour))
+                            query_datetime = datetime.combine(selected_date, time(selected_hour))
                             results = data_service.get_transformer_data(
                                 query_datetime, 
-                                st.session_state.selected_hour,
+                                selected_hour,
                                 selected_feeder,
                                 selected_transformer
                             )
                             if results is not None and not results.empty:
                                 logger.info("Displaying transformer dashboard...")
-                                display_transformer_dashboard(results, st.session_state.selected_hour)
+                                display_transformer_dashboard(results, selected_hour)
                                 
                                 # Check and send alerts if needed
                                 if alert_service is not None and alert_clicked:
                                     logger.info("Attempting to send alert email...")
                                     if alert_service.check_and_send_alerts(
                                         results,
-                                        st.session_state.selected_date,
+                                        selected_date,
                                         query_datetime
                                     ):
                                         st.success("Alert email sent successfully")
@@ -179,7 +160,7 @@ def main():
                             else:
                                 st.warning("No data available for the selected criteria.")
                     else:
-                        if not all([st.session_state.start_date, st.session_state.end_date, selected_feeder, selected_transformer]):
+                        if not all([start_date, end_date, selected_feeder, selected_transformer]):
                             st.error("Please select all required parameters")
                         else:
                             # Handle alert URL parameters
@@ -187,7 +168,7 @@ def main():
                                 try:
                                     alert_time = datetime.fromisoformat(alert_time_str)
                                     results = data_service.get_transformer_data_to_point(
-                                        st.session_state.start_date,
+                                        start_date,
                                         alert_time,
                                         selected_feeder,
                                         selected_transformer
@@ -195,15 +176,15 @@ def main():
                                 except ValueError:
                                     logger.warning("Invalid alert time format in URL")
                                     results = data_service.get_transformer_data_range(
-                                        st.session_state.start_date,
-                                        st.session_state.end_date,
+                                        start_date,
+                                        end_date,
                                         selected_feeder,
                                         selected_transformer
                                     )
                             else:
                                 results = data_service.get_transformer_data_range(
-                                    st.session_state.start_date,
-                                    st.session_state.end_date,
+                                    start_date,
+                                    end_date,
                                     selected_feeder,
                                     selected_transformer
                                 )
@@ -225,7 +206,7 @@ def main():
                                     logger.info("Attempting to send alert email for date range...")
                                     if alert_service.check_and_send_alerts(
                                         results,
-                                        st.session_state.start_date,
+                                        start_date,
                                         alert_time if alert_time_str else None
                                     ):
                                         st.success("Alert email sent successfully")
