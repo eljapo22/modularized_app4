@@ -90,18 +90,23 @@ class CloudDataService:
         logger.info(f"Returning date range: {self.min_date} to {self.max_date}")
         return self.min_date, self.max_date
 
-    def get_transformer_data(
-            self,
-            date: datetime,
-            hour: int,
-            feeder: str,
-            transformer_id: str
-        ) -> Optional[TransformerData]:
+    def get_transformer_data(self, date: datetime, hour: int, feeder: str, transformer_id: str) -> Optional[pd.DataFrame]:
         """
-        Get transformer data for the specified parameters
+        Get transformer data for a specific date and hour.
+        
+        Args:
+            date (datetime): The datetime object for the query
+            hour (int): Hour of the day (0-23)
+            feeder (str): Feeder identifier
+            transformer_id (str): Transformer identifier
+        
+        Returns:
+            Optional[pd.DataFrame]: DataFrame containing transformer data or None if no data found
         """
         try:
-            logger.info(f"Retrieving transformer data for {transformer_id} on {date} at hour {hour}")
+            # Extract just the date part for the query
+            query_date = date.date()
+            
             # Extract feeder number from string like "Feeder 1"
             feeder_num = int(feeder.split()[-1])
             if feeder_num not in FEEDER_NUMBERS:
@@ -112,33 +117,15 @@ class CloudDataService:
             table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
             logger.debug(f"Querying table: {table}")
             query = TRANSFORMER_DATA_QUERY.format(table_name=table)
-            results = execute_query(
-                query,
-                (transformer_id, date.date(), hour)
-            )
+            results = execute_query(query, (transformer_id, query_date, hour))
             
-            if not results:
-                logger.warning(f"No data found for transformer {transformer_id}")
-                return None
-                
-            logger.info(f"Found {len(results)} records for transformer {transformer_id}")
-            logger.debug(f"First record timestamp: {results[0]['timestamp']}")
+            if results and len(results) > 0:
+                return pd.DataFrame(results)
+            return None
             
-            return TransformerData(
-                transformer_id=transformer_id,
-                timestamp=[r['timestamp'] for r in results],
-                voltage_v=[r['voltage_v'] for r in results],
-                size_kva=[r['size_kva'] for r in results],
-                loading_percentage=[r['loading_percentage'] for r in results],
-                current_a=[r['current_a'] for r in results],
-                power_kw=[r['power_kw'] for r in results],
-                power_kva=[r['power_kva'] for r in results],
-                power_factor=[r['power_factor'] for r in results],
-                load_range=[r['load_range'] for r in results]
-            )
         except Exception as e:
             logger.error(f"Error getting transformer data: {str(e)}")
-            return None
+            raise
 
     def get_customer_data(
             self,

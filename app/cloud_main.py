@@ -2,92 +2,35 @@
 Cloud-specific entry point for the Transformer Loading Analysis Application
 Uses app.-prefixed imports required by Streamlit Cloud
 """
-
 import streamlit as st
-import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, time
+import logging
+
 from app.services.cloud_data_service import CloudDataService
-from app.services.cloud_alert_service import CloudAlertService
-from app.visualization.charts import display_transformer_dashboard
-from app.utils.ui_components import create_tile, create_banner, create_section_banner
-from app.utils.performance import log_performance
-
-# Configure page - must be first Streamlit command
-st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
-
-# Add custom CSS for tabs and sidebar
-st.markdown("""
-<style>
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 40px;
-        background-color: white;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        color: #6c757d;
-        font-size: 14px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #e9ecef;
-        color: #212529;
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {  /* Sidebar */
-        background-color: white;
-    }
-    .css-1544g2n {  /* Sidebar content */
-        padding: 1rem;
-    }
-    .stButton button {
-        width: 100%;
-        margin-bottom: 0.5rem;
-    }
-    [data-testid="stExpander"] {
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        background-color: white;
-    }
-</style>""", unsafe_allow_html=True)
-
-# Initialize logger
-logger = logging.getLogger(__name__)
+from app.utils.ui_utils import create_banner, display_transformer_dashboard
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(pathname)s:%(lineno)d',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Initialize services
-data_service = None
-alert_service = None
-
-@log_performance
 def main():
-    """Main application function for cloud environment"""
-    global data_service, alert_service
-    
     try:
-        # Initialize services if not already initialized
-        if data_service is None or alert_service is None:
-            logger.info("Initializing services...")
-            data_service = CloudDataService()
-            alert_service = CloudAlertService(data_service)
-            logger.info("Services initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize services: {str(e)}\nTraceback: {traceback.format_exc()}")
-        st.error("Failed to initialize application services. Please check the logs for details.")
-        st.stop()
-
-    try:
-        # Create banner
+        # Initialize services
+        data_service = CloudDataService()
+        
+        # Set page config
+        st.set_page_config(
+            page_title="Transformer Loading Analysis",
+            page_icon="⚡",
+            layout="wide"
+        )
+        
+        # Check for URL parameters
+        params = st.experimental_get_query_params()
+        from_alert = params.get('view', [''])[0] == 'alert'
+        alert_transformer = params.get('id', [''])[0] if from_alert else None
+        
         create_banner("Transformer Loading Analysis")
         
         # Sidebar for parameters
@@ -96,9 +39,9 @@ def main():
             
             try:
                 # Get available date range
-                logger.info("Getting available dates...")
-                min_date, max_date = data_service.get_available_dates()
-                logger.info(f"Got date range: {min_date} to {max_date}")
+                with st.spinner("Loading available dates..."):
+                    min_date, max_date = data_service.get_available_dates()
+                    logger.info(f"Got date range: {min_date} to {max_date}")
                 
                 # Date selection
                 selected_date = st.date_input(
@@ -116,9 +59,9 @@ def main():
                 )
                 
                 # Get feeder options
-                logger.info("Getting feeder list...")
-                feeder_options = data_service.get_feeder_options()
-                logger.info(f"Found {len(feeder_options)} feeders")
+                with st.spinner("Loading feeders..."):
+                    feeder_options = data_service.get_feeder_options()
+                    logger.info(f"Found {len(feeder_options)} feeders")
                 
                 # Feeder selection (disabled)
                 selected_feeder = st.selectbox(
@@ -128,64 +71,64 @@ def main():
                 )
                 
                 # Get transformer IDs
-                transformer_ids = data_service.get_load_options(selected_feeder)
-                logger.info(f"Found {len(transformer_ids)} transformers")
+                with st.spinner("Loading transformers..."):
+                    transformer_ids = data_service.get_load_options(selected_feeder)
+                    logger.info(f"Found {len(transformer_ids)} transformers")
                 
-                # Transformer ID selection
+                # Transformer ID selection - pre-select if from alert
+                transformer_index = transformer_ids.index(alert_transformer) if alert_transformer in transformer_ids else 0
                 selected_transformer = st.selectbox(
                     "Transformer ID",
-                    options=transformer_ids
+                    options=transformer_ids,
+                    index=transformer_index
                 )
                 
-                # Action buttons
+                # Search and Alert buttons
                 col1, col2 = st.columns(2)
                 with col1:
-                    search_clicked = st.button("Search", use_container_width=True)
+                    search_clicked = st.button("Search & Analyze")
                 with col2:
-                    merge_clicked = st.button("Merge", use_container_width=True)
+                    alert_clicked = st.button("Set Alert")
                 
-                # Reset Data Configuration
-                with st.expander("Reset Data Configuration"):
-                    st.checkbox("Reset on next search")
-                
-                # Handle search action
-                if search_clicked and selected_transformer:
-                    results_df = data_service.get_transformer_data(
-                        selected_date,
-                        selected_hour,
-                        selected_feeder,
-                        selected_transformer
-                    )
-                    
-                    if results_df is not None and not results_df.empty:
-                        display_transformer_dashboard(results_df, selected_hour)
+                if search_clicked or (from_alert and alert_transformer):
+                    if not all([selected_date, selected_hour is not None, selected_feeder, selected_transformer]):
+                        st.error("Please select all required parameters")
                     else:
-                        st.warning("No data available for the selected criteria.")
-            
+                        try:
+                            with st.spinner("Fetching transformer data..."):
+                                # Convert date to datetime for query
+                                query_datetime = datetime.combine(selected_date, time(selected_hour))
+                                results = data_service.get_transformer_data(
+                                    query_datetime, 
+                                    selected_hour,
+                                    selected_feeder,
+                                    selected_transformer
+                                )
+                                
+                                if results is not None and not results.empty:
+                                    logger.info("Displaying transformer dashboard...")
+                                    display_transformer_dashboard(results, selected_hour)
+                                else:
+                                    st.warning("No data available for the selected criteria.")
+                        except Exception as e:
+                            logger.error(f"Error fetching data: {str(e)}\nTraceback: {traceback.format_exc()}")
+                            st.error(f"Error fetching data: {str(e)}")
+                
+                if alert_clicked:
+                    # Store alert preferences in session state
+                    st.session_state.alert_settings = {
+                        'transformer_id': selected_transformer,
+                        'threshold': 80  # Default threshold
+                    }
+                    st.success(f"Alert set for transformer {selected_transformer}")
+                
             except Exception as e:
                 logger.error(f"Error in sidebar: {str(e)}\nTraceback: {traceback.format_exc()}")
                 st.error("An error occurred while loading the interface. Please try again.")
         
-        # Main content area
-        if selected_transformer:
-            try:
-                logger.info(f"Getting data for transformer {selected_transformer}...")
-                results = data_service.get_transformer_data(selected_date, selected_hour, selected_feeder, selected_transformer)
-                
-                if results is not None and not results.empty:
-                    logger.info("Displaying transformer dashboard...")
-                    display_transformer_dashboard(results, selected_hour)
-                else:
-                    st.warning("No data available for the selected transformer and date.")
-            except Exception as e:
-                logger.error(f"Error displaying dashboard: {str(e)}\nTraceback: {traceback.format_exc()}")
-                st.error("An error occurred while displaying the dashboard. Please try again.")
-        else:
-            st.info("Please select a transformer to view analysis.")
-            
     except Exception as e:
-        logger.error(f"Main application error: {str(e)}\nTraceback: {traceback.format_exc()}")
-        st.error("An unexpected error occurred. Please check the logs for details.")
+        logger.error(f"Application error: {str(e)}\nTraceback: {traceback.format_exc()}")
+        st.error("An unexpected error occurred. Please refresh the page and try again.")
 
 if __name__ == "__main__":
     main()
