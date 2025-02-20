@@ -18,17 +18,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     try:
-        # Initialize session state for dates if not exists
-        if 'start_date' not in st.session_state:
-            st.session_state.start_date = None
-        if 'end_date' not in st.session_state:
-            st.session_state.end_date = None
-        if 'selected_date' not in st.session_state:
-            st.session_state.selected_date = None
-        if 'selected_hour' not in st.session_state:
-            st.session_state.selected_hour = None
-            
-        # Initialize services
+        # Initialize services first to get date range
         try:
             data_service = CloudDataService()
             alert_service = CloudAlertService()
@@ -38,6 +28,20 @@ def main():
             st.error("Failed to initialize some services. Some features may be limited.")
             data_service = CloudDataService()  # Retry just the data service
             alert_service = None
+
+        # Get available date range
+        min_date, max_date = data_service.get_available_dates()
+        logger.info(f"Got date range: {min_date} to {max_date}")
+            
+        # Initialize session state for dates if not exists
+        if 'start_date' not in st.session_state:
+            st.session_state.start_date = min_date
+        if 'end_date' not in st.session_state:
+            st.session_state.end_date = max_date
+        if 'selected_date' not in st.session_state:
+            st.session_state.selected_date = max_date
+        if 'selected_hour' not in st.session_state:
+            st.session_state.selected_hour = 0
         
         # Set page config
         st.set_page_config(
@@ -60,28 +64,26 @@ def main():
             st.markdown("### Search Controls")
             
             try:
-                # Get available date range
-                with st.spinner("Loading available dates..."):
-                    min_date, max_date = data_service.get_available_dates()
-                    logger.info(f"Got date range: {min_date} to {max_date}")
-                
                 # Search mode toggle
                 search_mode = st.radio("Search Mode", ("Single Day", "Date Range"))
                 
                 if search_mode == "Single Day":
                     # Single day inputs
-                    st.session_state.selected_date = st.date_input(
+                    selected_date = st.date_input(
                         "Date",
-                        value=st.session_state.selected_date or max_date,
+                        value=st.session_state.selected_date,
                         min_value=min_date,
                         max_value=max_date
                     )
-                    st.session_state.selected_hour = st.selectbox(
+                    st.session_state.selected_date = selected_date
+                    
+                    selected_hour = st.selectbox(
                         "Time",
                         range(24),
-                        index=st.session_state.selected_hour or 0,
+                        index=st.session_state.selected_hour,
                         format_func=lambda x: f"{x:02d}:00"
                     )
+                    st.session_state.selected_hour = selected_hour
                 else:
                     # Date range inputs with URL parameter handling
                     if from_alert and start_date_str:
@@ -90,11 +92,9 @@ def main():
                             url_end_date = datetime.fromisoformat(alert_time_str).date() if alert_time_str else max_date
                             initial_dates = [url_start_date, url_end_date]
                         except ValueError:
-                            initial_dates = [st.session_state.start_date or min_date, 
-                                          st.session_state.end_date or max_date]
+                            initial_dates = [st.session_state.start_date, st.session_state.end_date]
                     else:
-                        initial_dates = [st.session_state.start_date or min_date, 
-                                       st.session_state.end_date or max_date]
+                        initial_dates = [st.session_state.start_date, st.session_state.end_date]
                     
                     # Always use list for value to ensure we get a range
                     date_input = st.date_input(
