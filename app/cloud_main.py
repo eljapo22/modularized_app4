@@ -77,23 +77,25 @@ def main():
                         try:
                             url_start_date = datetime.fromisoformat(start_date_str).date()
                             url_end_date = datetime.fromisoformat(alert_time_str).date() if alert_time_str else max_date
-                            date_range = (url_start_date, url_end_date)
+                            initial_dates = [url_start_date, url_end_date]
                         except ValueError:
-                            date_range = (min_date, max_date)
+                            initial_dates = [min_date, max_date]
                     else:
-                        date_range = (min_date, max_date)
+                        initial_dates = [min_date, max_date]
                     
+                    # Always use list for value to ensure we get a range
                     date_input = st.date_input(
                         "Date Range",
-                        value=date_range,
+                        value=initial_dates,
                         min_value=min_date,
                         max_value=max_date
                     )
                     
-                    # Handle both single and tuple returns from date_input
-                    if isinstance(date_input, tuple):
-                        start_date, end_date = date_input
+                    # Handle both list and tuple returns
+                    if isinstance(date_input, (list, tuple)) and len(date_input) >= 2:
+                        start_date, end_date = date_input[0], date_input[-1]
                     else:
+                        # If somehow we get a single date, use it for both
                         start_date = end_date = date_input
                 
                 # Feeder selection

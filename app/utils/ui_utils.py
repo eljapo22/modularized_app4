@@ -230,7 +230,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 hovertemplate='%{y:.1f}%<br>%{x}<extra></extra>'
             ))
             
-            # Add threshold lines
+            # Add threshold lines with proper annotations
             thresholds = [
                 (120, 'Critical', '#dc3545'),
                 (100, 'Overloaded', '#fd7e14'),
@@ -239,16 +239,21 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
             ]
             
             for threshold, label, color in thresholds:
+                # Add the threshold line
                 fig.add_hline(
                     y=threshold,
-                    line=dict(color=color, width=1, dash='dash'),
-                    annotation=dict(
-                        text=f"{label} ({threshold}%)",
-                        font=dict(color=color),
-                        xref='paper',
-                        x=1.02,
-                        showarrow=False
-                    )
+                    line=dict(color=color, width=1, dash='dash')
+                )
+                
+                # Add separate annotation for the label
+                fig.add_annotation(
+                    text=f"{label} ({threshold}%)",
+                    xref="paper",
+                    x=1.02,
+                    y=threshold,
+                    showarrow=False,
+                    font=dict(color=color),
+                    align="left"
                 )
             
             # Add marker for alert time if provided
