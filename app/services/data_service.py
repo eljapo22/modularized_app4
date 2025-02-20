@@ -46,42 +46,70 @@ def get_customer_data_path() -> Path:
 def get_available_dates() -> Tuple[date, date]:
     """Get available date range from the data"""
     try:
-        base_path = get_data_path() / "feeder1"
-        
-        if not base_path.exists():
-            logger.error(f"Data directory not found: {base_path}")
-            default_date = datetime(2024, 2, 14).date()
-            return default_date, default_date
+        if use_motherduck():
+            # Use MotherDuck database
+            logger.info("Using MotherDuck database")
+            con = get_database_connection()
+            if not con:
+                logger.error("Failed to get database connection")
+                default_date = datetime(2024, 2, 14).date()
+                return default_date, default_date
             
-        # List all parquet files
-        files = list(base_path.glob("*.parquet"))
-        if not files:
-            logger.error("No parquet files found")
-            default_date = datetime(2024, 2, 14).date()
-            return default_date, default_date
-            
-        # Extract dates from filenames
-        dates = []
-        for file in files:
-            try:
-                # Only accept daily file format (YYYY-MM-DD.parquet)
-                date_str = file.stem
-                if len(date_str) == 10:  # YYYY-MM-DD format
-                    dates.append(datetime.strptime(date_str, '%Y-%m-%d').date())
-            except ValueError:
-                continue
+            # Query date range from MotherDuck
+            query = """
+            SELECT 
+                MIN(DATE(timestamp)) as min_date,
+                MAX(DATE(timestamp)) as max_date
+            FROM transformer_data
+            """
+            result = con.execute(query).fetchone()
+            if not result or not result[0] or not result[1]:
+                logger.error("No dates found in MotherDuck")
+                default_date = datetime(2024, 2, 14).date()
+                return default_date, default_date
                 
-        if not dates:
-            logger.error("No valid dates found in filenames")
-            default_date = datetime(2024, 2, 14).date()
-            return default_date, default_date
+            min_date = result[0].date()
+            max_date = result[1].date()
+            logger.info(f"Date range from MotherDuck: {min_date} to {max_date}")
+            return min_date, max_date
+        else:
+            # Use local files
+            base_path = get_data_path() / "feeder1"
             
-        min_date = min(dates)
-        max_date = max(dates)
-        
-        logger.info(f"Date range: {min_date} to {max_date}")
-        return min_date, max_date
-        
+            if not base_path.exists():
+                logger.error(f"Data directory not found: {base_path}")
+                default_date = datetime(2024, 2, 14).date()
+                return default_date, default_date
+                
+            # List all parquet files
+            files = list(base_path.glob("*.parquet"))
+            if not files:
+                logger.error("No parquet files found")
+                default_date = datetime(2024, 2, 14).date()
+                return default_date, default_date
+                
+            # Extract dates from filenames
+            dates = []
+            for file in files:
+                try:
+                    # Only accept daily file format (YYYY-MM-DD.parquet)
+                    date_str = file.stem
+                    if len(date_str) == 10:  # YYYY-MM-DD format
+                        dates.append(datetime.strptime(date_str, '%Y-%m-%d').date())
+                except ValueError:
+                    continue
+                    
+            if not dates:
+                logger.error("No valid dates found in filenames")
+                default_date = datetime(2024, 2, 14).date()
+                return default_date, default_date
+                
+            min_date = min(dates)
+            max_date = max(dates)
+            
+            logger.info(f"Date range from files: {min_date} to {max_date}")
+            return min_date, max_date
+            
     except Exception as e:
         logger.error(f"Error getting available dates: {str(e)}")
         default_date = datetime(2024, 2, 14).date()
@@ -258,31 +286,49 @@ def get_analysis_results(transformer_id: str, selected_date: Union[date, datetim
             logger.error(f"Invalid date format: {selected_date} - {str(e)}")
             return pd.DataFrame()
             
-        # Use local parquet files
-        base_path = get_data_path() / feeder
-        logger.debug(f"Looking for data in: {base_path}")
-        
-        if not base_path.exists():
-            logger.error(f"Feeder directory not found: {base_path}")
-            return pd.DataFrame()
-        
-        # Try daily file only
-        daily_file = base_path / f"{date_str}.parquet"
-        logger.debug(f"Checking daily file: {daily_file}")
-        
-        if daily_file.exists():
-            file_path = daily_file
-            logger.info(f"Found and using daily file: {file_path}")
-        else:
-            logger.error(f"No daily data file found for {date_str} at {daily_file}")
-            st.error(f"No data file found for date: {date_str}")
-            return pd.DataFrame()
-        
         try:
-            # Read parquet file
-            logger.info(f"Reading file: {file_path}")
-            df = pd.read_parquet(file_path)
-            logger.info(f"Read {len(df)} rows with columns: {df.columns.tolist()}")
+            if use_motherduck():
+                # Use MotherDuck database
+                logger.info("Using MotherDuck database")
+                con = get_database_connection()
+                if not con:
+                    logger.error("Failed to get database connection")
+                    return pd.DataFrame()
+                
+                # Query data from MotherDuck
+                query = f"""
+                SELECT *
+                FROM transformer_data
+                WHERE transformer_id = '{transformer_id}'
+                AND DATE(timestamp) = '{date_str}'
+                """
+                df = pd.DataFrame(con.execute(query).fetchdf())
+                logger.info(f"Retrieved {len(df)} rows from MotherDuck")
+            else:
+                # Use local parquet files
+                base_path = get_data_path() / feeder
+                logger.debug(f"Looking for data in: {base_path}")
+                
+                if not base_path.exists():
+                    logger.error(f"Feeder directory not found: {base_path}")
+                    return pd.DataFrame()
+                
+                # Try daily file only
+                daily_file = base_path / f"{date_str}.parquet"
+                logger.debug(f"Checking daily file: {daily_file}")
+                
+                if daily_file.exists():
+                    file_path = daily_file
+                    logger.info(f"Found and using daily file: {file_path}")
+                else:
+                    logger.error(f"No daily data file found for {date_str} at {daily_file}")
+                    st.error(f"No data file found for date: {date_str}")
+                    return pd.DataFrame()
+                
+                # Read parquet file
+                logger.info(f"Reading file: {file_path}")
+                df = pd.read_parquet(file_path)
+                logger.info(f"Read {len(df)} rows with columns: {df.columns.tolist()}")
             
             # Filter for transformer
             df = df[df['transformer_id'] == transformer_id].copy()
@@ -345,8 +391,8 @@ def get_analysis_results(transformer_id: str, selected_date: Union[date, datetim
             return df
             
         except Exception as e:
-            logger.error(f"Error processing data file: {str(e)}")
-            st.error(f"Error processing data file: {str(e)}")
+            logger.error(f"Error processing data: {str(e)}")
+            st.error(f"Error processing data: {str(e)}")
             return pd.DataFrame()
         
     except Exception as e:
