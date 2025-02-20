@@ -95,6 +95,32 @@ class CloudDataService:
         """
         result = self.query(query)
         return result['feeder_id'].tolist() if result is not None else []
+    
+    @st.cache_data(ttl="1h")
+    def get_available_dates(self) -> tuple[date, date]:
+        """Get available date range from the data"""
+        try:
+            # Query date range from MotherDuck
+            query = """
+            SELECT 
+                MIN(DATE(timestamp)) as min_date,
+                MAX(DATE(timestamp)) as max_date
+            FROM transformer_data
+            """
+            result = self.conn.execute(query).fetchone()
+            if not result or not result[0] or not result[1]:
+                logger.error("No dates found in MotherDuck")
+                default_date = datetime(2024, 2, 14).date()
+                return default_date, default_date
+                
+            min_date = result[0].date()
+            max_date = result[1].date()
+            logger.info(f"Date range from MotherDuck: {min_date} to {max_date}")
+            return min_date, max_date
+        except Exception as e:
+            logger.error(f"Error getting available dates: {str(e)}")
+            default_date = datetime(2024, 2, 14).date()
+            return default_date, default_date
 
 # Initialize the service
 data_service = CloudDataService()
