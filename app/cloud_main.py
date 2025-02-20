@@ -180,9 +180,14 @@ def main():
                                 selected_transformer
                             )
                             if results is not None and not results.empty:
+                                logger.info("Data retrieved successfully")
+                                st.session_state.results = results  # Store results immediately
+                                
+                                # Format dates for display
+                                logger.info(f"Displaying data for {query_datetime}")
+                                
                                 logger.info("Displaying transformer dashboard...")
                                 display_transformer_dashboard(results, selected_hour)
-                                st.session_state.results = results
                             else:
                                 st.warning("No data available for the selected criteria.")
                     else:
@@ -225,8 +230,14 @@ def main():
                                     except ValueError:
                                         logger.warning("Invalid alert time format")
                                 
+                                logger.info("Data retrieved successfully")
+                                st.session_state.results = results  # Store results immediately
+                                
+                                # Format dates for display
+                                logger.info(f"Displaying data from {start_date} to {end_date}")
+                                
+                                logger.info("Displaying transformer dashboard...")
                                 display_transformer_dashboard(results, alert_hour)
-                                st.session_state.results = results
                             else:
                                 st.warning("No data available for the selected criteria.")
                 
