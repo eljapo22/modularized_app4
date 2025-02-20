@@ -40,18 +40,19 @@ def get_status_emoji(status: str) -> str:
 class CloudAlertService:
     def __init__(self):
         """Initialize the alert service"""
-        self.gmail_creds = None
-        self.gmail_user = st.secrets["gmail"]["username"]
-        self.gmail_password = st.secrets["gmail"]["password"]
         self.app_url = st.secrets.get("APP_URL", "https://modularized-app4.streamlit.app")
+        
+        # Try to get Gmail credentials, but don't fail if they're not available
         try:
-            # Get credentials from Streamlit secrets
-            if "gmail" in st.secrets:
-                self.gmail_creds = Credentials.from_authorized_user_info(
-                    st.secrets["gmail"]
-                )
+            self.gmail_user = st.secrets["gmail"]["username"]
+            self.gmail_password = st.secrets["gmail"]["password"]
+            self.gmail_creds = Credentials.from_authorized_user_info(st.secrets["gmail"])
+            self.email_enabled = True
+            logger.info("Email alerts enabled")
         except Exception as e:
-            logger.error(f"Error initializing Gmail credentials: {str(e)}")
+            self.gmail_creds = None
+            self.email_enabled = False
+            logger.warning("Email alerts disabled: Gmail credentials not found in secrets")
     
     def _get_status_color(self, loading_pct: float) -> tuple:
         """Get status and color based on loading percentage"""
@@ -239,16 +240,22 @@ class CloudAlertService:
             recipient: Email recipient
             
         Returns:
-            bool: True if alert was sent, False otherwise
+            bool: True if alert was sent or would have been sent, False otherwise
         """
         try:
             loading_pct = results_df['loading_percentage'].iloc[-1]
             
-            # Send alert if loading is above warning threshold
+            # Check if loading is above warning threshold
             if loading_pct >= 80:
-                logger.info(f"High loading detected ({loading_pct:.1f}%). Sending alert...")
+                logger.info(f"High loading detected ({loading_pct:.1f}%)")
                 
-                # Create email
+                # If email is not enabled, just log the alert
+                if not self.email_enabled:
+                    logger.warning("Alert would have been sent, but email is not enabled")
+                    st.warning("⚠️ High loading detected. Email alerts are currently disabled.")
+                    return True
+                
+                # Create and send email
                 msg = MIMEMultipart('alternative')
                 msg['Subject'] = f"Transformer Loading Alert - {loading_pct:.1f}% Loading"
                 msg['From'] = self.gmail_user
@@ -269,5 +276,7 @@ class CloudAlertService:
             return False
             
         except Exception as e:
-            logger.error(f"Error sending alert: {str(e)}")
+            logger.error(f"Error in alert system: {str(e)}")
+            if self.email_enabled:
+                st.error("Failed to send alert email. Check the logs for details.")
             return False

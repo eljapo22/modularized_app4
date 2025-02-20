@@ -18,8 +18,15 @@ logger = logging.getLogger(__name__)
 def main():
     try:
         # Initialize services
-        data_service = CloudDataService()
-        alert_service = CloudAlertService()
+        try:
+            data_service = CloudDataService()
+            alert_service = CloudAlertService()
+            logger.info("Services initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing services: {str(e)}")
+            st.error("Failed to initialize some services. Some features may be limited.")
+            data_service = CloudDataService()  # Retry just the data service
+            alert_service = None
         
         # Set page config
         st.set_page_config(
@@ -112,7 +119,7 @@ def main():
                                     display_transformer_dashboard(results, selected_hour)
                                     
                                     # Check and send alerts if needed
-                                    if alert_service.check_and_send_alerts(
+                                    if alert_service is not None and alert_service.check_and_send_alerts(
                                         results_df=results,
                                         date=query_datetime,
                                         hour=selected_hour,
