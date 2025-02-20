@@ -61,42 +61,26 @@ class CloudAlertService:
         else:
             return "NORMAL", "#198754", "✅"
 
-    def _select_alert_point(self, results: pd.DataFrame) -> Optional[pd.Series]:
-        """
-        Find the latest point that exceeds the threshold in the date range.
-        
-        Args:
-            results: DataFrame with transformer data
-            
-        Returns:
-            tuple: (DataFrame row of the alert point) or (None) if no alert needed
-        """
+    def _select_alert_point(self, results_df: pd.DataFrame) -> Optional[pd.Series]:
+        """Select the point to alert on"""
         try:
-            # Log the data range we're checking
-            date_range = f"{results.index[0]} to {results.index[-1]}"
-            logger.info(f"Checking for alerts in date range: {date_range}")
-            st.info(f"📊 Analyzing data from {date_range}")
+            # Find the highest loading percentage
+            max_loading_idx = results_df['loading_percentage'].idxmax()
+            max_loading = results_df.loc[max_loading_idx]
             
-            # Filter points exceeding threshold (80%)
-            exceeding_points = results[results['loading_percentage'] >= 80]
+            # Log the max loading found
+            logger.info(f"Found max loading: {max_loading['loading_percentage']:.1f}% at {max_loading.name}")
             
-            if not exceeding_points.empty:
-                # Get the latest exceeding point
-                alert_point = exceeding_points.iloc[-1]
-                alert_msg = f"Found alert condition: {alert_point['loading_percentage']:.1f}% loading at {alert_point.name}"
-                logger.info(alert_msg)
-                st.warning(f"⚠️ {alert_msg}")
-                return alert_point
-            
-            no_alert_msg = f"No points exceed the 80% threshold. Max loading: {results['loading_percentage'].max():.1f}%"
-            logger.info(no_alert_msg)
-            st.info(f"✓ {no_alert_msg}")
-            return None
-            
+            # Only alert if loading is high enough
+            if max_loading['loading_percentage'] >= 80:
+                return max_loading
+            else:
+                logger.info(f"Max loading {max_loading['loading_percentage']:.1f}% below alert threshold (80%)")
+                st.info(f"🔍 Maximum loading ({max_loading['loading_percentage']:.1f}%) is below alert threshold (80%)")
+                return None
+                
         except Exception as e:
-            error_msg = f"Error selecting alert point: {str(e)}"
-            logger.error(error_msg)
-            st.error(f"❌ {error_msg}")
+            logger.error(f"Error selecting alert point: {str(e)}")
             return None
 
     def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
@@ -166,6 +150,8 @@ class CloudAlertService:
     def _send_email(self, msg: MIMEMultipart) -> bool:
         """Send email using Gmail SMTP with app password"""
         try:
+            logger.info(f"Attempting to send email to {msg['To']}")
+            
             # Connect to Gmail's SMTP server
             server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
             server.login(self.email, self.app_password)
@@ -179,6 +165,8 @@ class CloudAlertService:
             
         except Exception as e:
             logger.error(f"Failed to send email: {str(e)}")
+            if "Invalid login" in str(e):
+                st.error("❌ Failed to login to Gmail. Please check your app password in secrets.toml")
             return False
 
     def check_and_send_alerts(
@@ -188,11 +176,9 @@ class CloudAlertService:
         alert_time: Optional[datetime] = None,
         recipient: str = None
     ) -> bool:
-        """
-        Check loading conditions and send alert if needed
-        """
+        """Check loading conditions and send alert if needed"""
         if not self.email_enabled:
-            msg = "Email alerts disabled - skipping alert check"
+            msg = "Email alerts disabled - Gmail app password not found in secrets.toml"
             logger.warning(msg)
             st.warning(f"📧 {msg}")
             return False
@@ -201,6 +187,7 @@ class CloudAlertService:
             # Create an expander for detailed alert info
             with st.expander("📋 Alert Check Details", expanded=True):
                 st.write("**Checking Alert Conditions**")
+                st.write(f"Analyzing {len(results_df)} data points...")
                 
                 # Select the alert point
                 alert_point = self._select_alert_point(results_df)
