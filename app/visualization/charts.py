@@ -10,7 +10,7 @@ from app.config.constants import STATUS_COLORS
 from datetime import datetime, timedelta
 import numpy as np
 import logging
-from app.utils.ui_components import create_tile
+from app.utils.ui_components import create_tile, create_section_title
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -628,7 +628,7 @@ def display_transformer_dashboard(results_df, selected_hour: int = None):
         longitude = 0.0
     
     # Create tiles for transformer attributes
-    st.markdown("### Transformer Overview")
+    st.markdown("### Transformer Attributes")
     cols = st.columns(4)
     
     # Transformer ID
@@ -659,37 +659,24 @@ def display_transformer_dashboard(results_df, selected_hour: int = None):
             f"{longitude:.4f}"
         )
 
-    # Create two columns for the visualizations
+    # Create section titles for charts
+    create_section_title("Power Consumption Over Time")
+    
+    # Display power consumption over time
+    display_power_time_series(results_df, selected_hour, is_transformer_view=True)
+    
+    # Create two columns for the remaining visualizations
     col1, col2 = st.columns(2)
-
-    # Filter data based on selected hour if provided
-    if selected_hour is not None:
-        # Convert timestamp to pandas timestamp if needed
-        first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
-        hour_start = pd.Timestamp(first_timestamp.date()) + pd.Timedelta(hours=selected_hour)
-        hour_end = hour_start + pd.Timedelta(hours=1)
-        
-        # Convert timestamps to pandas timestamps for comparison
-        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
-        filtered_results = results_df[
-            (results_df['timestamp'] >= hour_start) &
-            (results_df['timestamp'] < hour_end)
-        ]
-    else:
-        filtered_results = results_df
-
+    
     with col1:
-        # Display power consumption over time
-        display_power_time_series(results_df, selected_hour, is_transformer_view=True)
-        
-        # Display current over time
-        display_current_time_series(filtered_results, selected_hour)
+        create_section_title("Current Over Time")
+        display_current_time_series(results_df, selected_hour)
         
     with col2:
-        # Display voltage over time with sample data
-        display_voltage_over_time(filtered_results)
+        create_section_title("Voltage Over Time")
+        display_voltage_time_series(results_df, selected_hour)
     
-    return filtered_results  # Return filtered results for raw data display
+    return results_df  # Return filtered results for raw data display
 
 def get_sample_voltage_data(df):
     """Generate sample three-phase voltage data."""

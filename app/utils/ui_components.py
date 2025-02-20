@@ -11,9 +11,10 @@ def create_tile(title: str, value: str, has_multiline_title: bool = False, is_cl
         <div style="
             background-color: white;
             padding: 0.75rem;
-            border: 1px solid #e9ecef;
+            border: 1px solid #dee2e6;
             border-radius: 0.25rem;
             height: 100%;
+            margin-bottom: 1rem;
             {'cursor: pointer;' if is_clickable else ''}
         ">
             <p style="
@@ -36,22 +37,44 @@ def create_tile(title: str, value: str, has_multiline_title: bool = False, is_cl
         unsafe_allow_html=True
     )
 
+def create_section_title(title: str):
+    """Create a section title with the same styling as tiles"""
+    st.markdown(
+        f"""
+        <div style="
+            background-color: white;
+            padding: 0.75rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        ">
+            <p style="
+                margin: 0;
+                color: #212529;
+                font-size: 1rem;
+                font-weight: 500;
+            ">{title}</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 def create_banner(title: str):
     """Create a professional banner with title"""
     st.markdown(
         f"""
         <div style="
-            background-color: #f8f9fa;
+            background-color: white;
             padding: 1.5rem;
-            border-radius: 0.5rem;
+            border-radius: 0.25rem;
             margin-bottom: 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 1px solid #dee2e6;
         ">
             <h1 style="
                 margin: 0;
                 color: #212529;
-                font-size: 2rem;
-                font-weight: 600;
+                font-size: 1.5rem;
+                font-weight: 500;
             ">{title}</h1>
         </div>
         """,
@@ -63,16 +86,17 @@ def create_section_banner(title: str):
     st.markdown(
         f"""
         <div style="
-            background-color: #e9ecef;
+            background-color: white;
             padding: 1rem;
-            border-radius: 0.5rem;
+            border-radius: 0.25rem;
             margin: 1rem 0;
+            border: 1px solid #dee2e6;
         ">
             <h2 style="
                 margin: 0;
                 color: #495057;
                 font-size: 1.25rem;
-                font-weight: 600;
+                font-weight: 500;
             ">{title}</h2>
         </div>
         """,
