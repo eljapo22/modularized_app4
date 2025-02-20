@@ -96,8 +96,9 @@ class CloudDataService:
         result = self.query(query)
         return result['feeder_id'].tolist() if result is not None else []
     
+    @property
     @st.cache_data(ttl="1h")
-    def get_available_dates(self) -> tuple[date, date]:
+    def available_dates(self) -> tuple[date, date]:
         """Get available date range from the data"""
         try:
             # Query date range from MotherDuck
