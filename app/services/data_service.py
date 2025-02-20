@@ -512,8 +512,22 @@ def get_transformer_attributes(transformer_id: str) -> pd.DataFrame:
         })
 
 def get_database_connection():
-    # TO DO: implement logic to get a database connection
-    pass
+    """Get a connection to the MotherDuck database"""
+    try:
+        import duckdb
+        # Get token from Streamlit secrets
+        token = st.secrets.get('MOTHERDUCK_TOKEN')
+        if not token:
+            logger.error("No MotherDuck token found in secrets")
+            return None
+            
+        # Connect to MotherDuck
+        con = duckdb.connect(f"md:?motherduck_token={token}")
+        logger.info("Successfully connected to MotherDuck")
+        return con
+    except Exception as e:
+        logger.error(f"Error connecting to MotherDuck: {str(e)}")
+        return None
 
 def extract_feeder(transformer_id: str) -> str:
     """
