@@ -9,8 +9,6 @@ from datetime import datetime, date
 import pandas as pd
 from typing import Optional, List, Dict, Tuple
 import smtplib
-import json
-import base64
 
 logger = logging.getLogger(__name__)
 
