@@ -12,6 +12,7 @@ import pandas as pd
 from typing import Optional, List, Dict, Tuple
 import smtplib
 import json
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class CloudAlertService:
         else:
             return "NORMAL", "#198754", "✅"
 
-    def select_alert_point(self, results: pd.DataFrame) -> Tuple[Optional[pd.Series], Optional[datetime]]:
+    def _select_alert_point(self, results: pd.DataFrame) -> Optional[pd.Series]:
         """
         Find the latest point that exceeds the threshold in the date range.
         
@@ -76,7 +77,7 @@ class CloudAlertService:
             results: DataFrame with transformer data
             
         Returns:
-            tuple: (DataFrame row of the alert point, timestamp of the alert) or (None, None) if no alert needed
+            tuple: (DataFrame row of the alert point) or (None) if no alert needed
         """
         try:
             # Filter points exceeding threshold (80%)
@@ -85,43 +86,55 @@ class CloudAlertService:
             if not exceeding_points.empty:
                 # Get the latest exceeding point
                 alert_point = exceeding_points.iloc[-1]
-                alert_time = alert_point.name  # Get timestamp from index
-                logger.info(f"Found alert point at {alert_time} with loading {alert_point['loading_percentage']:.1f}%")
-                return alert_point, alert_time
+                logger.info(f"Found alert point at {alert_point.name} with loading {alert_point['loading_percentage']:.1f}%")
+                return alert_point
                 
             logger.info("No points exceed the alert threshold")
-            return None, None
+            return None
             
         except Exception as e:
             logger.error(f"Error selecting alert point: {str(e)}")
-            return None, None
+            return None
     
-    def _create_email_content(self, data: pd.Series, alert_time: datetime, start_date: date) -> str:
+    def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
+        """
+        Create deep link back to app with context
+        
+        Args:
+            start_date: Start date of the analysis range
+            alert_time: Timestamp of the alert point
+            transformer_id: ID of the transformer
+            
+        Returns:
+            str: Deep link URL
+        """
+        return f"{self.app_url}?view=alert&id={transformer_id}&start={start_date}&alert_time={alert_time.isoformat()}"
+
+    def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
         """
         Create HTML content for alert email with context
         
         Args:
             data: Series with transformer data at alert point
-            alert_time: Timestamp of the alert point
-            start_date: Start date of the analysis range
+            status: Status of the alert
+            color: Color of the alert
+            deep_link: Deep link back to app
+            
+        Returns:
+            str: HTML content of the email
         """
         transformer_id = data['transformer_id']
         loading_pct = data['loading_percentage']
-        status, color, emoji = self._get_status_color(loading_pct)
-        
-        # Create deep link back to app with context
-        deep_link = f"{self.app_url}?view=alert&id={transformer_id}&start={start_date}&alert_time={alert_time.isoformat()}"
         
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2f4f4f;">Transformer Loading Alert {emoji}</h2>
+            <h2 style="color: #2f4f4f;">Transformer Loading Alert {get_status_emoji(status)}</h2>
             
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
                 <h3 style="color: {color};">Status: {status}</h3>
                 <p><strong>Transformer:</strong> {transformer_id}</p>
                 <p><strong>Loading:</strong> {loading_pct:.1f}%</p>
-                <p><strong>Alert Time:</strong> {alert_time.strftime('%Y-%m-%d %H:%M')}</p>
-                <p><strong>Analysis Start:</strong> {start_date.strftime('%Y-%m-%d')}</p>
+                <p><strong>Alert Time:</strong> {data.name.strftime('%Y-%m-%d %H:%M')}</p>
             </div>
             
             <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
@@ -157,57 +170,54 @@ class CloudAlertService:
     ) -> bool:
         """
         Check loading conditions and send alert if needed
-        
-        Args:
-            results_df: DataFrame with transformer data
-            start_date: Start date of the analysis range (optional)
-            alert_time: Specific time to check for alert (optional)
-            recipient: Email recipient
-            
-        Returns:
-            bool: True if alert was sent or would have been sent, False otherwise
         """
+        if not self.email_enabled:
+            logger.warning("Email alerts are disabled - skipping alert check")
+            return False
+
         try:
-            # If no alert_time provided, find the latest exceeding point
-            if alert_time is None:
-                alert_point, alert_time = self.select_alert_point(results_df)
-                if alert_point is None:
-                    logger.info("No alert conditions found")
-                    return False
-            else:
-                # Use the specific time point
-                alert_point = results_df.loc[alert_time]
+            # Select the alert point
+            alert_point = self._select_alert_point(results_df)
             
-            # If email is not enabled, just log the alert
-            if not self.email_enabled:
-                logger.warning("Alert would have been sent, but email is not enabled")
-                st.warning("⚠️ High loading detected. Email alerts are currently disabled.")
-                return True
+            if alert_point is None:
+                logger.info("No alert conditions met")
+                return False
+            
+            logger.info(f"Alert condition met: {alert_point['loading_percentage']:.1f}% loading")
+            
+            # Get alert status and color
+            status, color = get_alert_status(alert_point['loading_percentage'])
+            
+            # Create deep link
+            deep_link = self._create_deep_link(
+                start_date or alert_point.name.date(),
+                alert_point.name,
+                alert_point['transformer_id']
+            )
             
             # Create and send email
             msg = MIMEMultipart('alternative')
             msg['Subject'] = f"Transformer Loading Alert - {alert_point['loading_percentage']:.1f}% Loading"
-            msg['From'] = self.gmail_creds.refresh_token
+            msg['From'] = self.default_recipient  # Use default_recipient as From address
             msg['To'] = recipient or self.default_recipient
             
             # Create HTML content
             html_content = self._create_email_content(
-                alert_point,
-                alert_time,
-                start_date or alert_time.date()
+                alert_point, status, color, deep_link
             )
             msg.attach(MIMEText(html_content, 'html'))
             
-            # Send email
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-                smtp.login(self.gmail_creds.refresh_token, self.gmail_creds.token)
-                smtp.send_message(msg)
-            
-            logger.info("Alert email sent successfully")
-            return True
-            
+            try:
+                # Send email using Gmail API
+                service = build('gmail', 'v1', credentials=self.gmail_creds)
+                message = {'raw': base64.urlsafe_b64encode(msg.as_bytes()).decode()}
+                service.users().messages().send(userId='me', body=message).execute()
+                logger.info("Alert email sent successfully")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to send email: {str(e)}")
+                return False
+                
         except Exception as e:
-            logger.error(f"Error in alert system: {str(e)}")
-            if self.email_enabled:
-                st.error("Failed to send alert email. Check the logs for details.")
+            logger.error(f"Error in check_and_send_alerts: {str(e)}")
             return False

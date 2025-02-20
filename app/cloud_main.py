@@ -144,12 +144,15 @@ def main():
                                 
                                 # Check and send alerts if needed
                                 if alert_service is not None and alert_clicked:
+                                    logger.info("Attempting to send alert email...")
                                     if alert_service.check_and_send_alerts(
-                                        results_df=results,
-                                        alert_time=query_datetime,
-                                        recipient="jhnapo2213@gmail.com"
+                                        results,
+                                        selected_date,
+                                        query_datetime
                                     ):
                                         st.success("Alert email sent successfully")
+                                    else:
+                                        st.warning("No alert conditions met or email sending failed")
                             else:
                                 st.warning("No data available for the selected criteria.")
                     else:
