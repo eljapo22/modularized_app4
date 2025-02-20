@@ -54,24 +54,45 @@ def main():
             st.markdown("### Search Controls")
             
             try:
+                # Initialize session state for search mode if not exists
+                if 'search_mode' not in st.session_state:
+                    st.session_state.search_mode = "Single Day"
+                
                 # Search mode toggle
-                search_mode = st.radio("Search Mode", ("Single Day", "Date Range"))
+                search_mode = st.radio(
+                    "Search Mode",
+                    ("Single Day", "Date Range"),
+                    key='search_mode'
+                )
+                
+                # Clear results when mode changes
+                if 'last_search_mode' not in st.session_state or st.session_state.last_search_mode != search_mode:
+                    if 'results' in st.session_state:
+                        del st.session_state.results
+                    st.session_state.last_search_mode = search_mode
                 
                 if search_mode == "Single Day":
                     # Single day inputs
+                    if 'selected_date' not in st.session_state:
+                        st.session_state.selected_date = max_date
+                        
                     selected_date = st.date_input(
                         "Date",
-                        value=max_date,
+                        value=st.session_state.selected_date,
                         min_value=min_date,
                         max_value=max_date,
-                        key="single_date"
+                        key="selected_date"
                     )
                     
+                    if 'selected_hour' not in st.session_state:
+                        st.session_state.selected_hour = 12  # Default to noon
+                        
                     selected_hour = st.selectbox(
                         "Time",
                         range(24),
+                        index=st.session_state.selected_hour,
                         format_func=lambda x: f"{x:02d}:00",
-                        key="hour"
+                        key="selected_hour"
                     )
                 else:
                     # Date range inputs with URL parameter handling
@@ -83,7 +104,9 @@ def main():
                         except ValueError:
                             initial_dates = [min_date, max_date]
                     else:
-                        initial_dates = [min_date, max_date]
+                        if 'date_range' not in st.session_state:
+                            st.session_state.date_range = [min_date, max_date]
+                        initial_dates = st.session_state.date_range
                     
                     # Always use list for value to ensure we get a range
                     date_input = st.date_input(
@@ -98,9 +121,11 @@ def main():
                     if isinstance(date_input, (list, tuple)) and len(date_input) >= 2:
                         start_date = date_input[0]
                         end_date = date_input[-1]
+                        st.session_state.date_range = [start_date, end_date]
                     else:
                         # If somehow we get a single date, use it for both
                         start_date = end_date = date_input
+                        st.session_state.date_range = [start_date, end_date]
                 
                 # Feeder selection
                 with st.spinner("Loading feeders..."):
