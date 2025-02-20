@@ -24,7 +24,7 @@ SELECT
     voltage_v,
     current_a,
     loading_percentage
-FROM transformer_data
+FROM {table_name}
 WHERE transformer_id = ? 
   AND DATE(timestamp) = ?
   AND EXTRACT(HOUR FROM timestamp) = ?
@@ -34,13 +34,13 @@ ORDER BY timestamp
 CUSTOMER_DATA_QUERY = """
 SELECT 
     timestamp,
-    customer_id,
     transformer_id,
+    customer_id,
     power_kw,
     power_factor,
     voltage_v,
     current_a
-FROM customer_data
+FROM {table_name}
 WHERE transformer_id = ?
   AND DATE(timestamp) = ?
   AND EXTRACT(HOUR FROM timestamp) = ?
@@ -49,7 +49,7 @@ ORDER BY timestamp
 
 TRANSFORMER_LIST_QUERY = """
 SELECT DISTINCT transformer_id
-FROM transformer_data
+FROM {table_name}
 ORDER BY transformer_id
 """
 
@@ -63,7 +63,7 @@ WITH latest_data AS (
         voltage_v,
         current_a,
         ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY timestamp DESC) as rn
-    FROM customer_data
+    FROM {table_name}
     WHERE transformer_id = ?
       AND DATE(timestamp) = ?
       AND EXTRACT(HOUR FROM timestamp) = ?
