@@ -6,6 +6,10 @@ import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
 from typing import Optional
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 def create_banner(title: str):
     """Create a page banner with title"""

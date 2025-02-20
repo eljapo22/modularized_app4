@@ -83,12 +83,18 @@ def main():
                     else:
                         date_range = (min_date, max_date)
                     
-                    start_date, end_date = st.date_input(
+                    date_input = st.date_input(
                         "Date Range",
                         value=date_range,
                         min_value=min_date,
                         max_value=max_date
                     )
+                    
+                    # Handle both single and tuple returns from date_input
+                    if isinstance(date_input, tuple):
+                        start_date, end_date = date_input
+                    else:
+                        start_date = end_date = date_input
                 
                 # Feeder selection
                 with st.spinner("Loading feeders..."):
