@@ -128,13 +128,21 @@ def main():
                 with col1:
                     search_clicked = st.button("Search & Analyze")
                 with col2:
-                    alert_clicked = st.button("Set Alert", key="set_alert")
+                    # Only enable alert button if we have results
+                    if 'results' not in st.session_state:
+                        st.button("Set Alert", disabled=True, help="First click 'Search & Analyze' to load data")
+                        alert_clicked = False
+                    else:
+                        alert_clicked = st.button("Set Alert", key="set_alert")
                 
                 if alert_clicked:
                     logger.info("Alert button clicked")
                     if alert_service is None:
                         logger.warning("Alert service not available")
                         st.error("Alert service is not available")
+                    elif 'results' not in st.session_state:
+                        logger.warning("No results available for alert")
+                        st.error("Please click 'Search & Analyze' first to load data")
                     else:
                         logger.info("Checking alert conditions...")
                         if search_mode == "Single Day":
@@ -147,7 +155,7 @@ def main():
                                 
                                 # Check and send alerts if needed
                                 if alert_service.check_and_send_alerts(
-                                    results,
+                                    st.session_state.results,
                                     selected_date,
                                     query_datetime
                                 ):
@@ -171,6 +179,7 @@ def main():
                             if results is not None and not results.empty:
                                 logger.info("Displaying transformer dashboard...")
                                 display_transformer_dashboard(results, selected_hour)
+                                st.session_state.results = results
                                 
                                 # Check and send alerts if needed
                                 if alert_service is not None and alert_clicked:
@@ -226,6 +235,7 @@ def main():
                                         logger.warning("Invalid alert time format")
                                 
                                 display_transformer_dashboard(results, alert_hour)
+                                st.session_state.results = results
                                 
                                 # Check and send alerts if needed
                                 if alert_service is not None and alert_clicked:
