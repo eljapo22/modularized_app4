@@ -24,6 +24,9 @@ def init_db_pool():
             # Create connection to MotherDuck
             _connection_pool = duckdb.connect(f'md:?motherduck_token={motherduck_token}')
             logger.info("Successfully initialized MotherDuck connection pool")
+    except duckdb.Error as e:
+        logger.error(f"DuckDB error initializing database pool: {str(e)}")
+        raise
     except Exception as e:
         logger.error(f"Error initializing database pool: {str(e)}")
         raise
@@ -36,12 +39,19 @@ def execute_query(query: str, params: Optional[tuple] = None) -> List[Dict[str, 
             init_db_pool()
 
         # Execute query with parameters
-        if params:
-            result = _connection_pool.execute(query, params).fetchdf()
-        else:
-            result = _connection_pool.execute(query).fetchdf()
+        try:
+            if params:
+                result = _connection_pool.execute(query, params).fetchdf()
+            else:
+                result = _connection_pool.execute(query).fetchdf()
 
-        return result.to_dict('records')
+            # Convert to list of dictionaries
+            return result.to_dict('records')
+        except duckdb.Error as e:
+            logger.error(f"DuckDB error executing query: {str(e)}")
+            logger.error(f"Query: {query}")
+            logger.error(f"Parameters: {params}")
+            raise
     except Exception as e:
         logger.error(f"Error executing query: {str(e)}")
         logger.error(f"Query: {query}")
@@ -55,7 +65,10 @@ def close_pool():
         if _connection_pool is not None:
             _connection_pool.close()
             _connection_pool = None
-            logger.info("Successfully closed database connection pool")
+            logger.info("Successfully closed database pool")
+    except duckdb.Error as e:
+        logger.error(f"DuckDB error closing database pool: {str(e)}")
+        raise
     except Exception as e:
         logger.error(f"Error closing database pool: {str(e)}")
         raise
