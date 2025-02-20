@@ -8,6 +8,7 @@ from datetime import datetime, time
 import logging
 
 from app.services.cloud_data_service import CloudDataService
+from app.services.cloud_alert_service import CloudAlertService
 from app.utils.ui_utils import create_banner, display_transformer_dashboard
 
 # Configure logging
@@ -18,6 +19,7 @@ def main():
     try:
         # Initialize services
         data_service = CloudDataService()
+        alert_service = CloudAlertService()
         
         # Set page config
         st.set_page_config(
@@ -27,9 +29,9 @@ def main():
         )
         
         # Check for URL parameters
-        params = st.experimental_get_query_params()
-        from_alert = params.get('view', [''])[0] == 'alert'
-        alert_transformer = params.get('id', [''])[0] if from_alert else None
+        params = st.query_params
+        from_alert = params.get('view', '') == 'alert'
+        alert_transformer = params.get('id', '') if from_alert else None
         
         create_banner("Transformer Loading Analysis")
         
@@ -108,19 +110,21 @@ def main():
                                 if results is not None and not results.empty:
                                     logger.info("Displaying transformer dashboard...")
                                     display_transformer_dashboard(results, selected_hour)
+                                    
+                                    # Check and send alerts if needed
+                                    if alert_service.check_and_send_alerts(
+                                        results_df=results,
+                                        date=query_datetime,
+                                        hour=selected_hour,
+                                        recipient="jhnapo2213@gmail.com"
+                                    ):
+                                        if results['loading_percentage'].max() >= 80:
+                                            st.warning("Alert email sent due to high loading condition")
                                 else:
                                     st.warning("No data available for the selected criteria.")
                         except Exception as e:
                             logger.error(f"Error fetching data: {str(e)}\nTraceback: {traceback.format_exc()}")
                             st.error(f"Error fetching data: {str(e)}")
-                
-                if alert_clicked:
-                    # Store alert preferences in session state
-                    st.session_state.alert_settings = {
-                        'transformer_id': selected_transformer,
-                        'threshold': 80  # Default threshold
-                    }
-                    st.success(f"Alert set for transformer {selected_transformer}")
                 
             except Exception as e:
                 logger.error(f"Error in sidebar: {str(e)}\nTraceback: {traceback.format_exc()}")
