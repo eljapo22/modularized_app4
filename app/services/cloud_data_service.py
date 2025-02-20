@@ -1,215 +1,86 @@
 """
-Cloud data service that exclusively uses MotherDuck for data access
+Cloud-specific data service implementation
 """
-import os
-import pandas as pd
-import duckdb
-from datetime import datetime, date
-from typing import Optional, List, Dict, Union
-import logging
-import streamlit as st
-import traceback
 
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import logging
+from typing import List, Optional
+
+# Initialize logger
 logger = logging.getLogger(__name__)
 
-@st.cache_resource
-def get_motherduck_connection():
-    """Get a cached MotherDuck connection"""
-    logger.info("Attempting to get MotherDuck connection from cache")
-    try:
-        # Get token from Streamlit secrets only
-        if not hasattr(st, 'secrets'):
-            logger.error("No Streamlit secrets available")
-            raise ValueError("No Streamlit secrets available")
-            
-        if 'MOTHERDUCK_TOKEN' not in st.secrets:
-            logger.error("MotherDuck token not found in Streamlit secrets")
-            raise ValueError("MotherDuck token not found in Streamlit secrets")
-            
-        token = st.secrets["MOTHERDUCK_TOKEN"]
-        logger.info("Successfully retrieved MotherDuck token")
-        
-        # Connect with proper token in connection string
-        conn = duckdb.connect(f'md:ModApp4DB?motherduck_token={token}')
-        logger.info("Successfully established MotherDuck connection")
-        return conn
-    except Exception as e:
-        logger.error(f"MotherDuck connection failed: {str(e)}\nTraceback: {traceback.format_exc()}")
-        st.error("Failed to connect to MotherDuck database. Please check your configuration.")
-        raise RuntimeError(f"Failed to connect to MotherDuck: {str(e)}")
-
 class CloudDataService:
-    _instance = None
-    
-    def __new__(cls):
-        logger.info("Creating new CloudDataService instance")
-        if cls._instance is None:
-            try:
-                cls._instance = super().__new__(cls)
-                cls._instance.conn = get_motherduck_connection()
-                logger.info("Successfully initialized CloudDataService singleton")
-            except Exception as e:
-                logger.error(f"Failed to initialize CloudDataService: {str(e)}\nTraceback: {traceback.format_exc()}")
-                raise
-        return cls._instance
+    """Service class for handling data operations in the cloud environment"""
     
     def __init__(self):
-        """Initialize cloud data service with MotherDuck connection"""
-        # Initialization is done in __new__
-        pass
+        """Initialize the data service"""
+        self.feeder_options = ["USAF7701"]  # Example feeder
+        self.load_options = {
+            "USAF7701": ["S1FLAT7001"]  # Example load number
+        }
     
-    @st.cache_data(ttl=3600)  # 1 hour in seconds
-    def query(_self, query: str, params: Optional[List] = None) -> pd.DataFrame:
-        """Execute a query and return results as DataFrame"""
+    def get_feeder_options(self) -> List[str]:
+        """Get list of available feeders"""
+        return self.feeder_options
+    
+    def get_load_options(self, feeder: str) -> List[str]:
+        """Get list of available load numbers for a feeder"""
+        return self.load_options.get(feeder, [])
+    
+    def get_transformer_data(
+        self,
+        date: datetime,
+        hour: int,
+        feeder: str,
+        load: str
+    ) -> Optional[pd.DataFrame]:
+        """
+        Get transformer data for the specified parameters
+        
+        Args:
+            date: Date to get data for
+            hour: Hour of the day (0-23)
+            feeder: Feeder ID
+            load: Load number
+            
+        Returns:
+            DataFrame with transformer data or None if no data available
+        """
         try:
-            logger.info(f"Executing query: {query} with params: {params}")
-            if params:
-                result = _self.conn.execute(query, params).df()
-            else:
-                result = _self.conn.execute(query).df()
-            logger.info(f"Query returned {len(result)} rows")
-            return result
+            # Generate sample data for demonstration
+            timestamps = pd.date_range(
+                start=pd.Timestamp(date) + pd.Timedelta(hours=hour),
+                end=pd.Timestamp(date) + pd.Timedelta(hours=hour, minutes=59),
+                freq='1min'
+            )
+            
+            n_points = len(timestamps)
+            
+            data = {
+                'timestamp': timestamps,
+                'transformer_id': [load] * n_points,
+                'power_kw': np.random.normal(75, 15, n_points),
+                'current_a': np.random.normal(100, 10, n_points),
+                'voltage_v': np.random.normal(240, 5, n_points),
+                'temperature_c': np.random.normal(35, 2, n_points)
+            }
+            
+            return pd.DataFrame(data)
+            
         except Exception as e:
-            logger.error(f"Query failed: {str(e)}\nQuery: {query}\nParams: {params}\nTraceback: {traceback.format_exc()}")
+            logger.error(f"Error getting transformer data: {str(e)}")
             return None
     
-    @st.cache_data(ttl=86400)  # 24 hours in seconds
-    def get_feeder_data(_self, feeder: int) -> pd.DataFrame:
-        """Get data for a specific feeder"""
-        logger.info(f"Getting data for feeder {feeder}")
-        query = """
-            SELECT 
-                timestamp,
-                transformer_id,
-                size_kva,
-                load_range,
-                loading_percentage,
-                current_a,
-                voltage_v,
-                power_kw,
-                power_kva,
-                power_factor
-            FROM ModApp4DB.main."Transformer Feeder {}"
-            WHERE timestamp >= CURRENT_DATE - INTERVAL '30 days'
-            ORDER BY timestamp
-        """.format(feeder)
-        return _self.query(query)
-    
-    @st.cache_data(ttl=86400)  # 24 hours in seconds
-    def get_transformer_ids(_self, feeder: int) -> List[str]:
-        """Get transformer IDs for a feeder"""
-        logger.info(f"Getting transformer IDs for feeder {feeder}")
-        query = """
-            SELECT DISTINCT transformer_id
-            FROM ModApp4DB.main."Transformer Feeder {}"
-            ORDER BY transformer_id
-        """.format(feeder)
-        result = _self.query(query)
-        ids = result['transformer_id'].tolist() if result is not None else []
-        logger.info(f"Found {len(ids)} transformers for feeder {feeder}")
-        return ids
-    
-    @st.cache_data(ttl=3600)  # 1 hour in seconds
-    def get_transformer_data(_self, transformer_id: str, start_date: date, end_date: Optional[date] = None) -> pd.DataFrame:
-        """Get data for a specific transformer within a date range"""
-        logger.info(f"Getting data for transformer {transformer_id} from {start_date} to {end_date}")
-        if end_date is None:
-            end_date = datetime.now().date()
-            
-        # Extract feeder number from transformer_id (e.g., S1F1ATF003 -> 1)
-        feeder_num = transformer_id[3]
-            
-        query = """
-            SELECT 
-                timestamp,
-                transformer_id,
-                size_kva,
-                load_range,
-                loading_percentage,
-                current_a,
-                voltage_v,
-                power_kw,
-                power_kva,
-                power_factor
-            FROM ModApp4DB.main."Transformer Feeder {}"
-            WHERE transformer_id = ?
-            AND CAST(timestamp AS DATE) BETWEEN ? AND ?
-            ORDER BY timestamp
-        """.format(feeder_num)
-        return _self.query(query, [transformer_id, start_date, end_date])
-    
-    @st.cache_data(ttl=86400)  # 24 hours in seconds
-    def get_feeder_list(_self) -> List[int]:
-        """Get list of all feeder IDs"""
-        logger.info("Getting list of all feeders")
-        # Since tables are named "Transformer Feeder 1", "Transformer Feeder 2", etc.
-        # We'll return [1, 2, 3, 4] as that's what we see in the database
-        return [1, 2, 3, 4]
-    
-    @st.cache_data(ttl=3600)  # 1 hour in seconds
-    def get_available_dates(_self) -> tuple[date, date]:
-        """Get available date range from the data"""
-        logger.info("Getting available date range")
-        try:
-            # Query date range from first feeder (they should all have same date range)
-            query = """
-            SELECT 
-                MIN(CAST(timestamp AS DATE)) as min_date,
-                MAX(CAST(timestamp AS DATE)) as max_date
-            FROM ModApp4DB.main."Transformer Feeder 1"
-            """
-            result = _self.conn.execute(query).fetchone()
-            if not result or not result[0] or not result[1]:
-                logger.error("No dates found in MotherDuck")
-                default_date = datetime(2024, 2, 14).date()
-                return default_date, default_date
-                
-            min_date = result[0].date()
-            max_date = result[1].date()
-            logger.info(f"Available date range: {min_date} to {max_date}")
-            return min_date, max_date
-        except Exception as e:
-            logger.error(f"Error getting available dates: {str(e)}\nTraceback: {traceback.format_exc()}")
-            default_date = datetime(2024, 2, 14).date()
-            return default_date, default_date
-    
-    @st.cache_data(ttl=3600)  # 1 hour in seconds
-    def get_customer_data(_self, feeder: int) -> pd.DataFrame:
-        """Get customer data for a specific feeder"""
-        logger.info(f"Getting customer data for feeder {feeder}")
-        query = """
-            SELECT 
-                timestamp,
-                customer_id,
-                transformer_id,
-                power_kw,
-                power_factor,
-                power_kva,
-                voltage_v,
-                current_a
-            FROM ModApp4DB.main."Customer Feeder {}"
-            WHERE timestamp >= CURRENT_DATE - INTERVAL '30 days'
-            ORDER BY timestamp
-        """.format(feeder)
-        return _self.query(query)
-    
-    @st.cache_data(ttl=86400)  # 24 hours in seconds
-    def get_customer_ids(_self, transformer_id: str) -> List[str]:
-        """Get customer IDs for a transformer"""
-        logger.info(f"Getting customer IDs for transformer {transformer_id}")
-        # Extract feeder number from transformer_id (e.g., S1F1ATF003 -> 1)
-        feeder_num = transformer_id[3]
-        
-        query = """
-            SELECT DISTINCT customer_id
-            FROM ModApp4DB.main."Customer Feeder {}"
-            WHERE transformer_id = ?
-            ORDER BY customer_id
-        """.format(feeder_num)
-        result = _self.query(query, [transformer_id])
-        ids = result['customer_id'].tolist() if result is not None else []
-        logger.info(f"Found {len(ids)} customers for transformer {transformer_id}")
-        return ids
+    def get_transformer_attributes(self, transformer_id: str) -> dict:
+        """Get attributes for a specific transformer"""
+        # In a real implementation, this would fetch from a database
+        return {
+            'number_of_customers': 15,
+            'latitude': 43.5123,
+            'longitude': -79.3892
+        }
 
 # Initialize the service as a singleton
 logger.info("Initializing CloudDataService singleton")

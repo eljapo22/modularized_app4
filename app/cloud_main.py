@@ -8,6 +8,43 @@ import streamlit as st
 # Configure page - must be first Streamlit command
 st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
 
+# Add custom CSS for tabs and sidebar
+st.markdown("""
+<style>
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 40px;
+        background-color: white;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        color: #6c757d;
+        font-size: 14px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #e9ecef;
+        color: #212529;
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {  /* Sidebar */
+        background-color: white;
+    }
+    .css-1544g2n {  /* Sidebar content */
+        padding: 1rem;
+    }
+    .stButton button {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    [data-testid="stExpander"] {
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        background-color: white;
+    }
+</style>""", unsafe_allow_html=True)
+
 import logging
 import traceback
 from datetime import datetime
@@ -22,7 +59,7 @@ from app.visualization.charts import (
     display_loading_status,
     add_hour_indicator
 )
-from app.utils.ui_components import create_banner, create_section_banner
+from app.utils.ui_components import create_tile, create_banner, create_section_banner
 from app.utils.performance import log_performance
 
 # Initialize logger
@@ -64,7 +101,7 @@ def main():
         
         # Sidebar for parameters
         with st.sidebar:
-            st.header("Analysis Parameters")
+            st.markdown("### Search Controls")
             
             try:
                 # Date selection
@@ -73,19 +110,17 @@ def main():
                 logger.info(f"Got date range: {min_date} to {max_date}")
                 
                 selected_date = st.date_input(
-                    "Select Date",
+                    "Date",
                     value=max_date,
                     min_value=min_date,
                     max_value=max_date
                 )
                 
                 # Hour selection
-                selected_hour = st.slider(
-                    "Select Hour",
-                    min_value=0,
-                    max_value=23,
-                    value=12,
-                    help="Select hour of the day (24-hour format)"
+                selected_hour = st.selectbox(
+                    "Time",
+                    range(24),
+                    format_func=lambda x: f"{x:02d}:00"
                 )
                 
                 # Feeder selection
@@ -94,7 +129,7 @@ def main():
                 logger.info(f"Found {len(feeders)} feeders")
                 
                 selected_feeder = st.selectbox(
-                    "Select Feeder",
+                    "Feeder",
                     options=feeders,
                     format_func=lambda x: f"Feeder {x}"
                 )
@@ -105,33 +140,21 @@ def main():
                     logger.info(f"Found {len(transformers)} transformers")
                     
                     selected_transformer = st.selectbox(
-                        "Select Transformer",
+                        "Load Number",
                         options=transformers
                     )
                     
                     if selected_transformer:
-                        # Search & Alert button
-                        if st.button("Search & Alert"):
-                            with st.spinner("Processing..."):
-                                logger.info(f"Getting data for transformer {selected_transformer}...")
-                                results = data_service.get_transformer_data(selected_transformer, selected_date)
-                                
-                                if results is not None and not results.empty:
-                                    # Process alerts
-                                    logger.info("Processing alerts...")
-                                    alert_sent = alert_service.process_alerts(
-                                        results,
-                                        selected_transformer,
-                                        selected_date,
-                                        selected_hour
-                                    )
-                                    
-                                    if alert_sent:
-                                        st.success("Alert processed successfully!")
-                                    else:
-                                        st.info("No alerts triggered for the selected criteria.")
-                                else:
-                                    st.warning("No data available for the selected transformer and date.")
+                        # Action buttons
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            search_clicked = st.button("Search", use_container_width=True)
+                        with col2:
+                            merge_clicked = st.button("Merge", use_container_width=True)
+                        
+                        # Reset Data Configuration
+                        with st.expander("Reset Data Configuration"):
+                            st.checkbox("Reset on next search")
             
             except Exception as e:
                 logger.error(f"Error in sidebar: {str(e)}\nTraceback: {traceback.format_exc()}")

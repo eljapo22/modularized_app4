@@ -609,72 +609,81 @@ def display_transformer_dashboard(results_df, selected_hour: int = None):
         st.warning("No data available for the selected filters. Please check your database connection and try again.")
         return results_df
 
-    # Get transformer ID from results
-    transformer_id = results_df['transformer_id'].iloc[0]
+    # Create tabs
+    tab1, tab2 = st.tabs(["Customer", "Alerts"])
     
-    # Get transformer attributes from data service
-    try:
-        from app.services.cloud_data_service import data_service
-        transformer_data = data_service.get_transformer_attributes(transformer_id)
+    # Customer tab content
+    with tab1:
+        # Get transformer ID from results
+        transformer_id = results_df['transformer_id'].iloc[0]
         
-        # Extract attributes
-        connected_customers = transformer_data.get('number_of_customers', 0)
-        latitude = transformer_data.get('latitude', 0.0)
-        longitude = transformer_data.get('longitude', 0.0)
-    except Exception as e:
-        logger.error(f"Failed to get transformer attributes: {str(e)}")
-        connected_customers = 0
-        latitude = 0.0
-        longitude = 0.0
-    
-    # Create tiles for transformer attributes
-    st.markdown("### Transformer Attributes")
-    cols = st.columns(4)
-    
-    # Transformer ID
-    with cols[0]:
-        create_tile(
-            "Transformer ID",
-            transformer_id
-        )
-    
-    # Connected Customers
-    with cols[1]:
-        create_tile(
-            "Connected Customers",
-            str(connected_customers)
-        )
-    
-    # Latitude
-    with cols[2]:
-        create_tile(
-            "Latitude",
-            f"{latitude:.4f}"
-        )
-    
-    # Longitude
-    with cols[3]:
-        create_tile(
-            "Longitude",
-            f"{longitude:.4f}"
-        )
+        # Get transformer attributes from data service
+        try:
+            from app.services.cloud_data_service import data_service
+            transformer_data = data_service.get_transformer_attributes(transformer_id)
+            
+            # Extract attributes
+            connected_customers = transformer_data.get('number_of_customers', 0)
+            latitude = transformer_data.get('latitude', 0.0)
+            longitude = transformer_data.get('longitude', 0.0)
+        except Exception as e:
+            logger.error(f"Failed to get transformer attributes: {str(e)}")
+            connected_customers = 0
+            latitude = 0.0
+            longitude = 0.0
+        
+        # Create tiles for transformer attributes
+        st.markdown("### Transformer Attributes")
+        cols = st.columns(4)
+        
+        # Transformer ID
+        with cols[0]:
+            create_tile(
+                "Transformer ID",
+                transformer_id
+            )
+        
+        # Connected Customers
+        with cols[1]:
+            create_tile(
+                "Connected Customers",
+                str(connected_customers)
+            )
+        
+        # Latitude
+        with cols[2]:
+            create_tile(
+                "Latitude",
+                f"{latitude:.4f}"
+            )
+        
+        # Longitude
+        with cols[3]:
+            create_tile(
+                "Longitude",
+                f"{longitude:.4f}"
+            )
 
-    # Create section titles for charts
-    create_section_title("Power Consumption Over Time")
-    
-    # Display power consumption over time
-    display_power_time_series(results_df, selected_hour, is_transformer_view=True)
-    
-    # Create two columns for the remaining visualizations
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        create_section_title("Current Over Time")
-        display_current_time_series(results_df, selected_hour)
+        # Create section titles for charts
+        create_section_title("Power Consumption Over Time")
         
-    with col2:
-        create_section_title("Voltage Over Time")
-        display_voltage_time_series(results_df, selected_hour)
+        # Display power consumption over time
+        display_power_time_series(results_df, selected_hour, is_transformer_view=True)
+        
+        # Create two columns for the remaining visualizations
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            create_section_title("Current Over Time")
+            display_current_time_series(results_df, selected_hour)
+            
+        with col2:
+            create_section_title("Voltage Over Time")
+            display_voltage_time_series(results_df, selected_hour)
+    
+    # Alerts tab content (placeholder for now)
+    with tab2:
+        st.info("Alert configuration and history will be displayed here.")
     
     return results_df  # Return filtered results for raw data display
 
