@@ -208,25 +208,26 @@ def main():
                             query_datetime = datetime.combine(selected_date, time(selected_hour))
                             logger.info(f"Querying data for {query_datetime}")
                             
-                            results = data_service.get_transformer_data(
-                                selected_transformer,
-                                query_datetime,
-                                selected_hour,
-                                selected_feeder
-                            )
-                            
-                            if results is not None and not results.empty:
-                                logger.info("Data retrieved successfully")
-                                # Create datetime index
-                                results['timestamp'] = pd.to_datetime(results['timestamp'])
-                                results.set_index('timestamp', inplace=True)
-                                results.sort_index(inplace=True)
-                                st.session_state.results = results
+                            try:
+                                results = data_service.get_transformer_data(
+                                    transformer_id=selected_transformer,
+                                    date_obj=query_datetime,
+                                    hour=selected_hour,
+                                    feeder=selected_feeder
+                                )
                                 
-                                logger.info(f"Displaying data for {query_datetime}")
-                                display_transformer_dashboard(results, query_datetime)
-                            else:
-                                st.warning("No data available for the selected criteria.")
+                                if results is not None and not results.empty:
+                                    logger.info("Data retrieved successfully")
+                                    st.session_state.results = results
+                                    
+                                    logger.info(f"Displaying data for {query_datetime}")
+                                    display_transformer_dashboard(results, query_datetime)
+                                else:
+                                    st.warning("No data available for the selected criteria.")
+                            except Exception as e:
+                                error_msg = f"Error retrieving data: {str(e)}"
+                                logger.error(error_msg)
+                                st.error(f"❌ {error_msg}")
                     else:
                         # Date Range mode
                         if not all([start_date, end_date, selected_feeder, selected_transformer]):
@@ -234,31 +235,36 @@ def main():
                         else:
                             logger.info(f"Querying data from {start_date} to {end_date}")
                             
-                            results = data_service.get_transformer_data_range(
-                                selected_transformer,
-                                start_date,
-                                end_date,
-                                selected_feeder
-                            )
-                            
-                            if results is not None and not results.empty:
-                                logger.info("Data retrieved successfully")
-                                st.session_state.results = results
+                            try:
+                                results = data_service.get_transformer_data_range(
+                                    transformer_id=selected_transformer,
+                                    start_date=start_date,
+                                    end_date=end_date,
+                                    feeder=selected_feeder
+                                )
                                 
-                                # Get alert time if provided
-                                alert_hour = None
-                                if alert_time_str:
-                                    try:
-                                        alert_time = datetime.strptime(alert_time_str, "%Y-%m-%d %H:%M:%S")
-                                        alert_hour = alert_time.hour
-                                        logger.info(f"Using alert time: {alert_time}")
-                                    except ValueError:
-                                        logger.warning("Invalid alert time format")
-                                
-                                logger.info(f"Displaying data from {start_date} to {end_date}")
-                                display_transformer_dashboard(results, alert_hour)
-                            else:
-                                st.warning("No data available for the selected criteria.")
+                                if results is not None and not results.empty:
+                                    logger.info("Data retrieved successfully")
+                                    st.session_state.results = results
+                                    
+                                    # Get alert time if provided
+                                    alert_hour = None
+                                    if alert_time_str:
+                                        try:
+                                            alert_time = datetime.strptime(alert_time_str, "%Y-%m-%d %H:%M:%S")
+                                            alert_hour = alert_time.hour
+                                            logger.info(f"Using alert time: {alert_time}")
+                                        except ValueError:
+                                            logger.warning("Invalid alert time format")
+                                    
+                                    logger.info(f"Displaying data from {start_date} to {end_date}")
+                                    display_transformer_dashboard(results, alert_time if alert_time_str else None)
+                                else:
+                                    st.warning("No data available for the selected criteria.")
+                            except Exception as e:
+                                error_msg = f"Error retrieving data: {str(e)}"
+                                logger.error(error_msg)
+                                st.error(f"❌ {error_msg}")
                 
             except Exception as e:
                 logger.error(f"Error in sidebar: {str(e)}\nTraceback: {traceback.format_exc()}")

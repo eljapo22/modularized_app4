@@ -91,22 +91,30 @@ class CloudDataService:
         logger.info(f"Returning date range: {self.min_date} to {self.max_date}")
         return self.min_date, self.max_date
 
-    def get_transformer_data(self, date: datetime, hour: int, feeder: str, transformer_id: str) -> Optional[pd.DataFrame]:
+    def get_transformer_data(self, transformer_id: str, date_obj: datetime, hour: int, feeder: str) -> Optional[pd.DataFrame]:
         """
         Get transformer data for a specific date and hour.
         
         Args:
-            date (datetime): The datetime object for the query
+            transformer_id (str): Transformer identifier
+            date_obj (datetime): The datetime object for the query
             hour (int): Hour of the day (0-23)
             feeder (str): Feeder identifier
-            transformer_id (str): Transformer identifier
         
         Returns:
             Optional[pd.DataFrame]: DataFrame containing transformer data or None if no data found
         """
         try:
+            # Ensure we have a datetime object
+            if isinstance(date_obj, str):
+                try:
+                    date_obj = datetime.fromisoformat(date_obj)
+                except ValueError:
+                    raise ValueError(f"Invalid date format: {date_obj}")
+            
             # Extract just the date part for the query
-            query_date = date.date()
+            query_date = date_obj.date()
+            logger.info(f"Querying data for date: {query_date} hour: {hour}")
             
             # Extract feeder number from string like "Feeder 1"
             feeder_num = int(feeder.split()[-1])
@@ -121,7 +129,12 @@ class CloudDataService:
             results = execute_query(query, (transformer_id, query_date, hour))
             
             if results and len(results) > 0:
-                return pd.DataFrame(results)
+                df = pd.DataFrame(results)
+                # Convert timestamp to datetime and set as index
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df.set_index('timestamp', inplace=True)
+                df.sort_index(inplace=True)
+                return df
             return None
             
         except Exception as e:
@@ -130,19 +143,19 @@ class CloudDataService:
 
     def get_transformer_data_range(
         self, 
-        start_date: date, 
-        end_date: date, 
-        feeder: str, 
-        transformer_id: str
+        transformer_id: str,
+        start_date: date,
+        end_date: date,
+        feeder: str
     ) -> Optional[pd.DataFrame]:
         """
         Get transformer data for a date range.
         
         Args:
+            transformer_id (str): Transformer identifier
             start_date (date): Start date for the query
             end_date (date): End date for the query
             feeder (str): Feeder identifier
-            transformer_id (str): Transformer identifier
             
         Returns:
             Optional[pd.DataFrame]: DataFrame with transformer data or None if error
@@ -187,19 +200,19 @@ class CloudDataService:
 
     def get_transformer_data_to_point(
         self,
+        transformer_id: str,
         start_date: date,
         end_time: datetime,
-        feeder: str,
-        transformer_id: str
+        feeder: str
     ) -> Optional[pd.DataFrame]:
         """
         Get transformer data from start date up to a specific point in time
         
         Args:
-            start_date: Start date for the query
-            end_time: End datetime for the query
-            feeder: Feeder identifier
-            transformer_id: Transformer identifier
+            transformer_id (str): Transformer identifier
+            start_date (date): Start date for the query
+            end_time (datetime): End datetime for the query
+            feeder (str): Feeder identifier
             
         Returns:
             DataFrame with transformer data or None if error
