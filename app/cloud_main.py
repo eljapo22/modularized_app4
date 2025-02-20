@@ -249,7 +249,7 @@ def main():
                 
                 if results is not None and not results.empty:
                     logger.info("Displaying transformer dashboard...")
-                    display_transformer_dashboard(results, selected_transformer, selected_date, selected_hour)
+                    display_transformer_dashboard(results, selected_hour)
                 else:
                     st.warning("No data available for the selected transformer and date.")
             except Exception as e:
