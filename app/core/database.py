@@ -32,8 +32,14 @@ def get_database_connection():
             # Set token in environment as recommended by MotherDuck
             os.environ["motherduck_token"] = token
             
-            # Connect using simple connection string
-            con = duckdb.connect('md:ModApp4DB')
+            # Create connection and load extension
+            con = duckdb.connect(':memory:')
+            con.execute("INSTALL motherduck")
+            con.execute("LOAD motherduck")
+            
+            # Attach MotherDuck database
+            con.execute("ATTACH 'md:ModApp4DB' as motherduck")
+            con.execute("USE motherduck")
             
             # Configure connection
             con.execute("SET enable_progress_bar=false")
