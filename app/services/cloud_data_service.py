@@ -20,6 +20,9 @@ class CloudDataService:
         self.load_options = {
             "USAF7701": ["S1FLAT7001"]  # Example load number
         }
+        # Dataset date range
+        self.min_date = date(2024, 1, 1)
+        self.max_date = date(2024, 6, 28)
     
     def get_feeder_options(self) -> List[str]:
         """Get list of available feeders"""
@@ -32,18 +35,11 @@ class CloudDataService:
     def get_available_dates(self) -> Tuple[date, date]:
         """Get the available date range for data queries"""
         try:
-            # For demo purposes, return a fixed date range
-            # In production, this would query the actual database
-            today = datetime.now().date()
-            min_date = today - timedelta(days=30)
-            max_date = today
-            logger.info(f"Available date range: {min_date} to {max_date}")
-            return min_date, max_date
+            logger.info(f"Available date range: {self.min_date} to {self.max_date}")
+            return self.min_date, self.max_date
         except Exception as e:
             logger.error(f"Error getting available dates: {str(e)}")
-            # Return a sensible default if there's an error
-            default_date = datetime.now().date()
-            return default_date, default_date
+            return self.min_date, self.max_date
     
     def get_transformer_data(
         self,
@@ -65,6 +61,11 @@ class CloudDataService:
             DataFrame with transformer data or None if no data available
         """
         try:
+            # Check if date is within range
+            if not (self.min_date <= date.date() <= self.max_date):
+                logger.warning(f"Date {date} is outside available range")
+                return None
+                
             # Generate sample data for demonstration
             timestamps = pd.date_range(
                 start=pd.Timestamp(date) + pd.Timedelta(hours=hour),
