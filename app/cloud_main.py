@@ -4,6 +4,10 @@ Uses app.-prefixed imports required by Streamlit Cloud
 """
 
 import streamlit as st
+
+# Configure page - must be first Streamlit command
+st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
+
 import logging
 import traceback
 from datetime import datetime
@@ -34,22 +38,26 @@ logging.basicConfig(
 )
 
 # Initialize services
-try:
-    logger.info("Initializing services...")
-    data_service = CloudDataService()
-    alert_service = CloudAlertService(data_service)
-    logger.info("Services initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize services: {str(e)}\nTraceback: {traceback.format_exc()}")
-    st.error("Failed to initialize application services. Please check the logs for details.")
-    st.stop()
-
-# Configure page
-st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
+data_service = None
+alert_service = None
 
 @log_performance
 def main():
     """Main application function for cloud environment"""
+    global data_service, alert_service
+    
+    try:
+        # Initialize services if not already initialized
+        if data_service is None or alert_service is None:
+            logger.info("Initializing services...")
+            data_service = CloudDataService()
+            alert_service = CloudAlertService(data_service)
+            logger.info("Services initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize services: {str(e)}\nTraceback: {traceback.format_exc()}")
+        st.error("Failed to initialize application services. Please check the logs for details.")
+        st.stop()
+
     try:
         # Create banner
         create_banner("Transformer Loading Analysis")
