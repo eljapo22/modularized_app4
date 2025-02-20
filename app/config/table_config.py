@@ -1,32 +1,31 @@
 """
-Database table configuration
+Table configuration for MotherDuck database
 """
 
 # Table names
-TRANSFORMER_TABLE_TEMPLATE = "TransformerFeeder_{}"  # 1-4
-CUSTOMER_TABLE_TEMPLATE = "CustomerFeeder_{}"        # 1-4
+TRANSFORMER_TABLE_TEMPLATE = "Transformer Feeder {}"  # 1-4
+CUSTOMER_TABLE_TEMPLATE = "Customer Feeder {}"        # 1-4
 
 # List of available feeder numbers
 FEEDER_NUMBERS = [1, 2, 3, 4]
 
-# Column names - must match database schema exactly
+# Common column names
 COMMON_COLUMNS = {
-    'TIMESTAMP': 'timestamp',
-    'POWER_KW': 'power_kw',
-    'POWER_FACTOR': 'power_factor',
-    'POWER_KVA': 'power_kva',
-    'VOLTAGE_V': 'voltage_v',
-    'CURRENT_A': 'current_a',
-    'INDEX': 'index_level_0_'
+    'timestamp': 'timestamp',
+    'transformer_id': 'transformer_id',
+    'power_kw': 'power_kw',
+    'power_factor': 'power_factor',
+    'voltage_v': 'voltage_v',
+    'current_a': 'current_a'
 }
 
 TRANSFORMER_COLUMNS = {
     **COMMON_COLUMNS,
-    'TRANSFORMER_ID': 'transformer_id'
+    'power_kva': 'power_kva',
+    'loading_percentage': 'loading_percentage'
 }
 
 CUSTOMER_COLUMNS = {
     **COMMON_COLUMNS,
-    'CUSTOMER_ID': 'customer_id',
-    'TRANSFORMER_ID': 'transformer_id'  # Foreign key to transformer
+    'customer_id': 'customer_id'
 }

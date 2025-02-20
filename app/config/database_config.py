@@ -1,5 +1,5 @@
 """
-Database connection configuration
+Database configuration for MotherDuck
 """
 import os
 from typing import Dict
@@ -19,16 +19,16 @@ SELECT
     timestamp,
     transformer_id,
     power_kw,
-    power_factor,
     power_kva,
+    power_factor,
     voltage_v,
     current_a,
-    index_level_0_
-FROM {table_name}
-WHERE transformer_id = %s
-    AND DATE(timestamp) = %s
-    AND EXTRACT(HOUR FROM timestamp) = %s
-ORDER BY timestamp;
+    loading_percentage
+FROM transformer_data
+WHERE transformer_id = ? 
+  AND DATE(timestamp) = ?
+  AND EXTRACT(HOUR FROM timestamp) = ?
+ORDER BY timestamp
 """
 
 CUSTOMER_DATA_QUERY = """
@@ -38,35 +38,41 @@ SELECT
     transformer_id,
     power_kw,
     power_factor,
-    power_kva,
     voltage_v,
-    current_a,
-    index_level_0_
-FROM {table_name}
-WHERE transformer_id = %s
-    AND DATE(timestamp) = %s
-    AND EXTRACT(HOUR FROM timestamp) = %s
-ORDER BY timestamp;
+    current_a
+FROM customer_data
+WHERE transformer_id = ?
+  AND DATE(timestamp) = ?
+  AND EXTRACT(HOUR FROM timestamp) = ?
+ORDER BY timestamp
 """
 
 TRANSFORMER_LIST_QUERY = """
 SELECT DISTINCT transformer_id
-FROM {table_name}
-ORDER BY transformer_id;
+FROM transformer_data
+ORDER BY transformer_id
 """
 
 CUSTOMER_AGGREGATION_QUERY = """
+WITH latest_data AS (
+    SELECT 
+        customer_id,
+        transformer_id,
+        power_kw,
+        power_factor,
+        voltage_v,
+        current_a,
+        ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY timestamp DESC) as rn
+    FROM customer_data
+    WHERE transformer_id = ?
+      AND DATE(timestamp) = ?
+      AND EXTRACT(HOUR FROM timestamp) = ?
+)
 SELECT 
-    transformer_id,
     COUNT(DISTINCT customer_id) as customer_count,
     SUM(power_kw) as total_power_kw,
     AVG(power_factor) as avg_power_factor,
-    SUM(power_kva) as total_power_kva,
-    AVG(voltage_v) as avg_voltage_v,
     SUM(current_a) as total_current_a
-FROM {table_name}
-WHERE transformer_id = %s
-    AND DATE(timestamp) = %s
-    AND EXTRACT(HOUR FROM timestamp) = %s
-GROUP BY transformer_id;
+FROM latest_data
+WHERE rn = 1
 """
