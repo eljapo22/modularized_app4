@@ -14,8 +14,8 @@ from app.config.database_config import (
     CUSTOMER_AGGREGATION_QUERY
 )
 from app.config.table_config import (
-    TRANSFORMER_TABLE,
-    CUSTOMER_TABLE
+    TRANSFORMER_TABLE_TEMPLATE,
+    CUSTOMER_TABLE_TEMPLATE
 )
 from app.utils.db_utils import (
     init_db_pool,
@@ -59,7 +59,9 @@ class CloudDataService:
         """Get list of available transformer IDs"""
         try:
             if self._transformer_ids is None:
-                results = execute_query(TRANSFORMER_LIST_QUERY)
+                table = TRANSFORMER_TABLE_TEMPLATE.format(feeder)
+                query = TRANSFORMER_LIST_QUERY.format(table_name=table)
+                results = execute_query(query)
                 self._transformer_ids = [r['transformer_id'] for r in results]
             return sorted(self._transformer_ids)
         except Exception as e:
@@ -81,8 +83,10 @@ class CloudDataService:
         Get transformer data for the specified parameters
         """
         try:
+            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder)
+            query = TRANSFORMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
-                TRANSFORMER_DATA_QUERY,
+                query,
                 (transformer_id, date.date(), hour)
             )
             
@@ -111,8 +115,16 @@ class CloudDataService:
         ) -> Optional[CustomerData]:
         """Get customer data for a specific transformer"""
         try:
+            # Extract feeder number from transformer ID (format: S{feeder}F...)
+            try:
+                feeder = int(transformer_id[1])
+            except (IndexError, ValueError):
+                raise ValueError(f"Invalid transformer ID format: {transformer_id}")
+                
+            table = CUSTOMER_TABLE_TEMPLATE.format(feeder)
+            query = CUSTOMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
-                CUSTOMER_DATA_QUERY,
+                query,
                 (transformer_id, date.date(), hour)
             )
             
@@ -140,20 +152,16 @@ class CloudDataService:
         ) -> Optional[AggregatedCustomerData]:
         """Get aggregated customer metrics for a transformer"""
         try:
-            results = execute_query(
-                CUSTOMER_AGGREGATION_QUERY,
-                (transformer_id, date.date(), hour)
-            )
+            customer_data = self.get_customer_data(transformer_id, date, hour)
             
-            if not results:
+            if customer_data is None:
                 return None
             
-            result = results[0]  # We expect only one row
             return AggregatedCustomerData(
-                customer_count=result['customer_count'],
-                total_power_kw=result['total_power_kw'],
-                avg_power_factor=result['avg_power_factor'],
-                total_current_a=result['total_current_a']
+                customer_count=len(customer_data.customer_ids),
+                total_power_kw=sum(customer_data.power_kw),
+                avg_power_factor=sum(customer_data.power_factor) / len(customer_data.power_factor),
+                total_current_a=sum(customer_data.current_a)
             )
         except Exception as e:
             logger.error(f"Error getting customer aggregation: {str(e)}")
