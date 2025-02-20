@@ -10,6 +10,7 @@ from app.config.constants import STATUS_COLORS
 from datetime import datetime, timedelta
 import numpy as np
 import logging
+from app.cloud_main import create_tile
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -607,6 +608,44 @@ def display_transformer_dashboard(results_df, selected_hour: int = None):
     if results_df is None or results_df.empty:
         st.warning("No data available for the selected filters. Please check your database connection and try again.")
         return results_df
+
+    # Get transformer ID from results
+    transformer_id = results_df['transformer_id'].iloc[0]
+    
+    # Create tiles for transformer attributes
+    st.markdown("### Transformer Overview")
+    cols = st.columns(4)
+    
+    # Basic transformer info
+    with cols[0]:
+        create_tile(
+            "Transformer ID",
+            transformer_id
+        )
+    
+    # Size info
+    with cols[1]:
+        size_kva = results_df['size_kva'].iloc[0]
+        create_tile(
+            "Size",
+            f"{size_kva} kVA"
+        )
+    
+    # Loading info
+    with cols[2]:
+        current_loading = results_df['loading_percentage'].iloc[0]
+        create_tile(
+            "Current Loading",
+            f"{current_loading:.1f}%"
+        )
+    
+    # Power Factor
+    with cols[3]:
+        power_factor = results_df['power_factor'].iloc[0]
+        create_tile(
+            "Power Factor",
+            f"{power_factor:.2f}"
+        )
 
     # Create two columns for the visualizations
     col1, col2 = st.columns(2)
