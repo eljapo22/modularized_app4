@@ -11,6 +11,7 @@ from datetime import datetime, date
 import pandas as pd
 from typing import Optional, List, Dict, Tuple
 import smtplib
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -44,15 +45,15 @@ class CloudAlertService:
         
         # Try to get Gmail credentials, but don't fail if they're not available
         try:
-            self.gmail_user = st.secrets["gmail"]["username"]
-            self.gmail_password = st.secrets["gmail"]["password"]
-            self.gmail_creds = Credentials.from_authorized_user_info(st.secrets["gmail"])
+            # Parse the GMAIL_TOKEN from secrets
+            gmail_token = json.loads(st.secrets["GMAIL_TOKEN"])
+            self.gmail_creds = Credentials.from_authorized_user_info(gmail_token)
+            self.default_recipient = st.secrets["DEFAULT_RECIPIENT"]
             self.email_enabled = True
             logger.info("Email alerts enabled")
         except Exception as e:
-            self.gmail_creds = None
+            logger.warning(f"Email alerts disabled: Gmail credentials not found in secrets - {str(e)}")
             self.email_enabled = False
-            logger.warning("Email alerts disabled: Gmail credentials not found in secrets")
     
     def _get_status_color(self, loading_pct: float) -> tuple:
         """Get status and color based on loading percentage"""
@@ -152,7 +153,7 @@ class CloudAlertService:
         results_df: pd.DataFrame,
         start_date: Optional[date] = None,
         alert_time: Optional[datetime] = None,
-        recipient: str = "jhnapo2213@gmail.com"
+        recipient: str = None
     ) -> bool:
         """
         Check loading conditions and send alert if needed
@@ -186,8 +187,8 @@ class CloudAlertService:
             # Create and send email
             msg = MIMEMultipart('alternative')
             msg['Subject'] = f"Transformer Loading Alert - {alert_point['loading_percentage']:.1f}% Loading"
-            msg['From'] = self.gmail_user
-            msg['To'] = recipient
+            msg['From'] = self.gmail_creds.refresh_token
+            msg['To'] = recipient or self.default_recipient
             
             # Create HTML content
             html_content = self._create_email_content(
@@ -199,7 +200,7 @@ class CloudAlertService:
             
             # Send email
             with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-                smtp.login(self.gmail_user, self.gmail_password)
+                smtp.login(self.gmail_creds.refresh_token, self.gmail_creds.token)
                 smtp.send_message(msg)
             
             logger.info("Alert email sent successfully")
