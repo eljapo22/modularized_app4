@@ -7,8 +7,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 # MotherDuck token
-MOTHERDUCK_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uIjoiamhuYXBvMjIxM0BnbWFpbC5jb20iLCJlbWFpbCI6ImpobmFwbzIyMTNAZ21haWwuY29tIiwidXNlcklkIjoiZDYxODc4YjQtNzNhMi00ZmE5LWI3ZjQtMGRhNzg4NjJhNWFiIiwiaWF0IjoxNzA4MzgzNjE0LCJleHAiOjE3NDAwMDYwMDB9.KcYmWvJUJj7kJ0TPt_V3ulh_kMGcm2TIQcSpPXe_8JY"
-
+MOTHERDUCK_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImpobmFwbzIyMTNAZ21haWwuY29tIiwic2Vzc2lvbiI6ImpobmFwbzIyMTMuZ21haWwuY29tIiwicGF0IjoibTl6dmIzUzRCbnUxWTZSOTRCVVRKb2ZCbDNPZno5MzJ0TmdacTNkVjIyVSIsInVzZXJJZCI6IjI4Mzg5MGMwLTZhYmEtNDIyZi04OTI1LWQyNTg0YjJiZmU1NiIsImlzcyI6Im1kX3BhdCIsInJlYWRPbmx5IjpmYWxzZSwidG9rZW5UeXBlIjoicmVhZF93cml0ZSIsImlhdCI6MTc0MDAzNDYzOX0.GF9qa32LWZNnUsRyAsLsHhxZb8oug5_lUrnIAIWSVjU"
 def get_connection():
     """Get MotherDuck connection"""
     connection_string = f'md:ModApp4DB?motherduck_token={MOTHERDUCK_TOKEN}'
@@ -32,23 +31,23 @@ def test_transformer_data(conn):
             # Get transformer data
             query = f"""
             SELECT *
-            FROM "Transformer Feeder {feeder}"
-            WHERE DATE(timestamp) = ?
+            FROM ModApp4DB.main."Transformer Feeder {feeder}"
+            WHERE CAST(timestamp AS DATE) = ?
             """
             data = conn.execute(query, [test_date]).df()
             
             if data.empty:
-                print(f"✗ No data found for feeder {feeder}")
+                print(f"[X] No data found for feeder {feeder}")
                 continue
                 
-            print(f"✓ Found {len(data)} records")
-            print(f"✓ Unique transformers: {data['transformer_id'].nunique()}")
-            print(f"✓ Date range: {data['timestamp'].min()} to {data['timestamp'].max()}")
+            print(f"[+] Found {len(data)} records")
+            print(f"[+] Unique transformers: {data['transformer_id'].nunique()}")
+            print(f"[+] Date range: {data['timestamp'].min()} to {data['timestamp'].max()}")
             print("\nSample record:")
             print(data.iloc[0])
             
         except Exception as e:
-            print(f"✗ Error accessing feeder {feeder}: {str(e)}")
+            print(f"[X] Error accessing feeder {feeder}: {str(e)}")
 
 def test_customer_data(conn):
     """Test customer data retrieval"""
@@ -65,23 +64,23 @@ def test_customer_data(conn):
             # Get customer data
             query = f"""
             SELECT *
-            FROM "Customer Feeder {feeder}"
-            WHERE DATE(timestamp) = ?
+            FROM ModApp4DB.main."Customer Feeder {feeder}"
+            WHERE CAST(timestamp AS DATE) = ?
             """
             data = conn.execute(query, [test_date]).df()
             
             if data.empty:
-                print(f"✗ No data found for feeder {feeder}")
+                print(f"[X] No data found for feeder {feeder}")
                 continue
                 
-            print(f"✓ Found {len(data)} records")
-            print(f"✓ Unique customers: {data['customer_id'].nunique()}")
-            print(f"✓ Date range: {data['timestamp'].min()} to {data['timestamp'].max()}")
+            print(f"[+] Found {len(data)} records")
+            print(f"[+] Unique customers: {data['customer_id'].nunique()}")
+            print(f"[+] Date range: {data['timestamp'].min()} to {data['timestamp'].max()}")
             print("\nSample record:")
             print(data.iloc[0])
             
         except Exception as e:
-            print(f"✗ Error accessing feeder {feeder}: {str(e)}")
+            print(f"[X] Error accessing feeder {feeder}: {str(e)}")
 
 def test_relationships(conn):
     """Test transformer-customer relationships"""
@@ -101,26 +100,26 @@ def test_relationships(conn):
                 t.size_kva,
                 t.loading_percentage,
                 COUNT(DISTINCT c.customer_id) as customer_count
-            FROM "Transformer Feeder {feeder}" t
-            LEFT JOIN "Customer Feeder {feeder}" c 
+            FROM ModApp4DB.main."Transformer Feeder {feeder}" t
+            LEFT JOIN ModApp4DB.main."Customer Feeder {feeder}" c 
                 ON t.transformer_id = c.transformer_id 
-                AND DATE(t.timestamp) = DATE(c.timestamp)
-            WHERE DATE(t.timestamp) = ?
+                AND CAST(t.timestamp AS DATE) = CAST(c.timestamp AS DATE)
+            WHERE CAST(t.timestamp AS DATE) = ?
             GROUP BY t.transformer_id, t.size_kva, t.loading_percentage
             LIMIT 5
             """
             relationships = conn.execute(query, [test_date]).df()
             
             if relationships.empty:
-                print(f"✗ No relationships found for feeder {feeder}")
+                print(f"[X] No relationships found for feeder {feeder}")
                 continue
                 
-            print(f"✓ Found relationships")
+            print(f"[+] Found relationships")
             print("\nSample relationships:")
             print(relationships)
             
     except Exception as e:
-        print(f"✗ Error testing relationships: {str(e)}")
+        print(f"[X] Error testing relationships: {str(e)}")
 
 def main():
     """Main test function"""
@@ -130,7 +129,7 @@ def main():
     try:
         # Get database connection
         conn = get_connection()
-        print("✓ Connected to MotherDuck")
+        print("[+] Connected to MotherDuck")
         
         # Run tests
         test_transformer_data(conn)
@@ -140,7 +139,7 @@ def main():
         print("\nTests completed!")
         
     except Exception as e:
-        print(f"✗ Test failed: {str(e)}")
+        print(f"[X] Test failed: {str(e)}")
 
 if __name__ == "__main__":
     main()

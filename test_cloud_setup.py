@@ -51,8 +51,14 @@ def main():
             st.subheader(f"Feeder {feeder}")
             
             # Test transformer data
-            transformer_data = service.get_transformer_data_for_date(feeder, test_date)
-            if not transformer_data.empty:
+            query = f"""
+            SELECT *
+            FROM ModApp4DB.main."Transformer Feeder {feeder}"
+            WHERE CAST(timestamp AS DATE) = ?
+            """
+            transformer_data = service.query(query, [test_date])
+            
+            if transformer_data is not None and not transformer_data.empty:
                 st.write(f"✓ Transformer data available")
                 st.write(f"- Records: {len(transformer_data)}")
                 st.write(f"- Unique transformers: {transformer_data['transformer_id'].nunique()}")
@@ -62,8 +68,14 @@ def main():
                 st.warning(f"✗ No transformer data for feeder {feeder}")
             
             # Test customer data
-            customer_data = service.get_customer_data_for_date(feeder, test_date)
-            if not customer_data.empty:
+            query = f"""
+            SELECT *
+            FROM ModApp4DB.main."Customer Feeder {feeder}"
+            WHERE CAST(timestamp AS DATE) = ?
+            """
+            customer_data = service.query(query, [test_date])
+            
+            if customer_data is not None and not customer_data.empty:
                 st.write(f"✓ Customer data available")
                 st.write(f"- Records: {len(customer_data)}")
                 st.write(f"- Unique customers: {customer_data['customer_id'].nunique()}")
@@ -73,12 +85,27 @@ def main():
                 st.warning(f"✗ No customer data for feeder {feeder}")
             
             # Test relationships
-            relationships = service.get_transformer_customer_relationships(feeder, test_date)
-            if not relationships.empty:
+            query = f"""
+            SELECT 
+                t.transformer_id,
+                t.size_kva,
+                t.loading_percentage,
+                COUNT(DISTINCT c.customer_id) as customer_count
+            FROM ModApp4DB.main."Transformer Feeder {feeder}" t
+            LEFT JOIN ModApp4DB.main."Customer Feeder {feeder}" c 
+                ON t.transformer_id = c.transformer_id 
+                AND CAST(t.timestamp AS DATE) = CAST(c.timestamp AS DATE)
+            WHERE CAST(t.timestamp AS DATE) = ?
+            GROUP BY t.transformer_id, t.size_kva, t.loading_percentage
+            LIMIT 5
+            """
+            relationships = service.query(query, [test_date])
+            
+            if relationships is not None and not relationships.empty:
                 st.write(f"✓ Relationship data available")
                 st.write(f"- Transformer-customer mappings: {len(relationships)}")
                 with st.expander("View relationship data"):
-                    st.dataframe(relationships.head())
+                    st.dataframe(relationships)
             else:
                 st.warning(f"✗ No relationship data for feeder {feeder}")
                 

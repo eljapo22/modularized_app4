@@ -72,7 +72,7 @@ def test_motherduck_config():
                 # Try to query actual data
                 query = """
                 SELECT transformer_id, loading_percentage 
-                FROM transformer_readings 
+                FROM ModApp4DB.main."Transformer Feeder 1"
                 LIMIT 5
                 """
                 data = data_service.query(query)

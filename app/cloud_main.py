@@ -147,7 +147,7 @@ def main():
         )
         
         # Feeder selection
-        available_feeders = data_service.get_available_feeders()
+        available_feeders = data_service.get_feeder_list()
         selected_feeder = st.selectbox(
             "Select Feeder",
             available_feeders
