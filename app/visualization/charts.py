@@ -539,6 +539,11 @@ def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
     # Calculate loading percentage
     results_df['loading_pct'] = (results_df['power_kw'] / 75.0) * 100
 
+    # Replace deprecated 'T' with 'min'
+    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    daily_min = results_df.groupby(results_df['timestamp'].dt.date)['loading_percentage'].min()
+    daily_max = results_df.groupby(results_df['timestamp'].dt.date)['loading_percentage'].max()
+
     # Create figure
     fig = go.Figure()
     
