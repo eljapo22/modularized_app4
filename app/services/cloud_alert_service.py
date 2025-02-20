@@ -10,6 +10,7 @@ from googleapiclient.discovery import build
 from datetime import datetime
 import pandas as pd
 from typing import Optional, List, Dict
+import smtplib
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,9 @@ class CloudAlertService:
     def __init__(self):
         """Initialize the alert service"""
         self.gmail_creds = None
+        self.gmail_user = st.secrets["gmail"]["username"]
+        self.gmail_password = st.secrets["gmail"]["password"]
+        self.app_url = st.secrets.get("APP_URL", "https://modularized-app4.streamlit.app")
         try:
             # Get credentials from Streamlit secrets
             if "gmail" in st.secrets:
@@ -49,9 +53,64 @@ class CloudAlertService:
         except Exception as e:
             logger.error(f"Error initializing Gmail credentials: {str(e)}")
     
+    def _get_status_color(self, loading_pct: float) -> tuple:
+        """Get status and color based on loading percentage"""
+        if loading_pct >= 120:
+            return "CRITICAL", "#dc3545", "🚨"
+        elif loading_pct >= 100:
+            return "OVERLOADED", "#fd7e14", "⚠️"
+        elif loading_pct >= 80:
+            return "WARNING", "#ffc107", "⚡"
+        elif loading_pct >= 50:
+            return "PRE-WARNING", "#6f42c1", "📊"
+        else:
+            return "NORMAL", "#198754", "✅"
+    
+    def _create_email_content(self, data: pd.DataFrame, date: datetime, hour: int) -> str:
+        """Create HTML content for alert email"""
+        transformer_id = data['transformer_id'].iloc[0]
+        loading_pct = data['loading_percentage'].iloc[-1]
+        status, color, emoji = self._get_status_color(loading_pct)
+        
+        # Create deep link back to app
+        deep_link = f"{self.app_url}?view=alert&id={transformer_id}"
+        
+        html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2f4f4f;">Transformer Loading Alert {emoji}</h2>
+            
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                <h3 style="color: {color};">Status: {status}</h3>
+                <p><strong>Transformer:</strong> {transformer_id}</p>
+                <p><strong>Loading:</strong> {loading_pct:.1f}%</p>
+                <p><strong>Time:</strong> {date.strftime('%Y-%m-%d')} {hour:02d}:00</p>
+            </div>
+            
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                <h4>Detailed Readings:</h4>
+                <ul>
+                    <li>Power: {data['power_kw'].iloc[-1]:.1f} kW</li>
+                    <li>Current: {data['current_a'].iloc[-1]:.1f} A</li>
+                    <li>Voltage: {data['voltage_v'].iloc[-1]:.1f} V</li>
+                    <li>Power Factor: {data['power_factor'].iloc[-1]:.2f}</li>
+                </ul>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                    View in Dashboard
+                </a>
+            </div>
+            
+            <p style="color: #6c757d; font-size: 12px; text-align: center;">
+                This is an automated alert from your Transformer Loading Analysis System.
+            </p>
+        </div>
+        """
+        return html
+    
     def create_email_content(self, transformer_data: pd.DataFrame, date: datetime, hour: int) -> str:
         """Create HTML email content with transformer data"""
-        app_url = st.secrets.get("APP_URL", "https://your-app.streamlit.io")
         
         html_parts = []
         for _, row in transformer_data.iterrows():
@@ -61,7 +120,7 @@ class CloudAlertService:
             emoji = get_status_emoji(status)
             
             # Create deep link back to app
-            alert_link = f"{app_url}?view=alert&id={transformer_id}"
+            alert_link = f"{self.app_url}?view=alert&id={transformer_id}"
             
             html_parts.append(f"""
             <div style="margin-bottom: 20px; font-family: Arial, sans-serif;">
@@ -141,7 +200,7 @@ class CloudAlertService:
             logger.error(f"Error sending alert email: {str(e)}")
             return False
     
-    def check_and_send_alerts(self, results_df: pd.DataFrame, date: datetime, hour: int, threshold: float = 80.0) -> bool:
+    def check_and_send_alerts(self, results_df: pd.DataFrame, date: datetime, hour: int, recipient: str) -> bool:
         """
         Check transformer data and send alerts if needed
         
@@ -149,25 +208,66 @@ class CloudAlertService:
             results_df: DataFrame with transformer readings
             date: Date of the readings
             hour: Hour of the readings
-            threshold: Loading percentage threshold for alerts (default: 80.0)
+            recipient: Email recipient
             
         Returns:
             bool: True if alerts processed successfully
         """
         try:
             # Filter transformers above threshold
-            alerts_df = results_df[results_df['loading_percentage'] >= threshold].copy()
+            alerts_df = results_df[results_df['loading_percentage'] >= 80.0].copy()
             
             if alerts_df.empty:
                 logger.info("No alerts needed")
                 return True
-            
-            # Get recipient from secrets
-            recipient = st.secrets.get("ALERT_RECIPIENT", "default@example.com")
             
             # Send alert email
             return self.send_alert(alerts_df, date, hour, recipient)
             
         except Exception as e:
             logger.error(f"Error processing alerts: {str(e)}")
+            return False
+    
+    def check_and_send_alerts_smtp(self, results_df: pd.DataFrame, date: datetime, hour: int, recipient: str) -> bool:
+        """
+        Check loading conditions and send alert if needed
+        
+        Args:
+            results_df: DataFrame with transformer data
+            date: Date of the data
+            hour: Hour of the data
+            recipient: Email recipient
+            
+        Returns:
+            bool: True if alert was sent, False otherwise
+        """
+        try:
+            loading_pct = results_df['loading_percentage'].iloc[-1]
+            
+            # Send alert if loading is above warning threshold
+            if loading_pct >= 80:
+                logger.info(f"High loading detected ({loading_pct:.1f}%). Sending alert...")
+                
+                # Create email
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = f"Transformer Loading Alert - {loading_pct:.1f}% Loading"
+                msg['From'] = self.gmail_user
+                msg['To'] = recipient
+                
+                # Create HTML content
+                html_content = self._create_email_content(results_df, date, hour)
+                msg.attach(MIMEText(html_content, 'html'))
+                
+                # Send email
+                with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                    smtp.login(self.gmail_user, self.gmail_password)
+                    smtp.send_message(msg)
+                
+                logger.info("Alert email sent successfully")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error sending alert: {str(e)}")
             return False
