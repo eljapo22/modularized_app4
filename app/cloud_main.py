@@ -145,24 +145,27 @@ def main():
                         st.error("Please click 'Search & Analyze' first to load data")
                     else:
                         logger.info("Checking alert conditions...")
-                        if search_mode == "Single Day":
-                            if not all([selected_date, selected_hour is not None, selected_feeder, selected_transformer]):
-                                logger.warning("Missing required parameters for alert")
-                                st.error("Please select all required parameters")
+                        if not all([selected_feeder, selected_transformer]):
+                            logger.warning("Missing required parameters for alert")
+                            st.error("Please select a feeder and transformer")
+                        else:
+                            # For alerts, we'll use the timestamp of the highest loading point
+                            max_loading_idx = st.session_state.results['loading_percentage'].idxmax()
+                            alert_time = st.session_state.results.index[max_loading_idx]
+                            alert_date = alert_time.date()
+                            
+                            logger.info(f"Checking alerts for highest loading at {alert_time}")
+                            
+                            # Check and send alerts if needed
+                            if alert_service.check_and_send_alerts(
+                                st.session_state.results,
+                                alert_date,
+                                alert_time
+                            ):
+                                logger.info("Alert email sent successfully")
+                                st.success("Alert email sent successfully")
                             else:
-                                query_datetime = datetime.combine(selected_date, time(selected_hour))
-                                logger.info(f"Checking alerts for {query_datetime}")
-                                
-                                # Check and send alerts if needed
-                                if alert_service.check_and_send_alerts(
-                                    st.session_state.results,
-                                    selected_date,
-                                    query_datetime
-                                ):
-                                    logger.info("Alert email sent successfully")
-                                    st.success("Alert email sent successfully")
-                                else:
-                                    logger.warning("Alert check completed without sending email")
+                                logger.warning("Alert check completed without sending email")
                 
                 if search_clicked or (from_alert and alert_transformer):
                     if search_mode == "Single Day":
@@ -180,18 +183,6 @@ def main():
                                 logger.info("Displaying transformer dashboard...")
                                 display_transformer_dashboard(results, selected_hour)
                                 st.session_state.results = results
-                                
-                                # Check and send alerts if needed
-                                if alert_service is not None and alert_clicked:
-                                    logger.info("Attempting to send alert email...")
-                                    if alert_service.check_and_send_alerts(
-                                        results,
-                                        selected_date,
-                                        query_datetime
-                                    ):
-                                        st.success("Alert email sent successfully")
-                                    else:
-                                        st.warning("No alert conditions met or email sending failed")
                             else:
                                 st.warning("No data available for the selected criteria.")
                     else:
@@ -236,18 +227,6 @@ def main():
                                 
                                 display_transformer_dashboard(results, alert_hour)
                                 st.session_state.results = results
-                                
-                                # Check and send alerts if needed
-                                if alert_service is not None and alert_clicked:
-                                    logger.info("Attempting to send alert email for date range...")
-                                    if alert_service.check_and_send_alerts(
-                                        results,
-                                        start_date,
-                                        alert_time if alert_time_str else None
-                                    ):
-                                        st.success("Alert email sent successfully")
-                                    else:
-                                        st.warning("No alert conditions met or email sending failed")
                             else:
                                 st.warning("No data available for the selected criteria.")
                 
