@@ -274,6 +274,12 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     sample_timestamps = results_df['timestamp'].head()
     logger.info(f"Sample timestamps: {sample_timestamps.tolist()}")
         
+    # Round power values based on view type
+    if is_transformer_view:
+        results_df['power_kw'] = results_df['power_kw'].round(2)  # xx.xx for transformers
+    else:
+        results_df['power_kw'] = results_df['power_kw'].round(3)  # x.xxx for customers
+    
     # Create figure
     fig = create_base_figure(
         None,
@@ -291,7 +297,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
             name='Power',
             line=dict(color='#3b82f6', width=2),
             marker=dict(color='#3b82f6', size=6),
-            hovertemplate='Time: %{x}<br>Power: %{y:.3f} kW<extra></extra>' if not is_transformer_view else 'Time: %{x}<br>Power: %{y:.2f} kW<extra></extra>'
+            hovertemplate='Time: %{x}<br>Power: %{y} kW<extra></extra>' if not is_transformer_view else 'Time: %{x}<br>Power: %{y} kW<extra></extra>'
         )
     )
     logger.info("Added power consumption trace")
@@ -310,7 +316,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
                 mode='lines',
                 name='Transformer Capacity (kVA)',
                 line=dict(color='red', width=2, dash='dash'),
-                hovertemplate='Capacity: %{y:.2f} kVA<extra></extra>'
+                hovertemplate='Capacity: %{y} kVA<extra></extra>'
             )
         )
         logger.info("Added size_kva trace")
@@ -362,7 +368,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     st.plotly_chart(fig, use_container_width=True)
     logger.info("Displayed chart")
 
-def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = None):
+def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = None, is_transformer_view: bool = False):
     """Display current analysis time series visualization"""
     if results_df is None or results_df.empty:
         st.warning("No current data available")
@@ -380,6 +386,12 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
     logger.info(f"Plotting current time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
     logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
     
+    # Round current values based on view type
+    if is_transformer_view:
+        results_df['current_a'] = results_df['current_a'].round(2)  # xx.xx for transformers
+    else:
+        results_df['current_a'] = results_df['current_a'].round(3)  # x.xxx for customers
+
     # Sample a few timestamps to verify format
     sample_timestamps = results_df['timestamp'].head()
     logger.info(f"Sample timestamps: {sample_timestamps.tolist()}")
@@ -393,24 +405,15 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
     logger.info("Created base figure")
     
     # Add current trace
-    hover_template = '%{x|%Y-%m-%d %H:%M}<br>Current: %{y:.3f} A<extra></extra>'
-    logger.info(f"Using hover template: {hover_template}")
-    
     fig.add_trace(
         go.Scatter(
             x=results_df['timestamp'],
             y=results_df['current_a'],
             mode='lines+markers',
             name='Current',
-            line=dict(
-                color='#ef4444',
-                width=2
-            ),
-            marker=dict(
-                color='#ef4444',
-                size=6
-            ),
-            hovertemplate=hover_template
+            line=dict(color='#3b82f6', width=2),
+            marker=dict(color='#3b82f6', size=6),
+            hovertemplate='Time: %{x}<br>Current: %{y} A<extra></extra>'  # No format here since data is pre-rounded
         )
     )
     logger.info("Added current trace")
@@ -470,24 +473,15 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
     logger.info("Created base figure")
     
     # Add voltage trace
-    hover_template = '%{x|%Y-%m-%d %H:%M}<br>Voltage: %{y:.1f} V<extra></extra>'
-    logger.info(f"Using hover template: {hover_template}")
-    
     fig.add_trace(
         go.Scatter(
             x=results_df['timestamp'],
             y=results_df['voltage_v'],
             mode='lines+markers',
             name='Voltage',
-            line=dict(
-                color='#22c55e',
-                width=2
-            ),
-            marker=dict(
-                color='#22c55e',
-                size=6
-            ),
-            hovertemplate=hover_template
+            line=dict(color='#22c55e', width=2),
+            marker=dict(color='#22c55e', size=6),
+            hovertemplate='Time: %{x}<br>Voltage: %{y:.1f} V<extra></extra>'
         )
     )
     logger.info("Added voltage trace")
@@ -742,7 +736,7 @@ def display_transformer_tab(df: pd.DataFrame, selected_hour: int = None):
     cols = st.columns(2)
     with cols[0]:
         create_tile("Current Over Time", "")
-        display_current_time_series(df, selected_hour)
+        display_current_time_series(df, selected_hour, is_transformer_view=True)
     with cols[1]:
         create_tile("Voltage Over Time", "")
         display_voltage_time_series(df, selected_hour)
@@ -764,7 +758,13 @@ def display_customer_tab(df: pd.DataFrame, selected_hour: int = None):
     )
 
     # Filter data for selected customer
-    customer_df = df[df['customer_id'] == selected_customer]
+    customer_df = df[df['customer_id'] == selected_customer].copy()  # Create copy to avoid SettingWithCopyWarning
+    
+    # Round values according to spec
+    customer_df['power_kw'] = customer_df['power_kw'].round(3)  # x.xxx
+    customer_df['current_a'] = customer_df['current_a'].round(3)  # x.xxx
+    customer_df['power_factor'] = customer_df['power_factor'].round(3)  # x.xxx
+    customer_df['voltage_v'] = customer_df['voltage_v'].round(1)  # xxx.x
 
     # Display customer metrics in tiles
     cols = st.columns(4)
@@ -773,24 +773,24 @@ def display_customer_tab(df: pd.DataFrame, selected_hour: int = None):
     with cols[0]:
         create_tile(
             "Current Power",
-            f"{latest['power_kw']:.3f} kW"
+            f"{latest['power_kw']} kW"  # No format needed, already rounded
         )
     with cols[1]:
         create_tile(
             "Power Factor",
-            f"{latest['power_factor']:.3f}"
+            f"{latest['power_factor']}"  # No format needed, already rounded
         )
     with cols[2]:
         create_tile(
             "Current",
-            f"{latest['current_a']:.3f} A"
+            f"{latest['current_a']} A"  # No format needed, already rounded
         )
     with cols[3]:
         create_tile(
             "Voltage",
-            f"{latest['voltage_v']:.1f} V"
+            f"{latest['voltage_v']} V"  # No format needed, already rounded
         )
-
+    
     # Display customer charts
     st.markdown("### Power Consumption")
     with st.container():
@@ -801,7 +801,7 @@ def display_customer_tab(df: pd.DataFrame, selected_hour: int = None):
     with cols[0]:
         st.markdown("### Current")
         create_tile("Current Over Time", "")
-        display_current_time_series(customer_df, selected_hour)
+        display_current_time_series(customer_df, selected_hour, is_transformer_view=False)
     with cols[1]:
         st.markdown("### Voltage")
         create_tile("Voltage Over Time", "")
