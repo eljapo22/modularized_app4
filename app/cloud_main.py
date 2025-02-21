@@ -60,6 +60,8 @@ def main():
                     'end_date': end_date,
                     'auto_search': auto_search
                 }
+                # Set this to trigger search on first load
+                st.session_state.search_triggered = False
         
         # Track session start
         logger.info("=== Starting new analysis session ===")
@@ -84,10 +86,28 @@ def main():
         # Analysis Parameters in sidebar
         st.sidebar.header("Analysis Parameters")
         
+        # Feeder and transformer selection
+        feeder_options = data_service.get_feeder_options()
+        selected_feeder = st.sidebar.selectbox(
+            "Select Feeder",
+            feeder_options,
+            index=feeder_options.index(st.session_state.selections['feeder']) if 'selections' in st.session_state else 0
+        )
+        
+        transformer_options = data_service.get_load_options(selected_feeder)
+        selected_transformer = st.sidebar.selectbox(
+            "Select Transformer",
+            transformer_options,
+            index=transformer_options.index(st.session_state.selections['transformer_id']) if 'selections' in st.session_state else 0
+        )
+        
         # Date range selection with default range
+        default_start = st.session_state.selections.get('start_date', min_date) if 'selections' in st.session_state else min_date
+        default_end = st.session_state.selections.get('end_date', min_date) if 'selections' in st.session_state else min_date
+        
         dates = st.sidebar.date_input(
             "Select Date Range",
-            value=[min_date, min_date],  # Pass as list for range selection
+            value=[default_start, default_end],
             min_value=min_date,
             max_value=max_date,
             key="date_range"
@@ -99,21 +119,20 @@ def main():
         else:
             start_date, end_date = dates[0], dates[-1]  # Handle both list and tuple cases
         
-        # Feeder and transformer selection
-        feeder_options = data_service.get_feeder_options()
-        selected_feeder = st.sidebar.selectbox("Select Feeder", feeder_options)
-        transformer_options = data_service.get_load_options(selected_feeder)
-        selected_transformer = st.sidebar.selectbox(
-            "Select Transformer",
-            transformer_options
-        )
-        
         # Search button with icon
         search_clicked = st.sidebar.button(
             "🔍 Search" + (" 🔔" if st.session_state.alert_state.get('pending', False) else ""),
             type="primary",
             key="search_button"
         )
+        
+        # Auto-trigger search if coming from alert link
+        if ('selections' in st.session_state and 
+            st.session_state.selections.get('auto_search', False) and 
+            not st.session_state.get('search_triggered', False)):
+            search_clicked = True
+            st.session_state.search_triggered = True
+        
         logger.info(f"Search button clicked: {search_clicked}")
         
         # Main content area for visualization

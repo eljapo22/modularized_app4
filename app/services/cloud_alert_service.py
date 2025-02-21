@@ -172,15 +172,19 @@ class CloudAlertService:
         # Calculate end_date as 7 days after start_date
         end_date = start_date + timedelta(days=7)
         
+        # Extract feeder number from transformer ID (e.g., S1F2ATF001 -> Feeder 2)
+        feeder_num = transformer_id[3]  # Get the number after 'F' in ID
+        feeder = f"Feeder {feeder_num}"
+        
         params = {
             'view': 'alert',
             'id': transformer_id,
-            'feeder': 'Feeder 1',
+            'feeder': feeder,
             'start': start_date.isoformat(),
             'end': end_date.isoformat(),
             'alert_time': alert_time.isoformat(),
-            'loading': 'true',  # Flag to auto-trigger loading
-            'auto_search': 'true'  # Flag to auto-trigger search
+            'loading': 'true',
+            'auto_search': 'true'  # Always true for alert links
         }
         
         # Remove None values and create query string
