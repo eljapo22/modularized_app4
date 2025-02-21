@@ -18,49 +18,28 @@ logger = logging.getLogger(__name__)
 
 def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
     """
-    Add a vertical line indicator for the selected hour to any plotly figure.
+    Add a vertical line indicator for the selected hour to any Plotly figure.
     
     Args:
-        fig: plotly figure object
-        selected_hour: hour to indicate (0-23)
-        y_range: optional tuple of (min, max) for y-axis range
-    
-    Returns:
-        Modified plotly figure
+        fig: The Plotly figure to add the indicator to
+        selected_hour: The hour to mark (0-23)
+        y_range: Optional tuple of (min, max) y-values for the line
     """
-    if not isinstance(selected_hour, (int, float)) or not (0 <= selected_hour <= 23):
-        return fig
-        
-    # Find the first x value in the data
-    first_x = None
-    for trace in fig.data:
-        if hasattr(trace, 'x') and len(trace.x) > 0:
-            first_x = trace.x[0]
-            break
-            
-    if first_x is None:
-        return fig
-        
-    # Convert the timestamp to pandas Timestamp if it's not already
-    if not isinstance(first_x, pd.Timestamp):
-        first_x = pd.Timestamp(first_x)
-        
-    # Create a new timestamp for the indicator at the same date but different hour
-    base_time = pd.date_range(start=first_x.date(), periods=24, freq='H')  # Create hourly range
-    indicator_time = base_time[selected_hour]  # Select the desired hour
-    
-    # If no y_range provided, try to get it from the figure
     if y_range is None:
-        try:
-            y_values = []
-            for trace in fig.data:
-                if hasattr(trace, 'y'):
-                    y_values.extend(trace.y)
-            y_range = (min(y_values), max(y_values))
-        except:
-            y_range = (0, 100)
+        y_range = (0, 100)  # Default range
     
-    # Add the vertical line
+    # Get first timestamp from x-axis data
+    x_data = fig.data[0].x  # Assuming first trace has the timestamps
+    if not x_data:
+        logger.warning("No x-axis data found for hour indicator")
+        return
+    
+    # Create indicator time using date_range
+    first_timestamp = pd.to_datetime(x_data[0])
+    base_time = pd.date_range(start=first_timestamp.date(), periods=24, freq='H')
+    indicator_time = base_time[selected_hour]
+    
+    # Add vertical line
     fig.add_shape(
         type="line",
         x0=indicator_time,
@@ -74,21 +53,14 @@ def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
         )
     )
     
-    # Add the annotation
+    # Add annotation
     fig.add_annotation(
-        text=f"{selected_hour:02d}:00",
         x=indicator_time,
         y=y_range[1],
-        yanchor="bottom",
+        text=f"{selected_hour:02d}:00",
         showarrow=False,
-        textangle=-90,
-        font=dict(
-            color='#2f4f4f',
-            size=12
-        )
+        yshift=10
     )
-    
-    return fig
 
 def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
     """Create a base plotly figure with common settings"""
@@ -184,7 +156,8 @@ def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: i
         
         # Get first timestamp and create indicator time
         first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
-        indicator_time = pd.Timestamp(first_timestamp.date()) + pd.Timedelta(hours=selected_hour)
+        base_time = pd.date_range(start=first_timestamp.date(), periods=24, freq='H')
+        indicator_time = base_time[selected_hour]
         
         # Add the vertical line
         fig.add_shape(
