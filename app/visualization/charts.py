@@ -72,52 +72,30 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
             st.warning("No valid power data available for the selected time range")
             return
 
-        # Create base power chart
-        power_chart = alt.Chart(results_df).mark_line(color='blue').encode(
-            x=alt.X('timestamp:T', title='Time'),
-            y=alt.Y('power_kw:Q', title='Power (kW)')
-        )
-
-        # Add transformer size reference if provided
-        if size_kva is not None:
-            # Create a DataFrame for the transformer size line
-            transformer_df = pd.DataFrame({'y': [size_kva]})
-            
-            # Add the transformer size line
-            transformer_line = alt.Chart(transformer_df).mark_rule(
-                color='red',
-                strokeDash=[4, 4],
-                size=1
-            ).encode(y='y:Q')
-
-            # Add text annotation for transformer size
-            transformer_text = alt.Chart(transformer_df).mark_text(
-                color='red',
-                align='right',
-                baseline='middle',
-                dx=-5,  # Offset from the right edge
-                fontSize=11,
-                fontWeight='bold'
-            ).encode(
-                y='y:Q',
-                text=alt.value(f'Transformer Size: {size_kva} kVA')
-            )
-
-            # Combine charts
-            power_chart = alt.layer(
-                power_chart,
-                transformer_line,
-                transformer_text
-            )
-
-        # Set chart properties
-        power_chart = power_chart.properties(
-            width='container',
+        # Create the line chart using native Streamlit
+        chart_data = results_df.set_index('timestamp')['power_kw']
+        
+        # Plot the power consumption
+        st.line_chart(
+            chart_data,
+            use_container_width=True,
             height=250
         )
-
-        # Display the chart
-        st.altair_chart(power_chart, use_container_width=True)
+        
+        # Add transformer size reference if provided
+        if size_kva is not None:
+            # Add a horizontal line for transformer size using Streamlit markdown
+            st.markdown(
+                f'<div style="text-align: right; color: red; margin-top: -40px; margin-right: 10px; font-size: 11px; font-weight: bold;">'
+                f'Transformer Size: {size_kva:.0f} kVA</div>',
+                unsafe_allow_html=True
+            )
+            
+            # Add the line itself using Streamlit markdown
+            st.markdown(
+                f'<hr style="border: 1px dashed red; margin-top: -20px; opacity: 0.5;">',
+                unsafe_allow_html=True
+            )
 
     except Exception as e:
         logger.error(f"Error displaying power time series: {str(e)}")

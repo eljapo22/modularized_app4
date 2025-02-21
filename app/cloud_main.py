@@ -114,7 +114,10 @@ def main():
 
                             # Display power consumption chart
                             create_section_header("Power Consumption Over Time")
-                            display_power_time_series(transformer_data, is_transformer_view=True)
+                            display_power_time_series(
+                                transformer_data,
+                                size_kva=transformer_data['size_kva'].iloc[0] if 'size_kva' in transformer_data.columns else None
+                            )
 
                             # Display current and voltage charts side by side
                             current_col, voltage_col = create_two_column_charts()
