@@ -5,6 +5,7 @@ import os
 import logging
 import duckdb
 from typing import List, Dict, Any, Optional
+import streamlit as st
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,12 @@ def init_db_pool():
     global _connection_pool
     try:
         if _connection_pool is None:
-            # Get MotherDuck token from environment
-            motherduck_token = os.getenv('MOTHERDUCK_TOKEN')
-            if not motherduck_token:
-                raise ValueError("MOTHERDUCK_TOKEN environment variable not set")
+            # Get MotherDuck token from Streamlit secrets
+            try:
+                motherduck_token = st.secrets["MOTHERDUCK_TOKEN"]
+            except Exception as e:
+                logger.error(f"Error accessing MOTHERDUCK_TOKEN from Streamlit secrets: {str(e)}")
+                raise ValueError("MOTHERDUCK_TOKEN not found in Streamlit secrets")
 
             # Create connection to MotherDuck
             _connection_pool = duckdb.connect(f'md:?motherduck_token={motherduck_token}')
