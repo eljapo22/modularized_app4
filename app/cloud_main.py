@@ -8,7 +8,7 @@ import traceback
 import pandas as pd
 from datetime import datetime, date, timedelta
 
-from services.cloud_data_service import CloudDataService
+from services.cloud_data_service import CloudDataService, get_date_range
 from services.cloud_alert_service import CloudAlertService
 from utils.ui_utils import display_transformer_dashboard, setup_page
 
@@ -26,8 +26,12 @@ def main():
         setup_page()
 
         # Get date range from service
-        start_date = data_service.start_date
-        end_date = data_service.end_date
+        available_range = data_service.get_date_range()
+        if not available_range:
+            st.error("Could not retrieve date range from the database")
+            return
+            
+        start_date, end_date = available_range
         logger.info(f"Got date range: {start_date} to {end_date}")
 
         # Create date input for filtering

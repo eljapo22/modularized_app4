@@ -11,13 +11,10 @@ import logging
 # Configure logging
 logger = logging.getLogger(__name__)
 
-def create_banner(title: str):
-    """Create a page banner with title"""
-    st.markdown(f"""
-        <div style="background-color:#f8f9fa; padding:1.5rem; border-radius:0.5rem; margin-bottom:1rem;">
-            <h1 style="color:#2f4f4f; margin:0; text-align:center;">{title}</h1>
-        </div>
-    """, unsafe_allow_html=True)
+def create_banner(title: str) -> None:
+    """Create a banner with the specified title."""
+    st.markdown(f"# {title}")
+    st.markdown("---")
 
 def create_metric_tiles(transformer_id: str, feeder: str, size_kva: float, loading_pct: float):
     """Create metric tiles for transformer details"""
