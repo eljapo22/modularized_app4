@@ -4,17 +4,20 @@ UI utility functions for the Transformer Loading Analysis Application
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
-from datetime import datetime, date
-from typing import Optional, Dict
+from datetime import datetime
+from typing import Optional
 import logging
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-def create_banner(title: str) -> None:
-    """Create a banner with the specified title."""
-    st.markdown(f"# {title}")
-    st.markdown("---")
+def create_banner(title: str):
+    """Create a page banner with title"""
+    st.markdown(f"""
+        <div style="background-color:#f8f9fa; padding:1.5rem; border-radius:0.5rem; margin-bottom:1rem;">
+            <h1 style="color:#2f4f4f; margin:0; text-align:center;">{title}</h1>
+        </div>
+    """, unsafe_allow_html=True)
 
 def create_metric_tiles(transformer_id: str, feeder: str, size_kva: float, loading_pct: float):
     """Create metric tiles for transformer details"""
@@ -200,201 +203,73 @@ def create_loading_chart(data: pd.DataFrame, selected_hour: int) -> go.Figure:
     
     return fig
 
-def create_customer_metrics(customer_data: pd.DataFrame, aggregated_data: Dict) -> None:
-    """Display customer metrics in a clean format"""
+def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[int] = None) -> None:
+    """
+    Display transformer loading dashboard with optional time marker
     
-    # Create three columns for metrics
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric(
-            "Total Customers",
-            f"{aggregated_data['customer_count']}",
-            help="Number of customers connected to this transformer"
-        )
-    
-    with col2:
-        st.metric(
-            "Total Power",
-            f"{aggregated_data['total_power_kw']:.1f} kW",
-            help="Total power consumption across all customers"
-        )
-    
-    with col3:
-        st.metric(
-            "Average Power Factor",
-            f"{aggregated_data['avg_power_factor']:.2f}",
-            help="Average power factor across all customers"
-        )
-
-def create_customer_power_chart(customer_data: pd.DataFrame) -> None:
-    """Create a bar chart showing power consumption by customer"""
-    
-    fig = go.Figure()
-    
-    # Sort customers by power consumption
-    sorted_data = customer_data.sort_values('power_kw', ascending=True)
-    
-    # Create bar chart
-    fig.add_trace(go.Bar(
-        x=sorted_data['power_kw'],
-        y=sorted_data['customer_id'],
-        orientation='h',
-        marker_color='rgb(55, 83, 109)'
-    ))
-    
-    fig.update_layout(
-        title="Customer Power Consumption",
-        xaxis_title="Power (kW)",
-        yaxis_title="Customer ID",
-        showlegend=False,
-        height=max(350, len(customer_data) * 25)  # Dynamic height based on number of customers
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-def setup_page():
-    """Configure the Streamlit page."""
-    st.set_page_config(
-        page_title="Transformer Dashboard",
-        page_icon="⚡",
-        layout="wide"
-    )
-
-def display_transformer_dashboard(results, start_date=None, end_date=None, hour=None):
-    """Display transformer dashboard with loading status and graphs."""
-    if results is None or results.empty:
-        st.warning("No data available for display")
-        return
-
-    # Use provided dates or get from results
-    start_date = start_date or results.index.min().date()
-    end_date = end_date or results.index.max().date()
-    selected_hour = hour or st.session_state.get('selected_hour')
-
-    # Display loading status
-    st.markdown("#### Loading Status")
-    
-    # Create loading status plot
-    fig = go.Figure()
-    
-    # Add scatter plot for loading percentage
-    fig.add_trace(go.Scatter(
-        x=results.index,
-        y=results['loading_percentage'],
-        name='Loading',
-        line=dict(color='#0d6efd', width=2),
-        mode='lines+markers',
-        hovertemplate='%{y:.1f}%<br>%{x}<extra></extra>'
-    ))
-
-    # Add threshold line
-    fig.add_hline(
-        y=100,
-        line=dict(color='red', width=2, dash='dash'),
-        annotation=dict(
-            text="100% Loading",
-            font=dict(size=12),
-            bgcolor='rgba(255,255,255,0.8)'
-        )
-    )
-
-    # Add marker for selected hour if available
-    if selected_hour is not None:
-        marker_date = end_date
-        marker_time = pd.Timestamp.combine(marker_date, pd.Timestamp(f"{selected_hour:02d}:00").time())
-        if marker_time in results.index:
-            marker_value = results.loc[marker_time, 'loading_percentage']
-            fig.add_vline(
-                x=marker_time,
-                line=dict(color='gray', width=2, dash='dash'),
-                annotation=dict(
-                    text=f"Selected Hour ({selected_hour:02d}:00)<br>{marker_value:.1f}%",
-                    font=dict(size=12),
-                    bgcolor='rgba(255,255,255,0.8)',
-                    bordercolor='gray',
-                    borderwidth=1,
-                    showarrow=True,
-                    arrowhead=2,
-                    ax=40,
-                    ay=-40
-                )
-            )
-
-    fig.update_layout(
-        title="Transformer Loading Status",
-        xaxis_title="Time",
-        yaxis_title="Loading (%)",
-        showlegend=False,
-        hovermode='x unified'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Display customer data if available
-    if 'customer_data' in results.columns and not results['customer_data'].empty:
-        st.markdown("### Connected Customers")
-        customer_data = results['customer_data'].iloc[0]  # Get customer data from first row
+    Args:
+        results: DataFrame with transformer data
+        marker_hour: Optional hour to mark with vertical line (e.g., alert time)
+    """
+    try:
+        # Create tabs for different visualizations
+        tab1, tab2, tab3 = st.tabs(["Loading Status", "Power Analysis", "Detailed Data"])
         
-        if customer_data is not None and not customer_data.empty:
-            # Display customer selector
-            st.markdown("#### Select Customer")
-            customer_ids = sorted(customer_data['customer_id'].unique())
-            selected_customer = st.selectbox(
-                "Choose a customer to view details",
-                customer_ids,
-                key="customer_selector"
-            )
+        with tab1:
+            st.markdown("### Loading Status Over Time")
             
-            # Filter data for selected customer
-            customer_details = customer_data[customer_data['customer_id'] == selected_customer]
-            customer_details = customer_details.set_index('timestamp')
-            customer_details = customer_details.sort_index()
-            
-            # Display customer data table for the selected hour
-            st.markdown("#### Customer Data")
-            if selected_hour is not None:
-                current_hour_data = customer_details[
-                    (customer_details.index.date == end_date) &
-                    (customer_details.index.hour == selected_hour)
-                ]
-                st.dataframe(
-                    current_hour_data[[
-                        'customer_id',
-                        'power_kw',
-                        'power_factor',
-                        'current_a',
-                        'voltage_v'
-                    ]].style.format({
-                        'power_kw': '{:.1f}',
-                        'power_factor': '{:.2f}',
-                        'current_a': '{:.1f}',
-                        'voltage_v': '{:d}'
-                    })
-                )
-
-            # Power (kW) plot
-            st.markdown("#### Power Distribution")
+            # Create loading status chart
             fig = go.Figure()
+            
+            # Add loading percentage line
             fig.add_trace(go.Scatter(
-                x=customer_details.index,
-                y=customer_details['power_kw'],
-                name='Power',
+                x=results.index,
+                y=results['loading_percentage'],
+                name='Loading %',
                 line=dict(color='#0d6efd', width=2),
-                mode='lines+markers',
-                hovertemplate='%{y:.1f} kW<br>%{x}<extra></extra>'
+                hovertemplate='%{y:.1f}%<br>%{x}<extra></extra>'
             ))
             
-            # Add marker for selected hour
-            if selected_hour is not None:
-                marker_date = end_date
-                marker_time = pd.Timestamp.combine(marker_date, pd.Timestamp(f"{selected_hour:02d}:00").time())
-                if marker_time in customer_details.index:
-                    marker_value = customer_details.loc[marker_time, 'power_kw']
+            # Add threshold lines with proper annotations
+            thresholds = [
+                (120, 'Critical', '#dc3545'),
+                (100, 'Overloaded', '#fd7e14'),
+                (80, 'Warning', '#ffc107'),
+                (50, 'Pre-Warning', '#6f42c1')
+            ]
+            
+            for threshold, label, color in thresholds:
+                # Add the threshold line
+                fig.add_hline(
+                    y=threshold,
+                    line=dict(color=color, width=1, dash='dash')
+                )
+                
+                # Add separate annotation for the label
+                fig.add_annotation(
+                    text=f"{label} ({threshold}%)",
+                    xref="paper",
+                    x=1.02,
+                    y=threshold,
+                    showarrow=False,
+                    font=dict(color=color),
+                    align="left"
+                )
+            
+            # Add marker for alert time if provided
+            if marker_hour is not None:
+                # Find the timestamp for the marker hour
+                marker_date = results.index[0].date()  # Use first date in range
+                marker_time = pd.Timestamp.combine(marker_date, pd.Timestamp(f"{marker_hour:02d}:00").time())
+                
+                if marker_time in results.index:
+                    marker_value = results.loc[marker_time, 'loading_percentage']
+                    
                     fig.add_vline(
                         x=marker_time,
                         line=dict(color='gray', width=2, dash='dash'),
                         annotation=dict(
-                            text=f"Selected Hour ({selected_hour:02d}:00)<br>{marker_value:.1f} kW",
+                            text=f"Alert Time ({marker_hour:02d}:00)<br>{marker_value:.1f}%",
                             font=dict(size=12),
                             bgcolor='rgba(255,255,255,0.8)',
                             bordercolor='gray',
@@ -405,95 +280,101 @@ def display_transformer_dashboard(results, start_date=None, end_date=None, hour=
                             ay=-40
                         )
                     )
-
+            
+            # Update layout
             fig.update_layout(
-                title=f"Power Consumption - Customer {selected_customer}",
+                title=f"Transformer {results['transformer_id'].iloc[0]} Loading Status",
+                xaxis_title="Time",
+                yaxis_title="Loading Percentage (%)",
+                hovermode='x unified',
+                showlegend=False,
+                margin=dict(r=150)  # Extra right margin for threshold labels
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Add status summary
+            current_loading = results['loading_percentage'].iloc[-1]
+            status, color = get_alert_status(current_loading)
+            st.markdown(
+                f"""
+                <div style="padding: 1rem; border-radius: 0.5rem; background-color: {color}25; border: 1px solid {color}">
+                    <h4 style="color: {color}; margin: 0">Current Status: {status}</h4>
+                    <p style="margin: 0.5rem 0 0 0">Loading: {current_loading:.1f}%</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        
+        with tab2:
+            st.markdown("### Power Analysis")
+            
+            # Create power analysis chart
+            fig = go.Figure()
+            
+            # Add power trace
+            fig.add_trace(go.Scatter(
+                x=results.index,
+                y=results['power_kw'],
+                name='Power (kW)',
+                line=dict(color='#198754', width=2),
+                hovertemplate='%{y:.1f} kW<br>%{x}<extra></extra>'
+            ))
+            
+            # Add marker for alert time if provided
+            if marker_hour is not None and marker_time in results.index:
+                marker_power = results.loc[marker_time, 'power_kw']
+                fig.add_vline(
+                    x=marker_time,
+                    line=dict(color='gray', width=2, dash='dash'),
+                    annotation=dict(
+                        text=f"Alert Time ({marker_hour:02d}:00)<br>{marker_power:.1f} kW",
+                        font=dict(size=12),
+                        bgcolor='rgba(255,255,255,0.8)',
+                        bordercolor='gray',
+                        borderwidth=1,
+                        showarrow=True,
+                        arrowhead=2,
+                        ax=40,
+                        ay=-40
+                    )
+                )
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Power Consumption Over Time",
                 xaxis_title="Time",
                 yaxis_title="Power (kW)",
-                showlegend=False,
-                hovermode='x unified'
+                hovermode='x unified',
+                showlegend=False
             )
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Current plot
-            st.markdown("#### Current Distribution")
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=customer_details.index,
-                y=customer_details['current_a'],
-                name='Current',
-                line=dict(color='#198754', width=2),
-                mode='lines+markers',
-                hovertemplate='%{y:.1f} A<br>%{x}<extra></extra>'
-            ))
             
-            # Add marker for selected hour
-            if selected_hour is not None and marker_time in customer_details.index:
-                marker_value = customer_details.loc[marker_time, 'current_a']
-                fig.add_vline(
-                    x=marker_time,
-                    line=dict(color='gray', width=2, dash='dash'),
-                    annotation=dict(
-                        text=f"Selected Hour ({selected_hour:02d}:00)<br>{marker_value:.1f} A",
-                        font=dict(size=12),
-                        bgcolor='rgba(255,255,255,0.8)',
-                        bordercolor='gray',
-                        borderwidth=1,
-                        showarrow=True,
-                        arrowhead=2,
-                        ax=40,
-                        ay=-40
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with tab3:
+            st.markdown("### Detailed Readings")
+            
+            # Format the data for display
+            display_df = results.copy()
+            display_df.index = display_df.index.strftime('%Y-%m-%d %H:%M')
+            display_df = display_df.round(2)
+            
+            # Highlight the alert time row if provided
+            if marker_hour is not None and marker_time in results.index:
+                marker_time_str = marker_time.strftime('%Y-%m-%d %H:%M')
+                st.dataframe(
+                    display_df.style.apply(
+                        lambda x: ['background-color: #f8f9fa' if i == marker_time_str else '' 
+                                 for i in display_df.index],
+                        axis=0
                     )
                 )
-
-            fig.update_layout(
-                title=f"Current - Customer {selected_customer}",
-                xaxis_title="Time",
-                yaxis_title="Current (A)",
-                showlegend=False,
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Voltage plot
-            st.markdown("#### Voltage Distribution")
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=customer_details.index,
-                y=customer_details['voltage_v'],
-                name='Voltage',
-                line=dict(color='#dc3545', width=2),
-                mode='lines+markers',
-                hovertemplate='%{y} V<br>%{x}<extra></extra>'
-            ))
+            else:
+                st.dataframe(display_df)
             
-            # Add marker for selected hour
-            if selected_hour is not None and marker_time in customer_details.index:
-                marker_value = customer_details.loc[marker_time, 'voltage_v']
-                fig.add_vline(
-                    x=marker_time,
-                    line=dict(color='gray', width=2, dash='dash'),
-                    annotation=dict(
-                        text=f"Selected Hour ({selected_hour:02d}:00)<br>{marker_value} V",
-                        font=dict(size=12),
-                        bgcolor='rgba(255,255,255,0.8)',
-                        bordercolor='gray',
-                        borderwidth=1,
-                        showarrow=True,
-                        arrowhead=2,
-                        ax=40,
-                        ay=-40
-                    )
-                )
-
-            fig.update_layout(
-                title=f"Voltage - Customer {selected_customer}",
-                xaxis_title="Time",
-                yaxis_title="Voltage (V)",
-                showlegend=False,
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        logger.error(f"Error displaying transformer dashboard: {str(e)}")
+        st.error("An error occurred while displaying the dashboard. Please try refreshing the page.")
 
 def get_alert_status(loading_percentage: float) -> tuple:
     """
@@ -515,119 +396,3 @@ def get_alert_status(loading_percentage: float) -> tuple:
         return "Pre-Warning", "#6f42c1"
     else:
         return "Normal", "#198754"
-
-def display_transformer_dashboard(results: pd.DataFrame, alert_hour: Optional[int] = None, start_date: Optional[date] = None, end_date: Optional[date] = None) -> None:
-    """Display the transformer dashboard with graphs and metrics."""
-    if results.empty:
-        st.error("No data available for the selected transformer")
-        return
-
-    # Get date range from data if not provided
-    if start_date is None:
-        start_date = results.index.min().date()
-    if end_date is None:
-        end_date = results.index.max().date()
-
-    # Create layout
-    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-    
-    # Get latest values for metrics
-    latest_data = results.iloc[-1]
-    transformer_id = latest_data['transformer_id']
-    feeder = latest_data['feeder']
-    size_kva = latest_data['size_kva']
-    loading_pct = latest_data['loading_pct']
-
-    # Display metric tiles
-    with metric_col1:
-        st.metric("Transformer ID", transformer_id)
-    with metric_col2:
-        st.metric("Feeder", feeder)
-    with metric_col3:
-        st.metric("Size (kVA)", f"{size_kva:,.0f}")
-    with metric_col4:
-        st.metric("Loading (%)", f"{loading_pct:.1f}%")
-
-    # Create loading status chart
-    fig = go.Figure()
-
-    # Add loading percentage line
-    fig.add_trace(go.Scatter(
-        x=results.index,
-        y=results['loading_pct'],
-        mode='lines',
-        name='Loading %',
-        line=dict(color='blue', width=2)
-    ))
-
-    # Add threshold line
-    fig.add_hline(
-        y=100,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="100% threshold",
-        annotation_position="bottom right"
-    )
-
-    # Add vertical line for alert hour if specified
-    if alert_hour is not None:
-        # Format time for annotation
-        time_str = f"{alert_hour:02d}:00"
-        
-        # Add vertical line
-        fig.add_vline(
-            x=pd.Timestamp.combine(date.today(), pd.Timestamp(f"{alert_hour:02d}:00").time()),
-            line_dash="dash",
-            line_color="gray",
-            annotation_text=f"Alert hour: {time_str}",
-            annotation_position="top right"
-        )
-
-    # Update layout
-    fig.update_layout(
-        title="Transformer Loading Status",
-        xaxis_title="Time",
-        yaxis_title="Loading (%)",
-        showlegend=True,
-        height=400
-    )
-
-    # Show the plot
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Display customer graph if data is available
-    try:
-        data_service = CloudDataService()
-        customer_data = data_service.get_customer_data(transformer_id, start_date, end_date)
-        
-        if not customer_data.empty:
-            # Create customer consumption chart
-            fig = go.Figure()
-
-            # Add customer consumption lines
-            for customer_id in customer_data['customer_id'].unique():
-                customer_subset = customer_data[customer_data['customer_id'] == customer_id]
-                fig.add_trace(go.Scatter(
-                    x=customer_subset.index,
-                    y=customer_subset['consumption_kwh'],
-                    mode='lines',
-                    name=f'Customer {customer_id}'
-                ))
-
-            # Update layout
-            fig.update_layout(
-                title="Customer Consumption Patterns",
-                xaxis_title="Time",
-                yaxis_title="Consumption (kWh)",
-                showlegend=True,
-                height=400
-            )
-
-            # Show the plot
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("No customer data available for the selected transformer")
-            
-    except Exception as e:
-        logger.error(f"Error displaying customer graph: {str(e)}")
-        st.error("Error displaying customer consumption data")
