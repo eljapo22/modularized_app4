@@ -215,7 +215,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
         if marker_hour is not None:
             # Add vertical line for selected hour
             loading_fig.add_vline(
-                x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]).replace(hour=marker_hour),
+                x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]) + pd.Timedelta(hours=marker_hour),
                 line_dash="dash",
                 line_color="gray",
                 annotation_text=f"{marker_hour:02d}:00"
@@ -228,7 +228,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
         if marker_hour is not None:
             # Add vertical line for selected hour
             power_fig.add_vline(
-                x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]).replace(hour=marker_hour),
+                x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]) + pd.Timedelta(hours=marker_hour),
                 line_dash="dash",
                 line_color="gray",
                 annotation_text=f"{marker_hour:02d}:00"
@@ -244,7 +244,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
             if marker_hour is not None:
                 # Add vertical line for selected hour
                 current_fig.add_vline(
-                    x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]).replace(hour=marker_hour),
+                    x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]) + pd.Timedelta(hours=marker_hour),
                     line_dash="dash",
                     line_color="gray",
                     annotation_text=f"{marker_hour:02d}:00"
@@ -257,7 +257,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
             if marker_hour is not None:
                 # Add vertical line for selected hour
                 voltage_fig.add_vline(
-                    x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]).replace(hour=marker_hour),
+                    x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]) + pd.Timedelta(hours=marker_hour),
                     line_dash="dash",
                     line_color="gray",
                     annotation_text=f"{marker_hour:02d}:00"
