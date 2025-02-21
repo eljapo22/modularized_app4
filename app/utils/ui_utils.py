@@ -194,7 +194,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
         current_data = results.iloc[0]
         
         # Create hourly time range if marker_hour is provided
-        if marker_hour is not None:
+        if marker_hour is not None and isinstance(marker_hour, int):
             base_time = results['timestamp'].iloc[0]  # First timestamp in the results
             marker_timestamp = base_time + pd.Timedelta(hours=marker_hour)
         
