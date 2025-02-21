@@ -405,12 +405,14 @@ def display_transformer_dashboard(results: pd.DataFrame, start_date: datetime, e
                 
                 # Filter data for selected customer
                 customer_details = customer_data[customer_data['customer_id'] == selected_customer]
+                customer_details = customer_details.set_index('timestamp')
+                customer_details = customer_details.sort_index()
                 
                 # Display customer data table for the selected hour
                 st.markdown("#### Customer Data")
                 current_hour_data = customer_details[
-                    (customer_details['timestamp'].dt.date == end_date) &
-                    (customer_details['timestamp'].dt.hour == hour)
+                    (customer_details.index.date == end_date.date()) &
+                    (customer_details.index.hour == hour)
                 ]
                 st.dataframe(
                     current_hour_data[[
@@ -427,21 +429,42 @@ def display_transformer_dashboard(results: pd.DataFrame, start_date: datetime, e
                     })
                 )
 
-                # Sort data by timestamp for consistent plotting
-                sorted_data = customer_details.sort_values('timestamp')
-                
                 # Power (kW) plot
                 st.markdown("#### Power Distribution")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=sorted_data['timestamp'],
-                    y=sorted_data['power_kw'],
+                    x=customer_details.index,
+                    y=customer_details['power_kw'],
                     name='Power',
                     line=dict(color='#0d6efd', width=2),
                     mode='lines+markers',
                     hovertemplate='%{y:.1f} kW<br>%{x}<extra></extra>'
                 ))
+                
+                # Add marker for selected hour
+                if hour is not None:
+                    marker_date = end_date.date()
+                    marker_time = pd.Timestamp.combine(marker_date, pd.Timestamp(f"{hour:02d}:00").time())
+                    if marker_time in customer_details.index:
+                        marker_value = customer_details.loc[marker_time, 'power_kw']
+                        fig.add_vline(
+                            x=marker_time,
+                            line=dict(color='gray', width=2, dash='dash'),
+                            annotation=dict(
+                                text=f"Selected Hour ({hour:02d}:00)<br>{marker_value:.1f} kW",
+                                font=dict(size=12),
+                                bgcolor='rgba(255,255,255,0.8)',
+                                bordercolor='gray',
+                                borderwidth=1,
+                                showarrow=True,
+                                arrowhead=2,
+                                ax=40,
+                                ay=-40
+                            )
+                        )
+
                 fig.update_layout(
+                    title=f"Power Consumption - Customer {selected_customer}",
                     xaxis_title="Time",
                     yaxis_title="Power (kW)",
                     showlegend=False,
@@ -453,14 +476,35 @@ def display_transformer_dashboard(results: pd.DataFrame, start_date: datetime, e
                 st.markdown("#### Current Distribution")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=sorted_data['timestamp'],
-                    y=sorted_data['current_a'],
+                    x=customer_details.index,
+                    y=customer_details['current_a'],
                     name='Current',
                     line=dict(color='#198754', width=2),
                     mode='lines+markers',
                     hovertemplate='%{y:.1f} A<br>%{x}<extra></extra>'
                 ))
+                
+                # Add marker for selected hour
+                if hour is not None and marker_time in customer_details.index:
+                    marker_value = customer_details.loc[marker_time, 'current_a']
+                    fig.add_vline(
+                        x=marker_time,
+                        line=dict(color='gray', width=2, dash='dash'),
+                        annotation=dict(
+                            text=f"Selected Hour ({hour:02d}:00)<br>{marker_value:.1f} A",
+                            font=dict(size=12),
+                            bgcolor='rgba(255,255,255,0.8)',
+                            bordercolor='gray',
+                            borderwidth=1,
+                            showarrow=True,
+                            arrowhead=2,
+                            ax=40,
+                            ay=-40
+                        )
+                    )
+
                 fig.update_layout(
+                    title=f"Current - Customer {selected_customer}",
                     xaxis_title="Time",
                     yaxis_title="Current (A)",
                     showlegend=False,
@@ -472,14 +516,35 @@ def display_transformer_dashboard(results: pd.DataFrame, start_date: datetime, e
                 st.markdown("#### Voltage Distribution")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=sorted_data['timestamp'],
-                    y=sorted_data['voltage_v'],
+                    x=customer_details.index,
+                    y=customer_details['voltage_v'],
                     name='Voltage',
                     line=dict(color='#dc3545', width=2),
                     mode='lines+markers',
                     hovertemplate='%{y} V<br>%{x}<extra></extra>'
                 ))
+                
+                # Add marker for selected hour
+                if hour is not None and marker_time in customer_details.index:
+                    marker_value = customer_details.loc[marker_time, 'voltage_v']
+                    fig.add_vline(
+                        x=marker_time,
+                        line=dict(color='gray', width=2, dash='dash'),
+                        annotation=dict(
+                            text=f"Selected Hour ({hour:02d}:00)<br>{marker_value} V",
+                            font=dict(size=12),
+                            bgcolor='rgba(255,255,255,0.8)',
+                            bordercolor='gray',
+                            borderwidth=1,
+                            showarrow=True,
+                            arrowhead=2,
+                            ax=40,
+                            ay=-40
+                        )
+                    )
+
                 fig.update_layout(
+                    title=f"Voltage - Customer {selected_customer}",
                     xaxis_title="Time",
                     yaxis_title="Voltage (V)",
                     showlegend=False,
