@@ -157,7 +157,7 @@ class CloudDataService:
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
             results = execute_query(
                 query, 
-                params=(transformer_id, start_date, end_date)
+                params=(start_date, end_date, transformer_id)  # Fixed parameter order to match SQL query
             )
             
             if not results:
@@ -256,30 +256,25 @@ class CloudDataService:
             logger.info(f"Fetching customer data for transformer {transformer_id}")
             logger.info(f"Date range: {start_date} to {end_date}")
             
-            # Get feeder number from transformer ID (e.g., "S1F1ATF001" -> 1)
-            feeder_num = int(transformer_id[3])
-            if feeder_num not in FEEDER_NUMBERS:
-                logger.error(f"Invalid feeder number in transformer ID: {feeder_num}")
-                return None
-            
             # Get table name
-            table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
+            table = CUSTOMER_TABLE_TEMPLATE.format(1)  # Only Feeder 1 for now
             logger.info(f"Using table: {table}")
             
             # Execute query
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
                 query,
-                params=(transformer_id, start_date, end_date)
+                params=(start_date, end_date, transformer_id, start_date, end_date)  # Fixed parameter order to match SQL query
             )
             
             if not results:
-                logger.warning(f"No customer data found for transformer {transformer_id} in date range")
+                logger.warning(f"No customer data found for transformer {transformer_id}")
                 return None
-            
+                
             # Convert to DataFrame
             df = pd.DataFrame(results)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
             logger.info(f"Data timestamp range: {df['timestamp'].min()} to {df['timestamp'].max()}")
             logger.info(f"Retrieved {len(df)} records")
             
