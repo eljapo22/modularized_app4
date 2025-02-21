@@ -7,7 +7,7 @@ TRANSFORMER_TABLE_TEMPLATE = '"Transformer Feeder {}"'  # Already includes quote
 CUSTOMER_TABLE_TEMPLATE = '"Customer Feeder {}"'        # Already includes quotes for SQL
 
 # List of available feeder numbers
-FEEDER_NUMBERS = [1]  # Start with just feeder 1 for now
+FEEDER_NUMBERS = [1, 2, 3, 4]  # Include all feeders
 
 # Transformer table columns with their exact types from MotherDuck
 TRANSFORMER_COLUMNS = {

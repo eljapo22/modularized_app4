@@ -5,6 +5,7 @@ Cloud-specific data service implementation
 import pandas as pd
 from datetime import datetime, date, timedelta
 import logging
+import numpy as np
 from typing import List, Optional, Dict
 
 from app.config.database_config import (
@@ -157,12 +158,26 @@ class CloudDataService:
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
             results = execute_query(
                 query, 
-                params=(start_date, end_date, transformer_id)  # Fixed parameter order to match SQL query
+                params=(start_date, end_date, transformer_id)
             )
             
             if not results:
-                logger.warning(f"No data found for transformer {transformer_id} in date range")
-                return None
+                # Try other feeders if no data found
+                for other_feeder in FEEDER_NUMBERS:
+                    if other_feeder != feeder_num:
+                        table = TRANSFORMER_TABLE_TEMPLATE.format(other_feeder)
+                        logger.info(f"Trying table: {table}")
+                        query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
+                        results = execute_query(
+                            query,
+                            params=(start_date, end_date, transformer_id)
+                        )
+                        if results:
+                            break
+                
+                if not results:
+                    logger.warning(f"No data found for transformer {transformer_id} in any feeder")
+                    return None
             
             # Convert to DataFrame and ensure proper timestamp sorting
             df = pd.DataFrame(results)
@@ -274,6 +289,30 @@ class CloudDataService:
             # Convert to DataFrame
             df = pd.DataFrame(results)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            # Calculate loading percentage from customer data
+            if 'power_kva' in df.columns and 'size_kva' in df.columns:
+                df['loading_percentage'] = (df['power_kva'] / df['size_kva']) * 100
+                
+                # Add load range based on loading percentage
+                conditions = [
+                    (df['loading_percentage'] >= 120),
+                    (df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120),
+                    (df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100),
+                    (df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80),
+                    (df['loading_percentage'] < 50)
+                ]
+                values = [
+                    '120%+',
+                    '100%-120%',
+                    '80%-100%',
+                    '50%-80%',
+                    '0%-50%'
+                ]
+                df['load_range'] = np.select(conditions, values, default='Unknown')
+            
+            # Sort by timestamp
+            df = df.sort_values('timestamp')
             
             logger.info(f"Data timestamp range: {df['timestamp'].min()} to {df['timestamp'].max()}")
             logger.info(f"Retrieved {len(df)} records")
