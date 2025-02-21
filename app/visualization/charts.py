@@ -29,21 +29,55 @@ def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
         logger.warning("No x-axis data found for hour indicator")
         return
 
-    first_timestamp = pd.to_datetime(x_data[0])
+    try:
+        first_timestamp = pd.to_datetime(x_data[0])
+        if pd.isna(first_timestamp):
+            logger.warning("First timestamp is NaT, skipping hour indicator")
+            return
 
-    if pd.isna(first_timestamp):
-        logger.warning("First timestamp is NaT, skipping hour indicator")
+        # Calculate the indicator time using normalize() and Timedelta
+        base_time = first_timestamp.normalize()  # Get start of day
+        indicator_time = base_time + pd.Timedelta(hours=int(selected_hour))
+        
+        # Get y-axis range if not provided
+        if y_range is None:
+            y_min = min(trace.y.min() for trace in fig.data)
+            y_max = max(trace.y.max() for trace in fig.data)
+            y_padding = (y_max - y_min) * 0.1
+            y_range = (y_min - y_padding, y_max + y_padding)
+
+        # Add vertical line as a shape
+        fig.add_shape(
+            type="line",
+            x0=indicator_time,
+            x1=indicator_time,
+            y0=y_range[0],
+            y1=y_range[1],
+            line=dict(
+                color="gray",
+                width=1,
+                dash="dash"
+            ),
+            layer="below"  # Place line below the data
+        )
+
+        # Add annotation for the hour
+        fig.add_annotation(
+            x=indicator_time,
+            y=y_range[1],
+            text=f"{selected_hour:02d}:00",
+            showarrow=False,
+            yshift=10,
+            xshift=0,
+            bgcolor="rgba(255, 255, 255, 0.8)",
+            bordercolor="gray",
+            borderwidth=1,
+            borderpad=4
+        )
+
+    except Exception as e:
+        logger.error(f"Error adding hour indicator: {str(e)}")
         return
-
-    indicator_time = first_timestamp.normalize() + pd.Timedelta(hours=selected_hour)
-    
-    fig.add_vline(
-        x=indicator_time,
-        line_dash="dash",
-        line_color="gray",
-        annotation_text=f"{selected_hour:02d}:00",
-        annotation_position="top right"
-    )
 
 def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
     # Create a base plotly figure with common settings
@@ -133,9 +167,12 @@ def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: i
         
         # Add hour indicator if specified
         if selected_hour is not None and isinstance(selected_hour, int):
-            first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
-            indicator_time = first_timestamp.normalize() + pd.Timedelta(hours=selected_hour)
-            add_hour_indicator(fig, selected_hour)
+            # Get y-axis range for the indicator
+            y_min = min(results_df['loading_percentage'])
+            y_max = max(results_df['loading_percentage'])
+            y_padding = (y_max - y_min) * 0.1
+            y_range = (y_min - y_padding, y_max + y_padding)
+            add_hour_indicator(fig, selected_hour, y_range=y_range)
         
         # Update layout
         fig.update_layout(
@@ -178,6 +215,9 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         st.error("No timestamp column found in data")
         logger.error(f"Missing timestamp column. Available columns: {results_df.columns.tolist()}")
         return
+    
+    # Convert timestamp to datetime if needed
+    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
     
     logger.info(f"Plotting power time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
     logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
