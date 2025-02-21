@@ -41,11 +41,11 @@ def main():
         )
         
         # Check for URL parameters
-        params = st.query_params
-        from_alert = params.get('view', '') == 'alert'
-        alert_transformer = params.get('id', '') if from_alert else None
-        start_date_str = params.get('start', '')
-        alert_time_str = params.get('alert_time', '')
+        params = st.experimental_get_query_params()
+        from_alert = params.get('view', [''])[0] == 'alert'
+        alert_transformer = params.get('id', [''])[0] if from_alert else None
+        start_date_str = params.get('start', [''])[0]
+        alert_time_str = params.get('alert_time', [''])[0]
         
         create_banner("Transformer Loading Analysis")
         
