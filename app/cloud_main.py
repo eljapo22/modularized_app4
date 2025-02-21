@@ -99,7 +99,7 @@ def main():
             value=[default_start, default_end],
             min_value=min_date,
             max_value=max_date,
-            format="DD/MM/YY"  # Match graph format
+            format="DD/MM/YYYY"  # Using supported format
         )
         
         # Ensure we have a start and end date
