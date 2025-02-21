@@ -42,8 +42,8 @@ SELECT
     t."transformer_id",
     t."load_range"
 FROM {table_name} t 
-WHERE t."transformer_id" = ?
-    AND t."timestamp" BETWEEN ?::timestamp AND ?::timestamp
+WHERE t."timestamp" BETWEEN ?::timestamp AND ?::timestamp
+    AND t."transformer_id" = ?
 ORDER BY t."timestamp"
 """
 
@@ -60,8 +60,8 @@ SELECT
     c."transformer_id",
     c."voltage_v"
 FROM {table_name} c 
-WHERE c."transformer_id" = ?
-    AND c."timestamp"::DATE BETWEEN ?::DATE AND ?::DATE
+WHERE c."timestamp" BETWEEN ?::timestamp AND ?::timestamp
+    AND c."transformer_id" = ?
 ORDER BY c."timestamp", c."customer_id"
 """
 
