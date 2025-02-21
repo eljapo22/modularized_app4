@@ -649,6 +649,53 @@ def display_voltage_over_time(results_df: pd.DataFrame):
     # Display the chart
     st.altair_chart(chart, use_container_width=True)
 
+def display_loading_status_tab(results_df: pd.DataFrame):
+    """Display loading status information in a dedicated tab."""
+    if 'loading_percentage' not in results_df.columns:
+        st.warning("No loading data available for this transformer")
+        return
+
+    # Calculate metrics
+    peak_loading = results_df['loading_percentage'].max()
+    peak_time = results_df.loc[results_df['loading_percentage'].idxmax(), 'timestamp']
+    avg_loading = results_df['loading_percentage'].mean()
+    
+    # Create metrics row
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Peak Loading", f"{peak_loading:.1f}%")
+        st.caption(f"at {peak_time.strftime('%Y-%m-%d %H:%M')}")
+    with col2:
+        st.metric("Average Loading", f"{avg_loading:.1f}%")
+    with col3:
+        sustained_overloads = len(results_df[results_df['loading_percentage'] >= 100])
+        st.metric("Sustained Overloads", sustained_overloads)
+        if sustained_overloads > 0:
+            st.caption("Click for details ℹ️")
+
+    # Calculate time in each condition
+    total_points = len(results_df)
+    conditions = {
+        'Critical': (results_df['loading_percentage'] >= 120, 'red'),
+        'Overloaded': (results_df['loading_percentage'] >= 100, 'orange'),
+        'Warning': (results_df['loading_percentage'] >= 80, 'yellow'),
+        'Pre-Warning': (results_df['loading_percentage'] >= 50, 'purple'),
+        'Normal': (results_df['loading_percentage'] < 50, 'green')
+    }
+
+    st.write("Time spent in each condition:")
+    for condition, (mask, color) in conditions.items():
+        count = mask.sum()
+        percentage = (count / total_points) * 100
+        instances = len(results_df[mask & (results_df['loading_percentage'].diff() > 0)])
+        st.markdown(
+            f"<span style='color: {color}'>{condition}</span>: {percentage:.1f}% / {instances} instances",
+            unsafe_allow_html=True
+        )
+
+    # Display loading status chart
+    display_loading_status_line_chart(results_df)
+
 def parse_load_range(range_str: str) -> tuple:
     """Parse load range string (e.g. '50%-80%') into tuple of floats."""
     try:
