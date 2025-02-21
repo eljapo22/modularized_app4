@@ -283,11 +283,11 @@ class CloudDataService:
             
             # Extract feeder number from feeder string
             feeder_num = feeder.split('_')[-1]
-            table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
-            logger.info(f"Using table: {table}")
             
             # Execute query
-            query = CUSTOMER_DATA_QUERY.format(table_name=table)
+            query = CUSTOMER_DATA_QUERY.format(feeder_num)
+            logger.info(f"Trying Customer Feeder {feeder_num}")
+            
             results = execute_query(
                 query,
                 params=(transformer_id, start_date, end_date)
@@ -297,9 +297,8 @@ class CloudDataService:
                 # Try other feeders if no data found
                 for other_feeder in range(1, 5):  # Try feeders 1-4
                     if str(other_feeder) != feeder_num:
-                        table = CUSTOMER_TABLE_TEMPLATE.format(other_feeder)
-                        logger.info(f"Trying table: {table}")
-                        query = CUSTOMER_DATA_QUERY.format(table_name=table)
+                        query = CUSTOMER_DATA_QUERY.format(other_feeder)
+                        logger.info(f"Trying Customer Feeder {other_feeder}")
                         results = execute_query(
                             query,
                             params=(transformer_id, start_date, end_date)

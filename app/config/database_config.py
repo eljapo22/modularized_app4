@@ -59,7 +59,7 @@ SELECT
     c."timestamp",
     c."transformer_id",
     c."voltage_v"
-FROM {table_name} c 
+FROM "Customer Feeder {}" c 
 WHERE c."transformer_id" = ?
     AND c."timestamp" BETWEEN ?::timestamp AND ?::timestamp
 ORDER BY c."timestamp", c."customer_id"
