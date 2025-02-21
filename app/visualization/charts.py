@@ -87,7 +87,7 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
         base = alt.Chart(results_df).encode(
             x=alt.X('timestamp:T', 
                    title='Time',
-                   axis=alt.Axis(format='%d/%m/%Y')),  # Match sidebar format
+                   axis=alt.Axis(format='%m/%d/%y')),  # Match MM/DD/YY format
             y=alt.Y('power_kw:Q', title='Power (kW)')
         )
         
@@ -197,7 +197,7 @@ def display_current_time_series(results_df: pd.DataFrame):
                        titleFontSize=12,
                        tickCount=10,
                        gridWidth=0.5,
-                       format='%d/%m/%Y'
+                       format='%m/%d/%y'
                    )),
             y=alt.Y('Current:Q', 
                    scale=alt.Scale(domain=[30, 70], nice=True),
@@ -273,7 +273,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                        titleFontSize=12,
                        tickCount=10,
                        gridWidth=0.5,
-                       format='%d/%m/%Y'
+                       format='%m/%d/%y'
                    )),
             y=alt.Y('Voltage:Q', 
                    scale=alt.Scale(domain=[380, 420], nice=True),
@@ -394,7 +394,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
         ).encode(
             x=alt.X('timestamp:T',
                    title='Time',
-                   axis=alt.Axis(format='%d/%m/%Y')),
+                   axis=alt.Axis(format='%m/%d/%y')),
             y=alt.Y('Loading Status (%):Q',
                    title='Loading Status (%)')
         ).properties(
@@ -440,7 +440,7 @@ def display_power_consumption(results_df: pd.DataFrame):
         ).encode(
             x=alt.X('timestamp:T',
                    title='Time',
-                   axis=alt.Axis(format='%d/%m/%Y')),
+                   axis=alt.Axis(format='%m/%d/%y')),
             y=alt.Y('Power (kW):Q',
                    title='Power (kW)')
         ).properties(
@@ -632,7 +632,7 @@ def display_voltage_over_time(results_df: pd.DataFrame):
     ).encode(
         x=alt.X('timestamp:T',
                title='Time',
-               axis=alt.Axis(format='%d/%m/%Y')),
+               axis=alt.Axis(format='%m/%d/%y')),
         y=alt.Y('value:Q',
                title='Voltage (V)'),
         color=alt.Color('phase:N', title='Phase')
