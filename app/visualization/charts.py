@@ -387,38 +387,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
             'Loading Status (%)': results_df['loading_percentage']
         }).set_index('timestamp')
         
-        # Get unique load ranges and parse them
-        if 'load_range' in results_df.columns:
-            unique_ranges = results_df['load_range'].unique()
-            thresholds = []
-            for range_str in unique_ranges:
-                lower, upper = parse_load_range(range_str)
-                if lower is not None and upper is not None:
-                    thresholds.extend([
-                        (upper, f'Upper Bound', f'{upper}%', 'off'),
-                        (lower, f'Lower Bound', f'{lower}%', 'normal')
-                    ])
-        else:
-            # Fallback to default thresholds
-            thresholds = [
-                (120, 'Critical', '120%', 'off'),
-                (100, 'Overloaded', '100%', 'off'),
-                (80, 'Warning', '80%', 'normal'),
-                (50, 'Pre-Warning', '50%', 'normal')
-            ]
-        
-        # Display thresholds as metrics in columns
-        cols = st.columns(len(thresholds))
-        for i, (value, label, display_value, delta_color) in enumerate(sorted(thresholds, key=lambda x: x[0], reverse=True)):
-            with cols[i]:
-                st.metric(label, display_value, delta_color=delta_color)
-        
-        # Display current load range if available
-        if 'load_range' in results_df.columns:
-            current_range = results_df['load_range'].iloc[-1]
-            st.caption(f"Current Load Range: {current_range}")
-        
-        # Create Altair chart instead of Streamlit line chart
+        # Create base chart for loading status
         chart = alt.Chart(df_loading.reset_index()).mark_line(
             color='blue',
             strokeWidth=2
@@ -429,9 +398,11 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
             y=alt.Y('Loading Status (%):Q',
                    title='Loading Status (%)')
         ).properties(
-            width='container',
-            height=250
+            width=700,
+            height=400
         ).configure_axis(
+            labelFontSize=12,
+            titleFontSize=14,
             grid=True
         )
         
