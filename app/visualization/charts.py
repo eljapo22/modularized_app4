@@ -688,45 +688,104 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: i
     
     return transformer_df  # Return filtered results for raw data display
 
-def get_sample_voltage_data(df):
-    """Generate sample three-phase voltage data."""
-    # Create a 24-hour time range with hourly points
-    if isinstance(df.index[0], (int, float)):
-        # If index is numeric, create a 24-hour range from midnight
-        start_time = pd.Timestamp.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    else:
-        # If index is timestamp, use its date
-        start_time = pd.Timestamp(df.index[0]).replace(hour=0, minute=0, second=0, microsecond=0)
+def display_customer_tab(df: pd.DataFrame, agg_data: dict = None):
+    """Display customer analysis tab with customer selector and individual charts"""
+    if df is None or df.empty:
+        st.warning("No customer data available")
+        return
+        
+    # Get unique customer IDs
+    customer_ids = sorted(df['customer_id'].unique())
     
-    end_time = start_time + pd.Timedelta(days=1)
-    time_index = pd.date_range(start=start_time, end=end_time, freq='5T')  # 5-minute intervals
+    # Create subtabs for customer selection and detailed data
+    select_tab, details_tab = st.tabs(["Customer Selection", "Detailed Data"])
     
-    # Generate sample voltage data
-    n_points = len(time_index)
-    t = np.linspace(0, 8*np.pi, n_points)  # Increase cycles for 24-hour period
+    with select_tab:
+        # Customer selector dropdown
+        selected_customer = st.selectbox(
+            "Select Customer",
+            customer_ids,
+            key="customer_selector"
+        )
+        
+        if selected_customer:
+            # Filter data for selected customer
+            customer_data = df[df['customer_id'] == selected_customer]
+            
+            # Power kW Chart
+            st.subheader("Power Consumption")
+            fig_power = go.Figure()
+            fig_power.add_trace(
+                go.Scatter(
+                    x=customer_data['timestamp'],
+                    y=customer_data['power_kw'],
+                    mode='lines+markers',
+                    name='Power',
+                    line=dict(color='#3b82f6', width=2),
+                    marker=dict(color='#3b82f6', size=6)
+                )
+            )
+            fig_power.update_layout(
+                title=f"Power Consumption - Customer {selected_customer}",
+                xaxis_title="Time",
+                yaxis_title="Power (kW)",
+                height=300
+            )
+            st.plotly_chart(fig_power, use_container_width=True)
+            
+            # Current Chart
+            st.subheader("Current")
+            fig_current = go.Figure()
+            fig_current.add_trace(
+                go.Scatter(
+                    x=customer_data['timestamp'],
+                    y=customer_data['current_a'],
+                    mode='lines+markers',
+                    name='Current',
+                    line=dict(color='#10b981', width=2),
+                    marker=dict(color='#10b981', size=6)
+                )
+            )
+            fig_current.update_layout(
+                title=f"Current - Customer {selected_customer}",
+                xaxis_title="Time",
+                yaxis_title="Current (A)",
+                height=300
+            )
+            st.plotly_chart(fig_current, use_container_width=True)
+            
+            # Voltage Chart
+            st.subheader("Voltage")
+            fig_voltage = go.Figure()
+            fig_voltage.add_trace(
+                go.Scatter(
+                    x=customer_data['timestamp'],
+                    y=customer_data['voltage_v'],
+                    mode='lines+markers',
+                    name='Voltage',
+                    line=dict(color='#f59e0b', width=2),
+                    marker=dict(color='#f59e0b', size=6)
+                )
+            )
+            fig_voltage.update_layout(
+                title=f"Voltage - Customer {selected_customer}",
+                xaxis_title="Time",
+                yaxis_title="Voltage (V)",
+                height=300
+            )
+            st.plotly_chart(fig_voltage, use_container_width=True)
     
-    # Base voltage with some random fluctuation
-    base_voltage = 120
-    noise_level = 0.5
-    
-    # Generate three phases with 120-degree shifts and realistic fluctuation
-    # Add slow variation over 24 hours
-    daily_variation = 1 * np.sin(np.linspace(0, 2*np.pi, n_points))  # ±1V daily swing
-    
-    phase_a = base_voltage + daily_variation + 2*np.sin(t) + noise_level * np.random.randn(n_points)
-    phase_b = base_voltage + daily_variation + 2*np.sin(t + 2*np.pi/3) + noise_level * np.random.randn(n_points)
-    phase_c = base_voltage + daily_variation + 2*np.sin(t + 4*np.pi/3) + noise_level * np.random.randn(n_points)
-    
-    # Ensure voltages stay within realistic bounds
-    phase_a = np.clip(phase_a, 117, 123)
-    phase_b = np.clip(phase_b, 117, 123)
-    phase_c = np.clip(phase_c, 117, 123)
-    
-    return pd.DataFrame({
-        'Red Phase': phase_a,
-        'Yellow Phase': phase_b,
-        'Blue Phase': phase_c
-    }, index=time_index)
+    with details_tab:
+        if selected_customer:
+            st.subheader(f"Detailed Data - Customer {selected_customer}")
+            customer_data = customer_data.sort_values('timestamp')
+            st.dataframe(
+                customer_data[[
+                    'timestamp', 'power_kw', 'current_a', 
+                    'voltage_v', 'power_factor', 'size_kva'
+                ]].reset_index(drop=True),
+                hide_index=True
+            )
 
 def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: int = None):
     """Display the transformer analysis dashboard"""
@@ -1018,3 +1077,43 @@ def display_customer_tab(df: pd.DataFrame, agg_data: dict, selected_hour: int = 
         latest_df[['customer_id', 'power_kw', 'power_factor', 'voltage_v', 'current_a']],
         use_container_width=True
     )
+
+def get_sample_voltage_data(df):
+    """Generate sample three-phase voltage data."""
+    # Create a 24-hour time range with hourly points
+    if isinstance(df.index[0], (int, float)):
+        # If index is numeric, create a 24-hour range from midnight
+        start_time = pd.Timestamp.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        # If index is timestamp, use its date
+        start_time = pd.Timestamp(df.index[0]).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    end_time = start_time + pd.Timedelta(days=1)
+    time_index = pd.date_range(start=start_time, end=end_time, freq='5T')  # 5-minute intervals
+    
+    # Generate sample voltage data
+    n_points = len(time_index)
+    t = np.linspace(0, 8*np.pi, n_points)  # Increase cycles for 24-hour period
+    
+    # Base voltage with some random fluctuation
+    base_voltage = 120
+    noise_level = 0.5
+    
+    # Generate three phases with 120-degree shifts and realistic fluctuation
+    # Add slow variation over 24 hours
+    daily_variation = 1 * np.sin(np.linspace(0, 2*np.pi, n_points))  # ±1V daily swing
+    
+    phase_a = base_voltage + daily_variation + 2*np.sin(t) + noise_level * np.random.randn(n_points)
+    phase_b = base_voltage + daily_variation + 2*np.sin(t + 2*np.pi/3) + noise_level * np.random.randn(n_points)
+    phase_c = base_voltage + daily_variation + 2*np.sin(t + 4*np.pi/3) + noise_level * np.random.randn(n_points)
+    
+    # Ensure voltages stay within realistic bounds
+    phase_a = np.clip(phase_a, 117, 123)
+    phase_b = np.clip(phase_b, 117, 123)
+    phase_c = np.clip(phase_c, 117, 123)
+    
+    return pd.DataFrame({
+        'Red Phase': phase_a,
+        'Yellow Phase': phase_b,
+        'Blue Phase': phase_c
+    }, index=time_index)

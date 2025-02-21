@@ -20,7 +20,6 @@ SELECT
 FROM {table_name}
 WHERE "transformer_id" = ? 
   AND DATE_TRUNC('day', "timestamp") = ?
-  AND EXTRACT(hour FROM "timestamp") = ?
 ORDER BY "timestamp"
 """
 
@@ -39,9 +38,8 @@ SELECT
     "voltage_v"
 FROM {table_name}
 WHERE "transformer_id" = ?
-  AND DATE_TRUNC('day', "timestamp") = ?
-  AND EXTRACT(hour FROM "timestamp") = ?
-ORDER BY "timestamp"
+  AND DATE("timestamp") BETWEEN ? AND ?
+ORDER BY "timestamp", "customer_id"
 """
 
 TRANSFORMER_LIST_QUERY = """
@@ -51,27 +49,18 @@ ORDER BY "transformer_id"
 """
 
 CUSTOMER_AGGREGATION_QUERY = """
-WITH latest_data AS (
-    SELECT 
-        "customer_id",
-        "transformer_id",
-        ROUND("power_kw", 1) as "power_kw",
-        "power_factor",
-        "voltage_v",
-        ROUND("current_a", 1) as "current_a",
-        ROW_NUMBER() OVER (PARTITION BY "customer_id" ORDER BY "timestamp" DESC) as rn
-    FROM {table_name}
-    WHERE "transformer_id" = ?
-      AND DATE_TRUNC('day', "timestamp") = ?
-      AND EXTRACT(hour FROM "timestamp") = ?
-)
 SELECT 
-    COUNT(DISTINCT "customer_id") as customer_count,
-    SUM("power_kw") as total_power_kw,
-    AVG("power_factor") as avg_power_factor,
-    SUM("current_a") as total_current_a
-FROM latest_data
-WHERE rn = 1
+    DATE("timestamp") as date,
+    "customer_id",
+    AVG(ROUND("power_kw", 1)) as avg_power_kw,
+    MAX(ROUND("power_kw", 1)) as max_power_kw,
+    MIN(ROUND("power_kw", 1)) as min_power_kw,
+    AVG(ROUND("power_factor", 2)) as avg_power_factor
+FROM {table_name}
+WHERE "transformer_id" = ?
+  AND DATE("timestamp") BETWEEN ? AND ?
+GROUP BY DATE("timestamp"), "customer_id"
+ORDER BY DATE("timestamp"), "customer_id"
 """
 
 TRANSFORMER_DATA_RANGE_QUERY = """
@@ -88,7 +77,6 @@ SELECT
     "load_range"
 FROM {table_name}
 WHERE "transformer_id" = ? 
-  AND DATE_TRUNC('day', "timestamp") >= ?
-  AND DATE_TRUNC('day', "timestamp") <= ?
+  AND DATE("timestamp") BETWEEN ? AND ?
 ORDER BY "timestamp"
 """

@@ -10,7 +10,7 @@ import pandas as pd
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
-from app.utils.ui_utils import create_banner, display_transformer_dashboard
+from app.utils.ui_utils import create_banner, display_transformer_dashboard, display_customer_tab
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -49,76 +49,28 @@ def main():
         
         create_banner("Transformer Loading Analysis")
         
-        # Sidebar for analysis parameters
-        with st.sidebar:
-            st.subheader("Analysis Parameters")
-            
-            # Date selection
-            try:
-                if from_alert and start_date_str:
-                    try:
-                        url_start_date = datetime.fromisoformat(start_date_str).date()
-                        url_end_date = datetime.fromisoformat(alert_time_str).date() if alert_time_str else max_date
-                        initial_dates = [url_start_date, url_end_date]
-                    except ValueError:
-                        initial_dates = [min_date, max_date]
-                else:
-                    initial_dates = [min_date, max_date]
-                
-                # Always use list for value to ensure we get a range
-                date_input = st.date_input(
-                    "Date Range",
-                    value=initial_dates,
-                    min_value=min_date,
-                    max_value=max_date,
-                    key="date_range"
-                )
-                
-                # Handle both list and tuple returns
-                if isinstance(date_input, (list, tuple)) and len(date_input) >= 2:
-                    start_date = date_input[0]
-                    end_date = date_input[-1]
-                else:
-                    # If somehow we get a single date, use it for both
-                    start_date = end_date = date_input
-                
-                # Hour selection
-                selected_hour = st.number_input(
-                    "Hour (0-23)",
-                    min_value=0,
-                    max_value=23,
-                    value=12,
-                    step=1,
-                    key="hour_select"
-                )
-                
-                # Feeder selection
-                with st.spinner("Loading feeders..."):
-                    feeder_options = data_service.get_feeder_options()
-                    logger.info(f"Found {len(feeder_options)} feeders")
-                selected_feeder = st.selectbox(
-                    "Feeder",
-                    options=feeder_options,
-                    disabled=True
-                )
-                
-                # Transformer ID selection
-                with st.spinner("Loading transformers..."):
-                    transformer_ids = data_service.get_load_options(selected_feeder)
-                    logger.info(f"Found {len(transformer_ids)} transformers")
-                transformer_index = transformer_ids.index(alert_transformer) if alert_transformer in transformer_ids else 0
-                selected_transformer = st.selectbox(
-                    "Transformer ID",
-                    options=transformer_ids,
-                    index=transformer_index
-                )
-                
-                # Action buttons
-                search_clicked = st.button("Search & Analyze")
-                alert_clicked = st.button("Set Alert", key="set_alert")
-            except Exception as e:
-                logger.error(f"Error in sidebar: {str(e)}")
-                st.error("Failed to process inputs. Please try again.")
+        # Analysis Parameters in sidebar
+        st.sidebar.header("Analysis Parameters")
+        
+        # Date range selection
+        start_date, end_date = st.sidebar.date_input(
+            "Select Date Range",
+            min_value=min_date,
+            max_value=max_date,
+            value=(min_date, min_date),
+            key="date_range"
+        )
+        
+        # Feeder and transformer selection
+        feeder = st.sidebar.selectbox("Select Feeder", data_service.get_feeder_options())
+        transformer_id = st.sidebar.selectbox(
+            "Select Transformer",
+            data_service.get_load_options(feeder)
+        )
+        
+        # Action buttons
+        search_clicked = st.sidebar.button("Search & Analyze")
+        alert_clicked = st.sidebar.button("Set Alert", key="set_alert")
         
         # Main content area for visualization
         main_container = st.container()
@@ -130,11 +82,11 @@ def main():
                     st.error("Alert service is not available")
                 else:
                     logger.info("Checking alert conditions...")
-                    if not all([start_date, end_date, selected_feeder, selected_transformer]):
+                    if not all([start_date, end_date, feeder, transformer_id]):
                         logger.warning("Missing required parameters for alert")
                         st.error("Please select all required parameters")
                     else:
-                        query_datetime = datetime.combine(start_date, time(selected_hour))
+                        query_datetime = datetime.combine(start_date, time(12))
                         logger.info(f"Checking alerts for {query_datetime}")
                         
                         # Check and send alerts if needed
@@ -149,60 +101,45 @@ def main():
                             logger.warning("Alert check completed without sending email")
             
             if search_clicked or (from_alert and alert_transformer):
-                if not all([start_date, end_date, selected_feeder, selected_transformer]):
+                if not all([start_date, end_date, feeder, transformer_id]):
                     st.error("Please select all required parameters")
                 else:
-                    # Handle alert URL parameters
-                    if from_alert and alert_time_str:
-                        try:
-                            alert_time = datetime.fromisoformat(alert_time_str)
-                            results = data_service.get_transformer_data_to_point(
-                                start_date,
-                                alert_time,
-                                selected_feeder,
-                                selected_transformer
-                            )
-                        except ValueError:
-                            logger.warning("Invalid alert time format in URL")
-                            results = data_service.get_transformer_data_range(
-                                start_date,
-                                end_date,
-                                selected_feeder,
-                                selected_transformer
-                            )
-                    else:
-                        results = data_service.get_transformer_data_range(
-                            start_date,
-                            end_date,
-                            selected_feeder,
-                            selected_transformer
-                        )
+                    # Get transformer data
+                    transformer_data = data_service.get_transformer_data_range(
+                        start_date,
+                        end_date,
+                        feeder,
+                        transformer_id
+                    )
                     
-                    if results is not None and not results.empty:
-                        # Display dashboard with alert time marker if available
-                        alert_hour = None
-                        if alert_time_str:
-                            try:
-                                alert_time = datetime.fromisoformat(alert_time_str)
-                                alert_hour = alert_time.hour
-                            except ValueError:
-                                logger.warning("Invalid alert time format")
+                    # Get customer data
+                    customer_data = data_service.get_customer_data(
+                        transformer_id,
+                        start_date,
+                        end_date
+                    )
+                    
+                    # Get customer aggregation
+                    customer_agg = data_service.get_customer_aggregation(
+                        transformer_id,
+                        start_date,
+                        end_date
+                    )
+                    
+                    if transformer_data is not None and not transformer_data.empty:
+                        # Create tabs for transformer and customer data
+                        tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
                         
-                        display_transformer_dashboard(results, alert_hour)
+                        with tab1:
+                            display_transformer_dashboard(transformer_data)
                         
-                        # Check and send alerts if needed
-                        if alert_service is not None and alert_clicked:
-                            logger.info("Attempting to send alert email for date range...")
-                            if alert_service.check_and_send_alerts(
-                                results,
-                                start_date,
-                                alert_time if alert_time_str else None
-                            ):
-                                st.success("Alert email sent successfully")
+                        with tab2:
+                            if customer_data is not None and not customer_data.empty:
+                                display_customer_tab(customer_data, customer_agg)
                             else:
-                                st.warning("No alert conditions met or email sending failed")
+                                st.warning("No customer data available for the selected criteria.")
                     else:
-                        st.warning("No data available for the selected criteria.")
+                        st.warning("No transformer data available for the selected criteria.")
         
     except Exception as e:
         logger.error(f"Application error: {str(e)}\nTraceback: {traceback.format_exc()}")

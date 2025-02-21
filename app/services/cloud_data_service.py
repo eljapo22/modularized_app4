@@ -231,93 +231,87 @@ class CloudDataService:
             return None
 
     def get_customer_data(
-            self,
-            transformer_id: str,
-            date: datetime,
-            hour: int
-        ) -> Optional[CustomerData]:
-        """Get customer data for a specific transformer"""
+        self,
+        transformer_id: str,
+        start_date: date,
+        end_date: date
+    ) -> Optional[pd.DataFrame]:
+        """Get customer data for a specific transformer and date range"""
         try:
-            logger.info(f"Retrieving customer data for transformer {transformer_id} on {date} at hour {hour}")
-            # Extract feeder number from transformer ID (format: S{feeder}F...)
-            feeder_num = int(transformer_id[1])
-            if feeder_num not in FEEDER_NUMBERS:
-                logger.error(f"Invalid feeder number in transformer ID: {transformer_id}")
-                raise ValueError(f"Invalid feeder number in transformer ID: {transformer_id}")
-                
-            # Table name already includes quotes
+            logger.info(f"Fetching customer data for {transformer_id} from {start_date} to {end_date}")
+            
+            # Get table name from transformer ID
+            feeder_num = int(transformer_id.split('_')[0])
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
-            logger.debug(f"Querying table: {table}")
+            
+            # Execute query
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
                 query,
-                (transformer_id, date.date(), hour)
+                params=(transformer_id, start_date, end_date)
             )
             
             if not results:
                 logger.warning(f"No customer data found for transformer {transformer_id}")
                 return None
                 
-            logger.info(f"Found {len(results)} customer records for transformer {transformer_id}")
-            logger.debug(f"First record timestamp: {results[0]['timestamp']}")
+            # Convert to DataFrame
+            df = pd.DataFrame(results)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
             
-            return CustomerData(
-                index_level_0=[r['index_level_0'] for r in results],
-                current_a=[r['current_a'] for r in results],
-                customer_id=[r['customer_id'] for r in results],
-                hour=[r['hour'] for r in results],
-                power_factor=[r['power_factor'] for r in results],
-                power_kva=[r['power_kva'] for r in results],
-                power_kw=[r['power_kw'] for r in results],
-                size_kva=[r['size_kva'] for r in results],
-                timestamp=[r['timestamp'] for r in results],
-                transformer_id=[r['transformer_id'] for r in results],
-                voltage_v=[r['voltage_v'] for r in results]
-            )
+            logger.info(f"Retrieved {len(df)} customer records")
+            return df
+            
         except Exception as e:
             logger.error(f"Error getting customer data: {str(e)}")
             return None
-
+            
     def get_customer_aggregation(
-            self,
-            transformer_id: str,
-            date: datetime,
-            hour: int
-        ) -> Optional[AggregatedCustomerData]:
+        self,
+        transformer_id: str,
+        start_date: date,
+        end_date: date
+    ) -> Optional[Dict]:
         """Get aggregated customer metrics for a transformer"""
         try:
-            logger.info(f"Retrieving aggregated customer data for transformer {transformer_id} on {date} at hour {hour}")
-            # Extract feeder number from transformer ID (format: S{feeder}F...)
-            feeder_num = int(transformer_id[1])
-            if feeder_num not in FEEDER_NUMBERS:
-                logger.error(f"Invalid feeder number in transformer ID: {transformer_id}")
-                raise ValueError(f"Invalid feeder number in transformer ID: {transformer_id}")
-                
-            # Table name already includes quotes
+            logger.info(f"Getting customer aggregation for {transformer_id}")
+            
+            # Get table name from transformer ID
+            feeder_num = int(transformer_id.split('_')[0])
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
-            logger.debug(f"Querying table: {table}")
+            
+            # Execute query
             query = CUSTOMER_AGGREGATION_QUERY.format(table_name=table)
             results = execute_query(
                 query,
-                (transformer_id, date.date(), hour)
+                params=(transformer_id, start_date, end_date)
             )
             
             if not results:
-                logger.warning(f"No aggregated customer data found for transformer {transformer_id}")
+                logger.warning(f"No customer aggregation data found")
                 return None
+                
+            # Process results into a dictionary
+            agg_data = {
+                'dates': [],
+                'customer_ids': [],
+                'avg_power': [],
+                'max_power': [],
+                'min_power': [],
+                'avg_pf': []
+            }
             
-            result = results[0]  # We expect only one row
-            logger.info(f"Found aggregated data with {result['customer_count']} customers")
-            logger.debug(f"Aggregated metrics: power_kw={result['total_power_kw']:.1f}, " +
-                      f"power_factor={result['avg_power_factor']:.2f}, " +
-                      f"current_a={result['total_current_a']:.1f}")
+            for row in results:
+                agg_data['dates'].append(row['date'])
+                agg_data['customer_ids'].append(row['customer_id'])
+                agg_data['avg_power'].append(row['avg_power_kw'])
+                agg_data['max_power'].append(row['max_power_kw'])
+                agg_data['min_power'].append(row['min_power_kw'])
+                agg_data['avg_pf'].append(row['avg_power_factor'])
             
-            return AggregatedCustomerData(
-                customer_count=result['customer_count'],
-                total_power_kw=result['total_power_kw'],
-                avg_power_factor=result['avg_power_factor'],
-                total_current_a=result['total_current_a']
-            )
+            logger.info(f"Retrieved aggregation data for {len(agg_data['customer_ids'])} customers")
+            return agg_data
+            
         except Exception as e:
             logger.error(f"Error getting customer aggregation: {str(e)}")
             return None
