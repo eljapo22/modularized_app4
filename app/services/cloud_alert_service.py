@@ -70,7 +70,8 @@ def analyze_loading_conditions(df: pd.DataFrame) -> dict:
     
     # Get peak loading and when it occurred
     peak_loading = loading.max()
-    peak_time = df.loc[loading.idxmax(), 'timestamp']
+    peak_idx = loading.idxmax()
+    peak_time = df.loc[peak_idx, 'timestamp'] if peak_idx in df.index else pd.Timestamp.now()
     
     # Calculate average loading
     avg_loading = loading.mean()
@@ -84,11 +85,11 @@ def analyze_loading_conditions(df: pd.DataFrame) -> dict:
         for idx, row in df.iterrows():
             if row['loading_percentage'] >= 100:
                 if current_period is None:
-                    current_period = {'start': row['timestamp'], 'peak': row['loading_percentage']}
+                    current_period = {'start': pd.to_datetime(row['timestamp']), 'peak': row['loading_percentage']}
                 else:
                     current_period['peak'] = max(current_period['peak'], row['loading_percentage'])
             elif current_period is not None:
-                current_period['end'] = df.loc[idx-1, 'timestamp']
+                current_period['end'] = pd.to_datetime(df.loc[idx-1, 'timestamp'])
                 duration = (current_period['end'] - current_period['start']).total_seconds() / 3600
                 if duration >= 1:
                     sustained_overloads.append({

@@ -9,7 +9,11 @@ from datetime import datetime, date, timedelta
 import pandas as pd
 
 from app.services.cloud_data_service import CloudDataService
-from app.services.cloud_alert_service import CloudAlertService  # Import for alert functionality
+from app.services.cloud_alert_service import (
+    CloudAlertService, 
+    get_alert_status,
+    analyze_loading_conditions
+)  # Import for alert functionality
 from app.utils.ui_utils import create_banner, display_transformer_dashboard
 from app.utils.ui_components import create_section_header, create_tile, create_two_column_charts
 from app.visualization.charts import display_customer_tab, display_power_time_series, display_current_time_series, display_voltage_time_series, display_loading_status_line_chart
@@ -219,7 +223,11 @@ def main():
                                 
                                 with col1:
                                     st.metric("Peak Loading", f"{loading_analytics['peak_loading']:.1f}%")
-                                    st.caption(f"at {loading_analytics['peak_time'].strftime('%Y-%m-%d %H:%M')}")
+                                    if isinstance(loading_analytics['peak_time'], (pd.Timestamp, datetime)):
+                                        peak_time_str = loading_analytics['peak_time'].strftime('%Y-%m-%d %H:%M')
+                                    else:
+                                        peak_time_str = str(loading_analytics['peak_time'])
+                                    st.caption(f"at {peak_time_str}")
                                     
                                 with col2:
                                     st.metric("Average Loading", f"{loading_analytics['average_loading']:.1f}%")
