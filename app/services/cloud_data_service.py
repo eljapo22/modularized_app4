@@ -258,22 +258,33 @@ class CloudDataService:
             logger.error(f"Error getting transformer data to point: {str(e)}")
             return None
 
-    def get_customer_data(
+    def get_customer_data_range(
         self,
-        transformer_id: str,
         start_date: date,
-        end_date: date
+        end_date: date,
+        feeder: str,
+        transformer_id: str
     ) -> Optional[pd.DataFrame]:
         """
         Get customer data for a specific transformer and date range.
+        
+        Args:
+            start_date: Start date for data range
+            end_date: End date for data range
+            feeder: Feeder identifier
+            transformer_id: Transformer identifier
+            
+        Returns:
+            DataFrame with customer data or None if error
         """
         try:
             logger.info(f"Fetching customer data for transformer {transformer_id}")
             logger.info(f"Date range: {start_date} to {end_date}")
             
-            # Extract feeder number from transformer ID (format: S1F1ATF001)
-            feeder_num = int(transformer_id.split('F')[0].replace('S', ''))
+            # Extract feeder number from feeder string
+            feeder_num = feeder.split('_')[-1]
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
+            logger.info(f"Using table: {table}")
             
             # Execute query
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
@@ -283,8 +294,22 @@ class CloudDataService:
             )
             
             if not results:
-                logger.warning(f"No customer data found for transformer {transformer_id}")
-                return None
+                # Try other feeders if no data found
+                for other_feeder in range(1, 5):  # Try feeders 1-4
+                    if str(other_feeder) != feeder_num:
+                        table = CUSTOMER_TABLE_TEMPLATE.format(other_feeder)
+                        logger.info(f"Trying table: {table}")
+                        query = CUSTOMER_DATA_QUERY.format(table_name=table)
+                        results = execute_query(
+                            query,
+                            params=(transformer_id, start_date, end_date)
+                        )
+                        if results:
+                            break
+                
+                if not results:
+                    logger.warning(f"No customer data found for transformer {transformer_id}")
+                    return None
                 
             # Convert to DataFrame
             df = pd.DataFrame(results)
@@ -322,7 +347,7 @@ class CloudDataService:
         except Exception as e:
             logger.error(f"Error getting customer data: {str(e)}")
             return None
-            
+
     def get_customer_aggregation(
         self,
         transformer_id: str,
