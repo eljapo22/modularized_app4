@@ -108,6 +108,15 @@ def main():
                 index=transformer_index
             )
             
+            # Hour selection for alerts
+            selected_hour = st.slider(
+                "Hour of Day",
+                min_value=0,
+                max_value=23,
+                value=12,
+                help="Select hour for alert monitoring (24-hour format)"
+            )
+            
             # Search and Alert buttons
             col1, col2 = st.columns([1, 1])
             with col1:
@@ -135,25 +144,32 @@ def main():
                         st.error("Please select a feeder and transformer")
                     else:
                         try:
-                            # Find the row with maximum loading
-                            max_loading_row = st.session_state.results.loc[
-                                st.session_state.results['loading_percentage'].idxmax()
+                            # Find the row with maximum loading at selected hour
+                            day_data = st.session_state.results.loc[
+                                st.session_state.results.index.hour == selected_hour
                             ]
-                            alert_time = max_loading_row.name  # This is the datetime index
-                            alert_date = alert_time.date()
-                            
-                            logger.info(f"Checking alerts for highest loading ({max_loading_row['loading_percentage']:.1f}%) at {alert_time}")
-                            
-                            # Check and send alerts if needed
-                            if alert_service.check_and_send_alerts(
-                                st.session_state.results,
-                                alert_date,
-                                alert_time
-                            ):
-                                logger.info("Alert email sent successfully")
-                                st.success("Alert email sent successfully")
+                            if not day_data.empty:
+                                max_loading_row = day_data.loc[
+                                    day_data['loading_percentage'].idxmax()
+                                ]
+                                alert_time = max_loading_row.name  # This is the datetime index
+                                alert_date = alert_time.date()
+                                
+                                logger.info(f"Checking alerts for highest loading ({max_loading_row['loading_percentage']:.1f}%) at {alert_time}")
+                                
+                                # Check and send alerts if needed
+                                if alert_service.check_and_send_alerts(
+                                    st.session_state.results,
+                                    alert_date,
+                                    alert_time
+                                ):
+                                    logger.info("Alert email sent successfully")
+                                    st.success("Alert email sent successfully")
+                                else:
+                                    logger.warning("Alert check completed without sending email")
                             else:
-                                logger.warning("Alert check completed without sending email")
+                                logger.warning(f"No data found for hour {selected_hour}")
+                                st.warning(f"No data available for hour {selected_hour}")
                         except Exception as e:
                             error_msg = f"Error processing alert: {str(e)}"
                             logger.error(error_msg)
@@ -178,7 +194,7 @@ def main():
                             st.session_state.results = results
                             
                             logger.info(f"Displaying data for date range")
-                            display_transformer_dashboard(results, start_date)
+                            display_transformer_dashboard(results, selected_hour)
                         else:
                             st.warning("No data available for the selected criteria.")
                     except Exception as e:
