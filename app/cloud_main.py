@@ -95,7 +95,7 @@ def main():
         default_end = st.session_state.selections.get('end_date', min_date) if 'selections' in st.session_state else min_date
         
         dates = st.sidebar.date_input(
-            "Select Date Range",
+            "Select Date Range (DD/MM/YYYY)",  # Show expected format
             value=[default_start, default_end],
             min_value=min_date,
             max_value=max_date,
