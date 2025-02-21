@@ -124,12 +124,8 @@ def main():
                 )
                 
                 # Search and Alert buttons
-                col1, col2 = st.columns(2)
-                with col1:
-                    search_clicked = st.button("Search & Analyze")
-                with col2:
-                    alert_col1, alert_col2 = st.columns([1, 5])
-                    alert_clicked = alert_col1.button("Set Alert", key="set_alert")
+                search_clicked = st.button("Search & Analyze")
+                alert_clicked = st.button("Set Alert", key="set_alert")
                 
                 if alert_clicked:
                     logger.info("Alert button clicked")
