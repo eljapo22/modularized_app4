@@ -1,8 +1,6 @@
 # Visualization components for the Transformer Loading Analysis Application
 
 import streamlit as st
-import plotly.graph_objects as go
-import plotly.express as px
 import pandas as pd
 import numpy as np
 import logging
@@ -63,44 +61,6 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def create_base_figure(xaxis_title: str = None, yaxis_title: str = None) -> go.Figure:
-    """Create a base plotly figure with common settings"""
-    fig = go.Figure()
-    
-    # Update layout with common settings
-    fig.update_layout(
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        height=250,  # Smaller chart height
-        xaxis=dict(
-            showgrid=True,
-            gridcolor='#E1E1E1',
-            type='date',
-            tickformat='%H:%M',  # Show only time for compactness
-            tickangle=-45,
-            dtick='H2',  # Show every 2 hours
-            tickmode='auto',
-            nticks=8,
-            showline=True,
-            linecolor='#E1E1E1'
-        ),
-        yaxis=dict(
-            showgrid=True,
-            gridcolor='#E1E1E1',
-            automargin=True,
-            zeroline=True,
-            zerolinecolor='#E1E1E1',
-            zerolinewidth=1,
-            showline=True,
-            linecolor='#E1E1E1'
-        ),
-        margin=dict(t=10, b=40, l=40, r=40),  # Reduced margins
-        hovermode='x unified',
-        showlegend=False
-    )
-    
-    return fig
-
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power time series visualization."""
     try:
@@ -113,42 +73,24 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             st.warning("No valid power data available for the selected time range")
             return
             
-        # Create figure
-        fig = create_base_figure()
+        # Create DataFrame for display
+        df_power = pd.DataFrame({
+            'timestamp': results_df['timestamp'],
+            'Power Consumption (kW)': results_df['power_kw']
+        }).set_index('timestamp')
         
-        # Add power consumption trace
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_kw'],
-            mode='lines',
-            name='Power Consumption',
-            line=dict(
-                color='#0d6efd',
-                width=2
-            ),
-            hovertemplate='%{y:.2f} kW<br>%{x}<extra></extra>'
-        ))
-        
-        # Add transformer size reference if available
+        # Display transformer size if available
         if is_transformer_view and 'size_kva' in results_df.columns:
             size_kva = results_df['size_kva'].iloc[0]
             if size_kva > 0:
-                fig.add_hline(
-                    y=size_kva,
-                    line_dash="dash",
-                    line_color="#dc3545",
-                    annotation=dict(
-                        text=f"Transformer Size: {size_kva} kVA",
-                        xref="x",
-                        yref="y",
-                        x=1,
-                        y=size_kva,
-                        showarrow=False,
-                        font=dict(color="#dc3545")
-                    )
-                )
-        
-        st.plotly_chart(fig, use_container_width=True)
+                st.metric("Transformer Size", f"{size_kva:.0f} kVA")
+                
+        # Display the line chart
+        st.line_chart(
+            df_power,
+            use_container_width=True,
+            height=250
+        )
         
     except Exception as e:
         logger.error(f"Error displaying power time series: {str(e)}")
@@ -164,23 +106,18 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             st.warning("No valid current data available for the selected time range")
             return
             
-        # Create figure
-        fig = create_base_figure()
+        # Create DataFrame for display
+        df_current = pd.DataFrame({
+            'timestamp': results_df['timestamp'],
+            'Current (A)': results_df['current_a']
+        }).set_index('timestamp')
         
-        # Add current trace
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['current_a'],
-            mode='lines',
-            name='Current',
-            line=dict(
-                color='#dc3545',  
-                width=2
-            ),
-            hovertemplate='%{y:.2f} A<br>%{x}<extra></extra>'
-        ))
-        
-        st.plotly_chart(fig, use_container_width=True)
+        # Display the line chart
+        st.line_chart(
+            df_current,
+            use_container_width=True,
+            height=250
+        )
         
     except Exception as e:
         logger.error(f"Error displaying current time series: {str(e)}")
@@ -196,73 +133,33 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             st.warning("No valid voltage data available for the selected time range")
             return
             
-        # Create figure
-        fig = create_base_figure()
-        
         # Create mock data for three phases with smaller variations
         timestamps = results_df['timestamp']
         nominal_voltage = 400
         
         # Generate slightly different variations for each phase (reduced amplitude)
-        phase_r = nominal_voltage + np.sin(np.linspace(0, 2*np.pi, len(timestamps))) * 2
-        phase_y = nominal_voltage + np.sin(np.linspace(2*np.pi/3, 8*np.pi/3, len(timestamps))) * 2
-        phase_b = nominal_voltage + np.sin(np.linspace(4*np.pi/3, 10*np.pi/3, len(timestamps))) * 2
+        df_phases = pd.DataFrame({
+            'timestamp': timestamps,
+            'Phase R': nominal_voltage + np.sin(np.linspace(0, 2*np.pi, len(timestamps))) * 2,
+            'Phase Y': nominal_voltage + np.sin(np.linspace(2*np.pi/3, 8*np.pi/3, len(timestamps))) * 2,
+            'Phase B': nominal_voltage + np.sin(np.linspace(4*np.pi/3, 10*np.pi/3, len(timestamps))) * 2
+        })
         
-        # Add voltage traces for three phases
-        colors = ['#dc3545', '#ffc107', '#0d6efd']
-        phase_names = ['Phase R', 'Phase Y', 'Phase B']
-        phase_data = [phase_r, phase_y, phase_b]
-        
-        for i, (phase_name, phase_values) in enumerate(zip(phase_names, phase_data)):
-            fig.add_trace(go.Scatter(
-                x=timestamps,
-                y=phase_values,
-                mode='lines',
-                name=phase_name,
-                line=dict(
-                    color=colors[i],
-                    width=1
-                ),
-                hovertemplate=f'{phase_name}: %{{y:.1f}} V<br>%{{x}}<extra></extra>'
-            ))
-        
-        # Add nominal voltage and limits
-        for voltage, label, color in [
-            (nominal_voltage, "Nominal", "#6c757d"),
-            (nominal_voltage * 1.05, "+5%", "#dc3545"),
-            (nominal_voltage * 0.95, "-5%", "#dc3545")
-        ]:
-            fig.add_hline(
-                y=voltage,
-                line_dash="dash",
-                line_color=color,
-                annotation=dict(
-                    text=label,
-                    xref="x",
-                    yref="y",
-                    x=1,
-                    y=voltage,
-                    showarrow=False,
-                    font=dict(color=color)
-                )
-            )
-        
-        # Update y-axis range to match image
-        fig.update_layout(
-            yaxis=dict(
-                range=[nominal_voltage * 0.9, nominal_voltage * 1.1]
-            ),
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
+        # Display threshold metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Upper Limit", f"{nominal_voltage * 1.05:.0f}V", "+5%", delta_color="inverse")
+        with col2:
+            st.metric("Nominal", f"{nominal_voltage:.0f}V")
+        with col3:
+            st.metric("Lower Limit", f"{nominal_voltage * 0.95:.0f}V", "-5%", delta_color="inverse")
+            
+        # Display the line chart
+        st.line_chart(
+            df_phases.set_index('timestamp'),
+            use_container_width=True,
+            height=250
         )
-        
-        st.plotly_chart(fig, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
@@ -287,25 +184,11 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
             st.warning("No valid loading data available for the selected time range")
             return
             
-        # Create the line chart
-        fig = create_base_figure(
-            title="Loading Status Over Time",
-            xaxis_title="Time",
-            yaxis_title="Loading Percentage"
-        )
-        
-        # Add loading status trace
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['loading_percentage'],
-            mode='lines',
-            name='Loading Status',
-            line=dict(
-                color='#0d6efd',
-                width=2
-            ),
-            hovertemplate='%{y:.2f}%<br>%{x}<extra></extra>'
-        ))
+        # Create DataFrame for display
+        df_loading = pd.DataFrame({
+            'timestamp': results_df['timestamp'],
+            'Loading Status (%)': results_df['loading_percentage']
+        }).set_index('timestamp')
         
         # Get unique load ranges and parse them
         if 'load_range' in results_df.columns:
@@ -314,119 +197,40 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
             for range_str in unique_ranges:
                 lower, upper = parse_load_range(range_str)
                 if lower is not None and upper is not None:
-                    # Add both bounds with appropriate colors
                     thresholds.extend([
-                        (upper, f'Upper Bound ({upper}%)', '#dc3545'),  
-                        (lower, f'Lower Bound ({lower}%)', '#198754')   
+                        (upper, f'Upper Bound', f'{upper}%', 'off'),
+                        (lower, f'Lower Bound', f'{lower}%', 'normal')
                     ])
         else:
-            # Fallback to default thresholds if load_range not available
+            # Fallback to default thresholds
             thresholds = [
-                (120, 'Critical (120%)', '#dc3545'),
-                (100, 'Overloaded (100%)', '#fd7e14'),
-                (80, 'Warning (80%)', '#ffc107'),
-                (50, 'Pre-Warning (50%)', '#6f42c1')
+                (120, 'Critical', '120%', 'off'),
+                (100, 'Overloaded', '100%', 'off'),
+                (80, 'Warning', '80%', 'normal'),
+                (50, 'Pre-Warning', '50%', 'normal')
             ]
         
-        # Add threshold lines
-        for threshold, label, color in sorted(thresholds, key=lambda x: x[0]):
-            fig.add_hline(
-                y=threshold,
-                line_dash="dash",
-                line_color=color,
-                annotation=dict(
-                    text=label,
-                    xref="x",
-                    yref="y",
-                    x=1,
-                    y=threshold,
-                    showarrow=False,
-                    font=dict(color=color)
-                )
-            )
+        # Display thresholds as metrics in columns
+        cols = st.columns(len(thresholds))
+        for i, (value, label, display_value, delta_color) in enumerate(sorted(thresholds, key=lambda x: x[0], reverse=True)):
+            with cols[i]:
+                st.metric(label, display_value, delta_color=delta_color)
         
-        # Add current load range as a subtitle if available
+        # Display current load range if available
         if 'load_range' in results_df.columns:
             current_range = results_df['load_range'].iloc[-1]
-            fig.update_layout(
-                title=dict(
-                    text=f"<br><sup>Current Load Range: {current_range}</sup>",
-                    y=0.9,
-                    x=0,
-                    xanchor='left',
-                    yanchor='top'
-                )
-            )
+            st.caption(f"Current Load Range: {current_range}")
         
-        st.plotly_chart(fig, use_container_width=True)
+        # Display the line chart
+        st.line_chart(
+            df_loading,
+            use_container_width=True,
+            height=250
+        )
         
     except Exception as e:
         logger.error(f"Error displaying loading status: {str(e)}")
         st.error("Error displaying loading status chart")
-
-def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status visualization."""
-    try:
-        # Normalize timestamps
-        results_df = normalize_timestamps(results_df)
-
-        # Create figure
-        fig = create_base_figure(
-            title="Loading Status Over Time",
-            xaxis_title="Time",
-            yaxis_title="Loading Percentage"
-        )
-        
-        # Add loading status trace
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['loading_percentage'],
-            mode='lines',
-            name='Loading Status',
-            line=dict(
-                color='#0d6efd',
-                width=2
-            ),
-            hovertemplate='%{y:.2f}%<br>%{x}<extra></extra>'
-        ))
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-    except Exception as e:
-        logger.error(f"Error displaying loading status: {str(e)}")
-        st.error("Error displaying loading status visualization")
-
-def display_power_factor_time_series(results_df: pd.DataFrame):
-    """Display power factor time series visualization."""
-    try:
-        # Normalize timestamps
-        results_df = normalize_timestamps(results_df)
-        
-        # Create figure
-        fig = create_base_figure(
-            title="Power Factor Over Time",
-            xaxis_title="Time",
-            yaxis_title="Power Factor"
-        )
-        
-        # Add power factor trace
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_factor'],
-            mode='lines',
-            name='Power Factor',
-            line=dict(
-                color='#0d6efd',
-                width=2
-            ),
-            hovertemplate='%{y:.2f}<br>%{x}<extra></extra>'
-        ))
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-    except Exception as e:
-        logger.error(f"Error displaying power factor chart: {str(e)}")
-        st.error("Error displaying power factor chart")
 
 def display_power_consumption(results_df: pd.DataFrame):
     """Display power consumption visualization."""
@@ -434,31 +238,30 @@ def display_power_consumption(results_df: pd.DataFrame):
         # Normalize timestamps
         results_df = normalize_timestamps(results_df)
         
-        # Create figure
-        fig = create_base_figure(
-            title="Power Consumption Over Time",
-            xaxis_title="Time",
-            yaxis_title="Power (kW)"
+        if len(results_df) == 0:
+            st.warning("No valid power consumption data available")
+            return
+            
+        # Create DataFrame for display
+        df_power = pd.DataFrame({
+            'timestamp': results_df['timestamp'],
+            'Power (kW)': results_df['power_kw']
+        }).set_index('timestamp')
+        
+        # Display current power consumption
+        current_power = results_df['power_kw'].iloc[-1]
+        st.metric("Current Power Consumption", f"{current_power:.2f} kW")
+        
+        # Display the line chart
+        st.line_chart(
+            df_power,
+            use_container_width=True,
+            height=250
         )
         
-        # Add power consumption trace
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_kw'],
-            mode='lines',
-            name='Power Consumption',
-            line=dict(
-                color='#0d6efd',
-                width=2
-            ),
-            hovertemplate='%{y:.2f} kW<br>%{x}<extra></extra>'
-        ))
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
     except Exception as e:
-        logger.error(f"Error displaying power consumption chart: {str(e)}")
-        st.error("Error displaying power consumption chart")
+        logger.error(f"Error displaying power consumption: {str(e)}")
+        st.error("Error displaying power consumption visualization")
 
 def display_transformer_dashboard(transformer_df: pd.DataFrame):
     # Display the transformer analysis dashboard
@@ -505,20 +308,20 @@ def display_transformer_tab(df: pd.DataFrame):
         )
     with cols[1]:
         create_tile(
-            "Power Factor",
-            f"{latest['power_factor']:.2f}",
-            is_clickable=True
-        )
-    with cols[2]:
-        create_tile(
             "Power (kW)",
             f"{latest['power_kw']:.1f}",
             is_clickable=True
         )
-    with cols[3]:
+    with cols[2]:
         create_tile(
             "Power (kVA)",
             f"{latest['power_kva']:.1f}",
+            is_clickable=True
+        )
+    with cols[3]:
+        create_tile(
+            "Current",
+            f"{latest['current_a']:.1f} A",
             is_clickable=True
         )
 
@@ -564,7 +367,6 @@ def display_customer_tab(df: pd.DataFrame):
     # Round values according to spec
     customer_df['power_kw'] = customer_df['power_kw'].round(3)  
     customer_df['current_a'] = customer_df['current_a'].round(3)  
-    customer_df['power_factor'] = customer_df['power_factor'].round(3)  
     customer_df['voltage_v'] = customer_df['voltage_v'].round(1)  
 
     # Display customer metrics in tiles
@@ -578,18 +380,18 @@ def display_customer_tab(df: pd.DataFrame):
         )
     with cols[1]:
         create_tile(
-            "Power Factor",
-            f"{latest['power_factor']}"  
-        )
-    with cols[2]:
-        create_tile(
             "Current",
             f"{latest['current_a']} A"  
         )
-    with cols[3]:
+    with cols[2]:
         create_tile(
             "Voltage",
             f"{latest['voltage_v']} V"  
+        )
+    with cols[3]:
+        create_tile(
+            "Loading Status",
+            f"{latest['loading_percentage']:.1f}%"  
         )
     
     # Display customer charts
@@ -611,7 +413,7 @@ def display_customer_tab(df: pd.DataFrame):
     # Display customer table
     st.markdown("### Customer Details")
     st.dataframe(
-        customer_df[['timestamp', 'power_kw', 'power_factor', 'voltage_v', 'current_a']].sort_values('timestamp', ascending=False),
+        customer_df[['timestamp', 'power_kw', 'voltage_v', 'current_a', 'loading_percentage']].sort_values('timestamp', ascending=False),
         use_container_width=True
     )
 
@@ -622,62 +424,30 @@ def display_voltage_over_time(results_df: pd.DataFrame):
         return
 
     # Create figure
-    fig = create_base_figure(
-        title="Voltage Over Time",
-        xaxis_title="Time",
-        yaxis_title="Voltage (V)"
-    )
-    
-    # Add voltage traces for three phases
-    colors = ['#dc3545', '#ffc107', '#0d6efd']
-    for i, phase in enumerate(['A', 'B', 'C']):
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['voltage_v'] + np.random.normal(0, 2, len(results_df)),
-            mode='lines',
-            name=f'Phase {phase}',
-            line=dict(
-                color=colors[i],
-                width=1
-            ),
-            hovertemplate=f'Phase {phase}: %{{y:.1f}} V<br>%{{x}}<extra></extra>'
-        ))
-    
-    # Add nominal voltage and limits
+    # Create mock data for three phases with smaller variations
+    timestamps = results_df['timestamp']
     nominal_voltage = 400
-    for voltage, label, color in [
-        (nominal_voltage, "Nominal Voltage", "#6c757d"),
-        (nominal_voltage * 1.05, "+5%", "#dc3545"),
-        (nominal_voltage * 0.95, "-5%", "#dc3545")
-    ]:
-        fig.add_hline(
-            y=voltage,
-            line_dash="dash",
-            line_color=color,
-            annotation=dict(
-                text=label,
-                xref="x",
-                yref="y",
-                x=1,
-                y=voltage,
-                showarrow=False,
-                font=dict(color=color)
-            )
-        )
     
-    # Update y-axis range to match image
-    fig.update_layout(
-        yaxis=dict(
-            range=[nominal_voltage * 0.9, nominal_voltage * 1.1]
-        ),
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        )
+    # Generate slightly different variations for each phase (reduced amplitude)
+    df_phases = pd.DataFrame({
+        'timestamp': timestamps,
+        'Phase R': nominal_voltage + np.sin(np.linspace(0, 2*np.pi, len(timestamps))) * 2,
+        'Phase Y': nominal_voltage + np.sin(np.linspace(2*np.pi/3, 8*np.pi/3, len(timestamps))) * 2,
+        'Phase B': nominal_voltage + np.sin(np.linspace(4*np.pi/3, 10*np.pi/3, len(timestamps))) * 2
+    })
+    
+    # Display threshold metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Upper Limit", f"{nominal_voltage * 1.05:.0f}V", "+5%", delta_color="inverse")
+    with col2:
+        st.metric("Nominal", f"{nominal_voltage:.0f}V")
+    with col3:
+        st.metric("Lower Limit", f"{nominal_voltage * 0.95:.0f}V", "-5%", delta_color="inverse")
+        
+    # Display the line chart
+    st.line_chart(
+        df_phases.set_index('timestamp'),
+        use_container_width=True,
+        height=250
     )
-    
-    st.plotly_chart(fig, use_container_width=True)
