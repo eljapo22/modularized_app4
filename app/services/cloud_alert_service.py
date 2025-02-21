@@ -110,6 +110,9 @@ class CloudAlertService:
         if isinstance(alert_time, (np.int64, np.integer)):
             alert_time = pd.Timestamp(alert_time)
             
+        # Get power value from correct column name
+        power_value = data.get('power_kw', data.get('power', 0))
+            
         return f"""
         <html>
         <body>
@@ -120,7 +123,7 @@ class CloudAlertService:
             <p><strong>Status:</strong> <span style="color: {color}">{status}</span></p>
             <p><strong>Transformer:</strong> {data['transformer_id']}</p>
             <p><strong>Loading:</strong> {data['loading_percentage']:.1f}%</p>
-            <p><strong>Power:</strong> {data['power_kw']:.2f} kW</p>
+            <p><strong>Power:</strong> {power_value:.2f} kW</p>
             <p><strong>Alert Time:</strong> {alert_time.strftime('%Y-%m-%d %H:%M')}</p>
         </div>
         
