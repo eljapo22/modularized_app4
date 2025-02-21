@@ -445,10 +445,22 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
             )
             
             if customer_data is not None and not customer_data.empty:
+                # Display customer selector
+                st.markdown("#### Select Customer")
+                customer_ids = sorted(customer_data['customer_id'].unique())
+                selected_customer = st.selectbox(
+                    "Choose a customer to view details",
+                    customer_ids,
+                    key="customer_selector"
+                )
+                
+                # Filter data for selected customer
+                customer_details = customer_data[customer_data['customer_id'] == selected_customer]
+                
                 # Display customer data table
                 st.markdown("#### Customer Data")
                 st.dataframe(
-                    customer_data[[
+                    customer_details[[
                         'customer_id',
                         'power_kw',
                         'power_factor',
@@ -462,22 +474,26 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                     })
                 )
 
-                # Sort data by customer_id for consistent plotting
-                sorted_data = customer_data.sort_values('customer_id')
+                # Get timestamps for x-axis
+                timestamps = pd.date_range(
+                    start=customer_details['timestamp'].min(),
+                    end=customer_details['timestamp'].max(),
+                    freq='H'
+                )
                 
                 # Power (kW) plot
                 st.markdown("#### Power Distribution")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=sorted_data['customer_id'],
-                    y=sorted_data['power_kw'],
+                    x=timestamps,
+                    y=customer_details['power_kw'],
                     name='Power',
                     line=dict(color='#0d6efd', width=2),
                     mode='lines+markers',
                     hovertemplate='%{y:.1f} kW<br>%{x}<extra></extra>'
                 ))
                 fig.update_layout(
-                    xaxis_title="Customer ID",
+                    xaxis_title="Time",
                     yaxis_title="Power (kW)",
                     showlegend=False,
                     hovermode='x unified'
@@ -488,15 +504,15 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 st.markdown("#### Current Distribution")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=sorted_data['customer_id'],
-                    y=sorted_data['current_a'],
+                    x=timestamps,
+                    y=customer_details['current_a'],
                     name='Current',
                     line=dict(color='#198754', width=2),
                     mode='lines+markers',
                     hovertemplate='%{y:.1f} A<br>%{x}<extra></extra>'
                 ))
                 fig.update_layout(
-                    xaxis_title="Customer ID",
+                    xaxis_title="Time",
                     yaxis_title="Current (A)",
                     showlegend=False,
                     hovermode='x unified'
@@ -507,15 +523,15 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 st.markdown("#### Voltage Distribution")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=sorted_data['customer_id'],
-                    y=sorted_data['voltage_v'],
+                    x=timestamps,
+                    y=customer_details['voltage_v'],
                     name='Voltage',
                     line=dict(color='#dc3545', width=2),
                     mode='lines+markers',
                     hovertemplate='%{y} V<br>%{x}<extra></extra>'
                 ))
                 fig.update_layout(
-                    xaxis_title="Customer ID",
+                    xaxis_title="Time",
                     yaxis_title="Voltage (V)",
                     showlegend=False,
                     hovermode='x unified'
