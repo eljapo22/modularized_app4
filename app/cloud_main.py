@@ -10,7 +10,8 @@ import pandas as pd
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
-from app.utils.ui_utils import create_banner, display_transformer_dashboard, display_customer_tab
+from app.utils.ui_utils import create_banner, display_transformer_dashboard
+from app.visualization.charts import display_customer_tab
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
