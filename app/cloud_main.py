@@ -68,15 +68,6 @@ def main():
         else:
             start_date, end_date = dates[0], dates[-1]  # Handle both list and tuple cases
         
-        # Hour selection
-        selected_hour = st.sidebar.slider(
-            "Select Hour",
-            min_value=0,
-            max_value=23,
-            value=12,
-            format="%H:00"
-        )
-        
         # Feeder and transformer selection
         feeder = st.sidebar.selectbox("Select Feeder", data_service.get_feeder_options())
         transformer_id = st.sidebar.selectbox(
@@ -146,11 +137,11 @@ def main():
                         tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
                         
                         with tab1:
-                            display_transformer_dashboard(transformer_data, selected_hour)
+                            display_transformer_dashboard(transformer_data)
                         
                         with tab2:
                             if customer_data is not None and not customer_data.empty:
-                                display_customer_tab(customer_data, selected_hour=selected_hour)
+                                display_customer_tab(customer_data)
                             else:
                                 st.warning("No customer data available for the selected criteria.")
                     else:

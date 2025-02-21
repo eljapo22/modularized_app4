@@ -14,70 +14,11 @@ from app.config.constants import STATUS_COLORS
 # Configure logging
 logger = logging.getLogger(__name__)
 
-def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
-    """Add a vertical line indicator for the selected hour to any Plotly figure."""
-    if selected_hour is None or not isinstance(selected_hour, int):
-        logger.warning("Selected hour is invalid, skipping hour indicator")
-        return
-
-    if not fig.data or len(fig.data) == 0:
-        logger.warning("No x-axis data found for hour indicator")
-        return
-
-    x_data = fig.data[0].x  # Assuming first trace has the timestamps
-    if not isinstance(x_data, (list, np.ndarray)) or len(x_data) == 0:
-        logger.warning("No x-axis data found for hour indicator")
-        return
-
-    try:
-        # Convert the first timestamp to pandas Timestamp and normalize to start of day
-        first_timestamp = pd.to_datetime(x_data[0]).normalize()
-        if pd.isna(first_timestamp):
-            logger.warning("First timestamp is NaT, skipping hour indicator")
-            return
-
-        # Calculate the indicator time using Timedelta
-        indicator_time = first_timestamp + pd.Timedelta(hours=selected_hour)
-        
-        # Get y-axis range if not provided
-        if y_range is None:
-            y_min = min(trace.y.min() for trace in fig.data)
-            y_max = max(trace.y.max() for trace in fig.data)
-            y_padding = (y_max - y_min) * 0.1
-            y_range = (y_min - y_padding, y_max + y_padding)
-
-        # Add vertical line as a shape
-        fig.add_shape(
-            type="line",
-            x0=indicator_time,
-            x1=indicator_time,
-            y0=y_range[0],
-            y1=y_range[1],
-            line=dict(
-                color="gray",
-                width=1,
-                dash="dash"
-            ),
-            layer="below"  # Place line below the data
-        )
-
-        # Add annotation for the hour
-        fig.add_annotation(
-            x=indicator_time,
-            y=y_range[1],
-            text=f"{selected_hour:02d}:00",
-            showarrow=False,
-            yshift=10,
-            xshift=0,
-            bgcolor="rgba(255, 255, 255, 0.8)",
-            bordercolor="gray",
-            borderwidth=1,
-            borderpad=4
-        )
-
-    except Exception as e:
-        logger.error(f"Error adding hour indicator: {str(e)}")
-        return
+def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
+    """Helper function to normalize timestamps in a DataFrame"""
+    df = df.copy()
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    return df
 
 def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
     # Create a base plotly figure with common settings
@@ -85,46 +26,27 @@ def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
     
     # Update layout with common settings
     layout_updates = {
-        'plot_bgcolor': 'white',
-        'paper_bgcolor': 'white',
-        'showlegend': False,
-        'margin': dict(l=0, r=0, t=30 if title else 0, b=0),
         'xaxis': {
+            'title': xaxis_title,
             'showgrid': True,
             'gridwidth': 1,
-            'gridcolor': '#f0f0f0',
-            'zeroline': False,
-            'showline': True,
-            'linewidth': 1,
-            'linecolor': '#e0e0e0',
-            'type': 'date',
-            'tickformat': '%Y-%m-%d %H:%M'
+            'gridcolor': '#f0f0f0'
         },
         'yaxis': {
+            'title': yaxis_title,
             'showgrid': True,
             'gridwidth': 1,
-            'gridcolor': '#f0f0f0',
-            'zeroline': False,
-            'showline': True,
-            'linewidth': 1,
-            'linecolor': '#e0e0e0',
-            'title_standoff': 0,
-            'automargin': True
-        }
+            'gridcolor': '#f0f0f0'
+        },
+        'plot_bgcolor': 'white',
+        'paper_bgcolor': 'white',
+        'margin': dict(t=30, b=0, l=0, r=0)
     }
-    
-    # Only add titles if they are provided
-    if title:
-        layout_updates['title'] = title
-    if xaxis_title:
-        layout_updates['xaxis']['title'] = xaxis_title
-    if yaxis_title:
-        layout_updates['yaxis']['title'] = yaxis_title
     
     fig.update_layout(**layout_updates)
     return fig
 
-def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: int = None):
+def display_loading_status_line_chart(results_df: pd.DataFrame):
     """Display loading status as a line chart with threshold indicators."""
     try:
         # Ensure timestamp is in datetime format
@@ -165,15 +87,6 @@ def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: i
                 annotation_position="left"
             )
         
-        # Add hour indicator if specified
-        if selected_hour is not None and isinstance(selected_hour, int):
-            # Get y-axis range for the indicator
-            y_min = min(results_df['loading_percentage'])
-            y_max = max(results_df['loading_percentage'])
-            y_padding = (y_max - y_min) * 0.1
-            y_range = (y_min - y_padding, y_max + y_padding)
-            add_hour_indicator(fig, selected_hour, y_range=y_range)
-        
         # Update layout
         fig.update_layout(
             showlegend=False,
@@ -186,7 +99,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: i
         logger.error(f"Error displaying loading status chart: {str(e)}")
         st.error("Error displaying loading status chart")
 
-def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = None, is_transformer_view: bool = False):
+def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     # Display power consumption time series visualization
     logger.info(f"display_power_time_series called with is_transformer_view={is_transformer_view}")
     
@@ -207,17 +120,13 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         # For transformer view, log the value
         logger.info(f"size_kva value in visualization: {results_df['size_kva'].iloc[0]}")
 
+    # Normalize timestamps
+    results_df = normalize_timestamps(results_df)
+
     # Ensure timestamp is in datetime format and reset index if it's the index
     if isinstance(results_df.index, pd.DatetimeIndex):
         results_df = results_df.reset_index()
         logger.info("Reset DatetimeIndex to column")
-    if 'timestamp' not in results_df.columns:
-        st.error("No timestamp column found in data")
-        logger.error(f"Missing timestamp column. Available columns: {results_df.columns.tolist()}")
-        return
-    
-    # Convert timestamp to datetime if needed
-    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
     
     logger.info(f"Plotting power time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
     logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
@@ -328,19 +237,14 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         )
     )
 
-    # Add hour indicator if specified
-    if selected_hour is not None and isinstance(selected_hour, int):
-        add_hour_indicator(fig, selected_hour, y_range=(0, y_max))
-
     st.plotly_chart(fig, use_container_width=True)
     logger.info("Displayed chart")
 
-def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = None, is_transformer_view: bool = False):
+def display_current_time_series(results_df: pd.DataFrame):
     """Display current time series visualization."""
     try:
-        # Ensure timestamp is in datetime format
-        results_df = results_df.copy()
-        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+        # Normalize timestamps
+        results_df = normalize_timestamps(results_df)
 
         # Create figure
         fig = create_base_figure(
@@ -359,27 +263,17 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
             marker=dict(size=6)
         ))
 
-        # Add hour indicator if specified
-        if selected_hour is not None and isinstance(selected_hour, int):
-            # Get y-axis range for the indicator
-            y_min = min(results_df['current_a'])
-            y_max = max(results_df['current_a'])
-            y_padding = (y_max - y_min) * 0.1
-            y_range = (y_min - y_padding, y_max + y_padding)
-            add_hour_indicator(fig, selected_hour, y_range=y_range)
-
         st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
         logger.error(f"Error displaying current time series: {str(e)}")
         st.error("Error displaying current time series visualization")
 
-def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = None):
+def display_voltage_time_series(results_df: pd.DataFrame):
     """Display voltage time series visualization."""
     try:
-        # Ensure timestamp is in datetime format
-        results_df = results_df.copy()
-        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+        # Normalize timestamps
+        results_df = normalize_timestamps(results_df)
 
         # Create figure
         fig = create_base_figure(
@@ -398,27 +292,17 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
             marker=dict(size=6)
         ))
 
-        # Add hour indicator if specified
-        if selected_hour is not None and isinstance(selected_hour, int):
-            # Get y-axis range for the indicator
-            y_min = min(results_df['voltage_v'])
-            y_max = max(results_df['voltage_v'])
-            y_padding = (y_max - y_min) * 0.1
-            y_range = (y_min - y_padding, y_max + y_padding)
-            add_hour_indicator(fig, selected_hour, y_range=y_range)
-
         st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
         st.error("Error displaying voltage time series visualization")
 
-def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
+def display_loading_status(results_df: pd.DataFrame):
     """Display loading status visualization."""
     try:
-        # Ensure timestamp is in datetime format
-        results_df = results_df.copy()
-        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+        # Normalize timestamps
+        results_df = normalize_timestamps(results_df)
 
         # Create figure
         fig = create_base_figure(
@@ -454,22 +338,71 @@ def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
                 annotation_position="left"
             )
 
-        # Add hour indicator if specified
-        if selected_hour is not None and isinstance(selected_hour, int):
-            # Get y-axis range for the indicator
-            y_min = min(results_df['loading_percentage'])
-            y_max = max(results_df['loading_percentage'])
-            y_padding = (y_max - y_min) * 0.1
-            y_range = (y_min - y_padding, y_max + y_padding)
-            add_hour_indicator(fig, selected_hour, y_range=y_range)
-
         st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
         logger.error(f"Error displaying loading status: {str(e)}")
         st.error("Error displaying loading status visualization")
 
-def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: int = None):
+def display_power_factor_time_series(results_df: pd.DataFrame):
+    """Display power factor time series visualization."""
+    try:
+        # Normalize timestamps
+        results_df = normalize_timestamps(results_df)
+        
+        # Create figure
+        fig = create_base_figure(
+            title="Power Factor Over Time",
+            xaxis_title="Time",
+            yaxis_title="Power Factor"
+        )
+        
+        # Add power factor line
+        fig.add_trace(go.Scatter(
+            x=results_df['timestamp'],
+            y=results_df['power_factor'],
+            mode='lines+markers',
+            name='Power Factor',
+            line=dict(color='#0d6efd', width=2),
+            marker=dict(size=6)
+        ))
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying power factor chart: {str(e)}")
+        st.error("Error displaying power factor chart")
+
+def display_power_consumption(results_df: pd.DataFrame):
+    """Display power consumption visualization."""
+    try:
+        # Normalize timestamps
+        results_df = normalize_timestamps(results_df)
+        
+        # Create figure
+        fig = create_base_figure(
+            title="Power Consumption Over Time",
+            xaxis_title="Time",
+            yaxis_title="Power (kW)"
+        )
+        
+        # Add power consumption line
+        fig.add_trace(go.Scatter(
+            x=results_df['timestamp'],
+            y=results_df['power_kw'],
+            mode='lines+markers',
+            name='Power (kW)',
+            line=dict(color='#0d6efd', width=2),
+            marker=dict(size=6)
+        ))
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying power consumption chart: {str(e)}")
+        st.error("Error displaying power consumption chart")
+
+def display_transformer_dashboard(transformer_df: pd.DataFrame):
     # Display the transformer analysis dashboard
     if transformer_df is None or transformer_df.empty:
         st.warning("No data available for transformer dashboard.")
@@ -487,15 +420,15 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: i
     tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
 
     with tab1:
-        display_transformer_tab(transformer_df, selected_hour)
+        display_transformer_tab(transformer_df)
 
     with tab2:
         if customer_df is not None:
-            display_customer_tab(customer_df, selected_hour=selected_hour)
+            display_customer_tab(customer_df)
         else:
             st.warning("No customer data available for this transformer")
 
-def display_transformer_tab(df: pd.DataFrame, selected_hour: int = None):
+def display_transformer_tab(df: pd.DataFrame):
     # Display transformer analysis tab
     if df is None or df.empty:
         st.warning("No data available for transformer analysis.")
@@ -535,25 +468,25 @@ def display_transformer_tab(df: pd.DataFrame, selected_hour: int = None):
     st.markdown("### Loading Status")
     with st.container():
         create_tile("Loading Status Over Time", "")
-        display_loading_status_line_chart(df, selected_hour)
+        display_loading_status_line_chart(df)
 
     # Create section for power analysis
     st.markdown("### Power Analysis")
     with st.container():
         create_tile("Power Consumption Over Time", "")
-        display_power_time_series(df, selected_hour, is_transformer_view=True)
+        display_power_time_series(df, is_transformer_view=True)
 
     # Create section for voltage and current
     st.markdown("### Voltage and Current")
     cols = st.columns(2)
     with cols[0]:
         create_tile("Current Over Time", "")
-        display_current_time_series(df, selected_hour, is_transformer_view=True)
+        display_current_time_series(df, is_transformer_view=True)
     with cols[1]:
         create_tile("Voltage Over Time", "")
-        display_voltage_time_series(df, selected_hour)
+        display_voltage_time_series(df)
 
-def display_customer_tab(df: pd.DataFrame, selected_hour: int = None):
+def display_customer_tab(df: pd.DataFrame):
     # Display customer analysis tab
     if df is None or df.empty:
         st.warning("No customer data available")
@@ -605,17 +538,17 @@ def display_customer_tab(df: pd.DataFrame, selected_hour: int = None):
     st.markdown("### Power Consumption")
     with st.container():
         create_tile("Power Over Time", "")
-        display_power_time_series(customer_df, selected_hour, is_transformer_view=False)
+        display_power_time_series(customer_df, is_transformer_view=False)
 
     cols = st.columns(2)
     with cols[0]:
         st.markdown("### Current")
         create_tile("Current Over Time", "")
-        display_current_time_series(customer_df, selected_hour, is_transformer_view=False)
+        display_current_time_series(customer_df, is_transformer_view=False)
     with cols[1]:
         st.markdown("### Voltage")
         create_tile("Voltage Over Time", "")
-        display_voltage_time_series(customer_df, selected_hour)
+        display_voltage_time_series(customer_df)
 
     # Display customer table
     st.markdown("### Customer Details")
