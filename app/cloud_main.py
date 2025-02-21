@@ -53,19 +53,20 @@ def main():
         # Analysis Parameters in sidebar
         st.sidebar.header("Analysis Parameters")
         
-        # Date range selection
+        # Date range selection with default range
         dates = st.sidebar.date_input(
             "Select Date Range",
+            value=[min_date, min_date],  # Pass as list for range selection
             min_value=min_date,
             max_value=max_date,
-            value=(min_date, min_date)
+            key="date_range"
         )
         
-        # Convert to tuple if single date
+        # Ensure we have a start and end date
         if isinstance(dates, (datetime, date)):
             start_date = end_date = dates
         else:
-            start_date, end_date = dates
+            start_date, end_date = dates[0], dates[-1]  # Handle both list and tuple cases
         
         # Feeder and transformer selection
         feeder = st.sidebar.selectbox("Select Feeder", data_service.get_feeder_options())

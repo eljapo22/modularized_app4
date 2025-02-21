@@ -278,7 +278,6 @@ class CloudDataService:
             logger.info(f"Getting customer aggregation for {transformer_id}")
             
             # Extract feeder number from transformer ID (format: S1F1ATF001)
-            # Split by 'F' and take the number before it
             feeder_num = int(transformer_id.split('F')[0].replace('S', ''))
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             
@@ -293,26 +292,23 @@ class CloudDataService:
                 logger.warning(f"No customer aggregation data found")
                 return None
                 
-            # Process results into a dictionary
+            # Process results into an object with attributes
+            class AggregationData:
+                def __init__(self, data_dict):
+                    self.__dict__.update(data_dict)
+            
             agg_data = {
-                'dates': [],
-                'customer_ids': [],
-                'avg_power': [],
-                'max_power': [],
-                'min_power': [],
-                'avg_pf': []
+                'dates': [r['date'] for r in results],
+                'customer_ids': [r['customer_id'] for r in results],
+                'avg_power': [r['avg_power_kw'] for r in results],
+                'max_power': [r['max_power_kw'] for r in results],
+                'min_power': [r['min_power_kw'] for r in results],
+                'avg_pf': [r['avg_power_factor'] for r in results],
+                'customer_count': len(set(r['customer_id'] for r in results))
             }
             
-            for row in results:
-                agg_data['dates'].append(row['date'])
-                agg_data['customer_ids'].append(row['customer_id'])
-                agg_data['avg_power'].append(row['avg_power_kw'])
-                agg_data['max_power'].append(row['max_power_kw'])
-                agg_data['min_power'].append(row['min_power_kw'])
-                agg_data['avg_pf'].append(row['avg_power_factor'])
-            
-            logger.info(f"Retrieved aggregation data for {len(agg_data['customer_ids'])} customers")
-            return agg_data
+            logger.info(f"Retrieved aggregation data for {agg_data['customer_count']} customers")
+            return AggregationData(agg_data)
             
         except Exception as e:
             logger.error(f"Error getting customer aggregation: {str(e)}")
