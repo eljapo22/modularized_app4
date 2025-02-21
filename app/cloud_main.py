@@ -208,8 +208,49 @@ def main():
                             )
 
                             # Display loading status chart
-                            st.markdown("### Loading Status")
-                            display_loading_status_line_chart(transformer_data)
+                            if 'loading_percentage' in transformer_data.columns:
+                                st.subheader("Loading Status")
+                                
+                                # Get loading analytics
+                                loading_analytics = analyze_loading_conditions(transformer_data)
+                                
+                                # Create columns for metrics
+                                col1, col2, col3 = st.columns(3)
+                                
+                                with col1:
+                                    st.metric("Peak Loading", f"{loading_analytics['peak_loading']:.1f}%")
+                                    st.caption(f"at {loading_analytics['peak_time'].strftime('%Y-%m-%d %H:%M')}")
+                                    
+                                with col2:
+                                    st.metric("Average Loading", f"{loading_analytics['average_loading']:.1f}%")
+                                    
+                                with col3:
+                                    if loading_analytics['sustained_overloads']:
+                                        st.metric("Sustained Overloads", len(loading_analytics['sustained_overloads']))
+                                        st.caption("Click for details ⬇️")
+                                
+                                # Show condition percentages
+                                st.write("Time spent in each condition:")
+                                percentages = loading_analytics['condition_percentages']
+                                for condition, pct in percentages.items():
+                                    status, color = get_alert_status(120 if condition == 'Critical' else 
+                                                                   100 if condition == 'Overloaded' else
+                                                                   80 if condition == 'Warning' else
+                                                                   50 if condition == 'Pre-Warning' else 0)
+                                    st.markdown(f"<span style='color: {color}'>{condition}</span>: {pct:.1f}%", unsafe_allow_html=True)
+                                
+                                # Show sustained overloads if any
+                                if loading_analytics['sustained_overloads']:
+                                    with st.expander("Sustained Overloads (>1 hour)"):
+                                        for overload in loading_analytics['sustained_overloads']:
+                                            st.markdown(f"""
+                                            - **Duration**: {overload['duration_hours']:.1f} hours
+                                            - **Peak**: {overload['peak_loading']:.1f}%
+                                            - **Period**: {overload['start'].strftime('%Y-%m-%d %H:%M')} to {overload['end'].strftime('%Y-%m-%d %H:%M')}
+                                            """)
+                                
+                                # Display the chart
+                                display_loading_status_line_chart(transformer_data)
 
                             # Display current and voltage charts side by side
                             current_col, voltage_col = create_two_column_charts()

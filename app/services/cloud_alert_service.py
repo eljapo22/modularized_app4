@@ -14,17 +14,27 @@ import smtplib
 logger = logging.getLogger(__name__)
 
 def get_alert_status(loading_pct: float) -> tuple[str, str]:
-    """Get alert status and color based on loading percentage"""
+    """
+    Get alert status and color based on loading percentage.
+    Returns tuple of (status, color).
+    
+    Thresholds:
+    - Critical: >= 120%
+    - Overloaded: >= 100%
+    - Warning: >= 80%
+    - Pre-Warning: >= 50%
+    - Normal: < 50%
+    """
     if loading_pct >= 120:
-        return 'Critical', '#dc3545'
+        return 'Critical', '#dc3545'  # Red
     elif loading_pct >= 100:
-        return 'Overloaded', '#fd7e14'
+        return 'Overloaded', '#fd7e14'  # Orange
     elif loading_pct >= 80:
-        return 'Warning', '#ffc107'
+        return 'Warning', '#ffc107'  # Yellow
     elif loading_pct >= 50:
-        return 'Pre-Warning', '#6f42c1'
+        return 'Pre-Warning', '#6f42c1'  # Purple
     else:
-        return 'Normal', '#198754'
+        return 'Normal', '#198754'  # Green
 
 def get_status_emoji(status: str) -> str:
     """Get emoji for status"""
@@ -35,6 +45,67 @@ def get_status_emoji(status: str) -> str:
         'Pre-Warning': '🟣',
         'Normal': '🟢'
     }.get(status, '⚪')
+
+def analyze_loading_conditions(df: pd.DataFrame) -> dict:
+    """
+    Analyze loading conditions and return statistics.
+    """
+    if 'loading_percentage' not in df.columns:
+        return {}
+        
+    loading = df['loading_percentage']
+    
+    # Calculate time spent in each condition
+    total_records = len(df)
+    conditions = {
+        'Critical': (loading >= 120).sum(),
+        'Overloaded': ((loading >= 100) & (loading < 120)).sum(),
+        'Warning': ((loading >= 80) & (loading < 100)).sum(),
+        'Pre-Warning': ((loading >= 50) & (loading < 80)).sum(),
+        'Normal': (loading < 50).sum()
+    }
+    
+    # Convert to percentages
+    percentages = {k: (v/total_records)*100 for k, v in conditions.items()}
+    
+    # Get peak loading and when it occurred
+    peak_loading = loading.max()
+    peak_time = df.loc[loading.idxmax(), 'timestamp']
+    
+    # Calculate average loading
+    avg_loading = loading.mean()
+    
+    # Identify sustained overloads (more than 1 hour above 100%)
+    sustained_overloads = []
+    if (loading >= 100).any():
+        overload_periods = []
+        current_period = None
+        
+        for idx, row in df.iterrows():
+            if row['loading_percentage'] >= 100:
+                if current_period is None:
+                    current_period = {'start': row['timestamp'], 'peak': row['loading_percentage']}
+                else:
+                    current_period['peak'] = max(current_period['peak'], row['loading_percentage'])
+            elif current_period is not None:
+                current_period['end'] = df.loc[idx-1, 'timestamp']
+                duration = (current_period['end'] - current_period['start']).total_seconds() / 3600
+                if duration >= 1:
+                    sustained_overloads.append({
+                        'start': current_period['start'],
+                        'end': current_period['end'],
+                        'duration_hours': duration,
+                        'peak_loading': current_period['peak']
+                    })
+                current_period = None
+    
+    return {
+        'condition_percentages': percentages,
+        'peak_loading': peak_loading,
+        'peak_time': peak_time,
+        'average_loading': avg_loading,
+        'sustained_overloads': sustained_overloads
+    }
 
 class CloudAlertService:
     def __init__(self):
