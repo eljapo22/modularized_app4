@@ -190,13 +190,24 @@ def display_current_time_series(results_df: pd.DataFrame):
                    ))
         ).properties(
             width='container',
-            height=200,
-            padding={"left": 45, "right": 20, "top": 10, "bottom": 40}
+            height=180,  # Reduced height to account for padding
+            padding={"left": 45, "right": 20, "top": 5, "bottom": 30}
         )
         
-        # Use container with fixed height to ensure consistent spacing
-        with st.container():
-            st.altair_chart(chart, use_container_width=True)
+        # Use container with consistent styling
+        st.markdown("""
+            <div style="
+                background-color: #F8F9FA;
+                border-radius: 5px;
+                padding: 15px;
+                margin: 10px 0;
+                height: 280px;
+            ">
+        """, unsafe_allow_html=True)
+        
+        st.altair_chart(chart, use_container_width=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
         
     except Exception as e:
         logger.error(f"Error displaying current time series: {str(e)}")
@@ -313,7 +324,19 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         )
         
         # Display the chart
+        st.markdown("""
+            <div style="
+                background-color: #F8F9FA;
+                border-radius: 5px;
+                padding: 15px;
+                margin: 10px 0;
+                height: 280px;
+            ">
+        """, unsafe_allow_html=True)
+        
         st.altair_chart(chart, use_container_width=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
         
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
@@ -582,3 +605,22 @@ def parse_load_range(range_str: str) -> tuple:
     except (ValueError, AttributeError) as e:
         logger.error(f"Error parsing load range '{range_str}': {str(e)}")
         return None, None
+
+def create_tile(title: str, value: str, background_color: str = "#F8F9FA"):
+    """Create a metric tile with consistent styling."""
+    st.markdown(
+        f"""
+        <div style="
+            background-color: {background_color};
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin: 5px 0;
+            height: 100%;
+            width: 100%;
+        ">
+            <p style="color: #666; margin: 0; font-size: 14px;">{title}</p>
+            <p style="color: #333; margin: 5px 0 0 0; font-size: 20px; font-weight: 500;">{value}</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
