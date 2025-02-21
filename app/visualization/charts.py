@@ -297,7 +297,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
             name='Power',
             line=dict(color='#3b82f6', width=2),
             marker=dict(color='#3b82f6', size=6),
-            hovertemplate='Time: %{x}<br>Power: %{y} kW<extra></extra>' if not is_transformer_view else 'Time: %{x}<br>Power: %{y} kW<extra></extra>'
+            hoverinfo='skip'
         )
     )
     logger.info("Added power consumption trace")
@@ -316,7 +316,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
                 mode='lines',
                 name='Transformer Capacity (kVA)',
                 line=dict(color='red', width=2, dash='dash'),
-                hovertemplate='Capacity: %{y} kVA<extra></extra>'
+                hoverinfo='skip'
             )
         )
         logger.info("Added size_kva trace")
@@ -413,7 +413,7 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
             name='Current',
             line=dict(color='#3b82f6', width=2),
             marker=dict(color='#3b82f6', size=6),
-            hovertemplate='Time: %{x}<br>Current: %{y} A<extra></extra>'  # No format here since data is pre-rounded
+            hoverinfo='skip'
         )
     )
     logger.info("Added current trace")
@@ -481,7 +481,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
             name='Voltage',
             line=dict(color='#22c55e', width=2),
             marker=dict(color='#22c55e', size=6),
-            hovertemplate='Time: %{x}<br>Voltage: %{y:.1f} V<extra></extra>'
+            hoverinfo='skip'
         )
     )
     logger.info("Added voltage trace")
