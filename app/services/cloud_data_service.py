@@ -335,8 +335,3 @@ class CloudDataService:
         except Exception as e:
             logger.error(f"Error getting customer aggregation: {str(e)}")
             return None
-
-# Initialize the service as a singleton
-logger.info("Initializing CloudDataService singleton")
-data_service = CloudDataService()
-logger.info("CloudDataService initialization complete")
