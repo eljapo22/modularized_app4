@@ -460,12 +460,25 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
             current_range = results_df['load_range'].iloc[-1]
             st.caption(f"Current Load Range: {current_range}")
         
-        # Display the line chart
-        st.line_chart(
-            df_loading,
-            use_container_width=True,
+        # Create Altair chart instead of Streamlit line chart
+        chart = alt.Chart(df_loading.reset_index()).mark_line(
+            color='blue',
+            strokeWidth=2
+        ).encode(
+            x=alt.X('timestamp:T',
+                   title='Time',
+                   axis=alt.Axis(format='%d/%m/%y')),
+            y=alt.Y('Loading Status (%):Q',
+                   title='Loading Status (%)')
+        ).properties(
+            width='container',
             height=250
+        ).configure_axis(
+            grid=True
         )
+        
+        # Display the chart
+        st.altair_chart(chart, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying loading status: {str(e)}")
@@ -491,12 +504,25 @@ def display_power_consumption(results_df: pd.DataFrame):
         current_power = results_df['power_kw'].iloc[-1]
         st.metric("Current Power Consumption", f"{current_power:.2f} kW")
         
-        # Display the line chart
-        st.line_chart(
-            df_power,
-            use_container_width=True,
+        # Create Altair chart instead of Streamlit line chart
+        chart = alt.Chart(df_power.reset_index()).mark_line(
+            color='blue',
+            strokeWidth=2
+        ).encode(
+            x=alt.X('timestamp:T',
+                   title='Time',
+                   axis=alt.Axis(format='%d/%m/%y')),
+            y=alt.Y('Power (kW):Q',
+                   title='Power (kW)')
+        ).properties(
+            width='container',
             height=250
+        ).configure_axis(
+            grid=True
         )
+        
+        # Display the chart
+        st.altair_chart(chart, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying power consumption: {str(e)}")
@@ -671,12 +697,28 @@ def display_voltage_over_time(results_df: pd.DataFrame):
     with col3:
         st.metric("Lower Limit", f"{nominal_voltage * 0.95:.0f}V", "-5%", delta_color="inverse")
         
-    # Display the line chart
-    st.line_chart(
-        df_phases.set_index('timestamp'),
-        use_container_width=True,
+    # Create Altair chart instead of Streamlit line chart
+    chart = alt.Chart(df_phases).mark_line(
+        strokeWidth=2
+    ).encode(
+        x=alt.X('timestamp:T',
+               title='Time',
+               axis=alt.Axis(format='%d/%m/%y')),
+        y=alt.Y('value:Q',
+               title='Voltage (V)'),
+        color=alt.Color('phase:N', title='Phase')
+    ).transform_fold(
+        ['Phase R', 'Phase Y', 'Phase B'],
+        as_=['phase', 'value']
+    ).properties(
+        width='container',
         height=250
+    ).configure_axis(
+        grid=True
     )
+    
+    # Display the chart
+    st.altair_chart(chart, use_container_width=True)
 
 def parse_load_range(range_str: str) -> tuple:
     """Parse load range string (e.g. '50%-80%') into tuple of floats."""
