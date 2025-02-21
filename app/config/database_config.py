@@ -39,7 +39,6 @@ SELECT
 FROM {table_name}
 WHERE "transformer_id" = ?
   AND DATE_TRUNC('day', "timestamp") = ?
-  AND EXTRACT(hour FROM "timestamp") = ?
 ORDER BY "timestamp"
 """
 

@@ -474,19 +474,15 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                     })
                 )
 
-                # Get timestamps for x-axis
-                timestamps = pd.date_range(
-                    start=customer_details['timestamp'].min(),
-                    end=customer_details['timestamp'].max(),
-                    freq='H'
-                )
+                # Sort data by timestamp for consistent plotting
+                sorted_data = customer_details.sort_values('timestamp')
                 
                 # Power (kW) plot
                 st.markdown("#### Power Distribution")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=timestamps,
-                    y=customer_details['power_kw'],
+                    x=sorted_data['timestamp'],
+                    y=sorted_data['power_kw'],
                     name='Power',
                     line=dict(color='#0d6efd', width=2),
                     mode='lines+markers',
@@ -504,8 +500,8 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 st.markdown("#### Current Distribution")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=timestamps,
-                    y=customer_details['current_a'],
+                    x=sorted_data['timestamp'],
+                    y=sorted_data['current_a'],
                     name='Current',
                     line=dict(color='#198754', width=2),
                     mode='lines+markers',
@@ -523,8 +519,8 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 st.markdown("#### Voltage Distribution")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=timestamps,
-                    y=customer_details['voltage_v'],
+                    x=sorted_data['timestamp'],
+                    y=sorted_data['voltage_v'],
                     name='Voltage',
                     line=dict(color='#dc3545', width=2),
                     mode='lines+markers',

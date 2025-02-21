@@ -251,7 +251,7 @@ class CloudDataService:
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
                 query,
-                (transformer_id, date.date(), hour)
+                (transformer_id, date.date())
             )
             
             if not results:
