@@ -152,9 +152,11 @@ class CloudAlertService:
             # Only alert if loading is high enough
             if max_loading['loading_percentage'] >= 80:
                 logger.info(f"Alert threshold met: {max_loading['loading_percentage']:.1f}% >= 80%")
-                # Convert index to datetime if it's an integer
+                # Ensure timestamp is a datetime
                 if isinstance(max_loading.name, (int, np.integer)):
                     max_loading.name = results_df.index[max_loading.name]
+                elif isinstance(max_loading.name, str):
+                    max_loading.name = pd.to_datetime(max_loading.name)
                 return max_loading
             else:
                 logger.info(f"Below alert threshold: {max_loading['loading_percentage']:.1f}% < 80%")
@@ -188,10 +190,16 @@ class CloudAlertService:
 
     def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
         """Create HTML content for email"""
-        # Convert timestamp if it's a numpy int
-        alert_time = data.name
-        if isinstance(alert_time, (np.int64, np.integer)):
-            alert_time = pd.Timestamp(alert_time)
+        # Ensure we have a valid datetime for alert_time
+        try:
+            if isinstance(data.name, (pd.Timestamp, datetime)):
+                alert_time = data.name
+            elif isinstance(data.name, (int, np.integer)):
+                alert_time = datetime.now()  # Fallback to current time
+            else:
+                alert_time = pd.to_datetime(data.name)  # Try to parse string
+        except:
+            alert_time = datetime.now()  # Final fallback
             
         # Get power value from correct column name
         power_value = data.get('power_kw', data.get('power', 0))
