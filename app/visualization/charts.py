@@ -152,46 +152,81 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             st.warning("No valid voltage data available for the selected time range")
             return
             
-        # Create mock data for three phases with smaller variations
-        timestamps = results_df['timestamp']
+        # Constants for voltage thresholds
         nominal_voltage = 400
+        upper_limit = nominal_voltage * 1.05  # +5%
+        lower_limit = nominal_voltage * 0.95  # -5%
         
-        # Generate slightly different variations for each phase (reduced amplitude)
-        df_phases = pd.DataFrame({
-            'timestamp': timestamps,
-            'Phase R': nominal_voltage + np.sin(np.linspace(0, 2*np.pi, len(timestamps))) * 2,
-            'Phase Y': nominal_voltage + np.sin(np.linspace(2*np.pi/3, 8*np.pi/3, len(timestamps))) * 2,
-            'Phase B': nominal_voltage + np.sin(np.linspace(4*np.pi/3, 10*np.pi/3, len(timestamps))) * 2
-        })
-        
-        # Display threshold metrics
+        # Display metrics for voltage thresholds
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Upper Limit", f"{nominal_voltage * 1.05:.0f}V", "+5%", delta_color="inverse")
+            st.metric("Upper Limit", f"{upper_limit:.0f}V", "+5%", delta_color="inverse")
         with col2:
             st.metric("Nominal", f"{nominal_voltage:.0f}V")
         with col3:
-            st.metric("Lower Limit", f"{nominal_voltage * 0.95:.0f}V", "-5%", delta_color="inverse")
-            
-        # Display the line chart
-        st.line_chart(
-            df_phases.set_index('timestamp'),
-            use_container_width=True,
+            st.metric("Lower Limit", f"{lower_limit:.0f}V", "-5%", delta_color="inverse")
+        
+        # Create mock data with very small variations around nominal
+        timestamps = results_df['timestamp']
+        n_points = len(timestamps)
+        
+        # Generate small random variations (max ±1V) around nominal voltage
+        df_phases = pd.DataFrame({
+            'timestamp': timestamps,
+            'Phase R': nominal_voltage + np.random.uniform(-1, 1, n_points),
+            'Phase Y': nominal_voltage + np.random.uniform(-1, 1, n_points),
+            'Phase B': nominal_voltage + np.random.uniform(-1, 1, n_points)
+        })
+        
+        # Melt the dataframe for Altair
+        df_melted = df_phases.melt(
+            id_vars=['timestamp'],
+            var_name='Phase',
+            value_name='Voltage'
+        )
+        
+        # Create base chart for voltage phases
+        voltage_chart = alt.Chart(df_melted).mark_line().encode(
+            x=alt.X('timestamp:T', title='Time'),
+            y=alt.Y('Voltage:Q', 
+                   scale=alt.Scale(domain=[nominal_voltage * 0.9, nominal_voltage * 1.1]),
+                   title='Voltage (V)'),
+            color=alt.Color('Phase:N')
+        )
+        
+        # Add reference lines for nominal and limits
+        nominal_rule = alt.Chart(pd.DataFrame({'y': [nominal_voltage]})).mark_rule(
+            strokeDash=[2, 2],
+            color='gray',
+            opacity=0.5
+        ).encode(y='y:Q')
+        
+        upper_rule = alt.Chart(pd.DataFrame({'y': [upper_limit]})).mark_rule(
+            strokeDash=[2, 2],
+            color='red',
+            opacity=0.5
+        ).encode(y='y:Q')
+        
+        lower_rule = alt.Chart(pd.DataFrame({'y': [lower_limit]})).mark_rule(
+            strokeDash=[2, 2],
+            color='red',
+            opacity=0.5
+        ).encode(y='y:Q')
+        
+        # Combine all charts
+        chart = alt.layer(
+            voltage_chart, nominal_rule, upper_rule, lower_rule
+        ).properties(
+            width='container',
             height=250
         )
+        
+        # Display the chart
+        st.altair_chart(chart, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
         st.error("Error displaying voltage time series chart")
-
-def parse_load_range(range_str: str) -> tuple:
-    """Parse load range string (e.g. '50%-80%') into tuple of floats."""
-    try:
-        lower, upper = range_str.replace('%', '').split('-')
-        return float(lower), float(upper)
-    except (ValueError, AttributeError) as e:
-        logger.error(f"Error parsing load range '{range_str}': {str(e)}")
-        return None, None
 
 def display_loading_status_line_chart(results_df: pd.DataFrame):
     """Display loading status as a line chart with threshold indicators."""
@@ -463,3 +498,12 @@ def display_voltage_over_time(results_df: pd.DataFrame):
         use_container_width=True,
         height=250
     )
+
+def parse_load_range(range_str: str) -> tuple:
+    """Parse load range string (e.g. '50%-80%') into tuple of floats."""
+    try:
+        lower, upper = range_str.replace('%', '').split('-')
+        return float(lower), float(upper)
+    except (ValueError, AttributeError) as e:
+        logger.error(f"Error parsing load range '{range_str}': {str(e)}")
+        return None, None
