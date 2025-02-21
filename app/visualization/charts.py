@@ -162,21 +162,36 @@ def display_current_time_series(results_df: pd.DataFrame):
             'Current': current
         })
         
-        # Create base chart with exact same dimensions as voltage chart
+        # Create base chart with exact same dimensions and style as voltage chart
         chart = alt.Chart(df_current).mark_line(
-            color='blue'
+            color='blue',
+            strokeWidth=2
         ).encode(
             x=alt.X('timestamp:T', 
                    title='Time',
-                   axis=alt.Axis(grid=True, labelFontSize=11, titleFontSize=12)),
+                   axis=alt.Axis(
+                       grid=True,
+                       gridOpacity=0.5,
+                       labelFontSize=11,
+                       titleFontSize=12,
+                       tickCount=10,
+                       gridWidth=0.5
+                   )),
             y=alt.Y('Current:Q', 
-                   scale=alt.Scale(domain=[30, 70]),
+                   scale=alt.Scale(domain=[30, 70], nice=True),
                    title='Current (A)',
-                   axis=alt.Axis(grid=True, labelFontSize=11, titleFontSize=12))
+                   axis=alt.Axis(
+                       grid=True,
+                       gridOpacity=0.5,
+                       labelFontSize=11,
+                       titleFontSize=12,
+                       tickCount=5,
+                       gridWidth=0.5
+                   ))
         ).properties(
             width='container',
-            height=200,  
-            padding={"left": 45, "right": 20, "top": 10, "bottom": 40}  
+            height=200,
+            padding={"left": 45, "right": 20, "top": 10, "bottom": 40}
         )
         
         # Use container with fixed height to ensure consistent spacing
