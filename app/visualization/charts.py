@@ -85,7 +85,9 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
 
         # Create base power chart
         base = alt.Chart(results_df).encode(
-            x=alt.X('timestamp:T', title='Time'),
+            x=alt.X('timestamp:T', 
+                   title='Time',
+                   axis=alt.Axis(format='%d/%m/%y')),  # Custom date format
             y=alt.Y('power_kw:Q', title='Power (kW)')
         )
         
@@ -96,7 +98,7 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
         peak_df = pd.DataFrame({
             'timestamp': [peak_time],
             'power_kw': [peak_power],
-            'text': [f'Peak: {peak_loading:.1f}%\n{peak_time.strftime("%Y-%m-%d %H:%M")}']
+            'text': [f'{peak_loading:.1f}%']  # Simplified annotation
         })
         
         # Add circle highlight for peak point
