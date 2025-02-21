@@ -128,6 +128,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
                     annotation=dict(
                         text=f"Transformer Size: {size_kva} kVA",
                         xref="paper",
+                        yref="y",
                         x=1,
                         y=size_kva,
                         showarrow=False,
@@ -186,24 +187,34 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         # Create figure
         fig = create_base_figure()
         
+        # Create mock data for three phases
+        timestamps = results_df['timestamp']
+        nominal_voltage = 400
+        
+        # Generate slightly different variations for each phase
+        phase_r = nominal_voltage + np.sin(np.linspace(0, 4*np.pi, len(timestamps))) * 5
+        phase_y = nominal_voltage + np.sin(np.linspace(0.5, 4.5*np.pi, len(timestamps))) * 4
+        phase_b = nominal_voltage + np.sin(np.linspace(1, 5*np.pi, len(timestamps))) * 4.5
+        
         # Add voltage traces for three phases
         colors = ['#dc3545', '#ffc107', '#0d6efd']  # Red, Yellow, Blue
-        phase_names = ['Phase 1', 'Phase 2', 'Phase 3']
-        for i, phase in enumerate(phase_names):
+        phase_names = ['Phase R', 'Phase Y', 'Phase B']
+        phase_data = [phase_r, phase_y, phase_b]
+        
+        for i, (phase_name, phase_values) in enumerate(zip(phase_names, phase_data)):
             fig.add_trace(go.Scatter(
-                x=results_df['timestamp'],
-                y=results_df['voltage_v'] + np.random.normal(0, 2, len(results_df)),  # Simulate 3 phases
+                x=timestamps,
+                y=phase_values,
                 mode='lines',
-                name=phase,
+                name=phase_name,
                 line=dict(
                     color=colors[i],
                     width=1
                 ),
-                hovertemplate=f'{phase}: %{{y:.1f}} V<br>%{{x}}<extra></extra>'
+                hovertemplate=f'{phase_name}: %{{y:.1f}} V<br>%{{x}}<extra></extra>'
             ))
         
         # Add nominal voltage and limits
-        nominal_voltage = 400
         for voltage, label, color in [
             (nominal_voltage, "Nominal", "#6c757d"),
             (nominal_voltage * 1.05, "+5%", "#dc3545"),
@@ -216,6 +227,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                 annotation=dict(
                     text=label,
                     xref="paper",
+                    yref="y",
                     x=1,
                     y=voltage,
                     showarrow=False,
@@ -290,6 +302,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
                 annotation=dict(
                     text=label,
                     xref="paper",
+                    yref="y",
                     x=1,
                     y=threshold,
                     showarrow=False,
@@ -596,6 +609,7 @@ def display_voltage_over_time(results_df: pd.DataFrame):
             annotation=dict(
                 text=label,
                 xref="paper",
+                yref="y",
                 x=1,
                 y=voltage,
                 showarrow=False,
