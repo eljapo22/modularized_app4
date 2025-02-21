@@ -516,7 +516,15 @@ def display_transformer_tab(df: pd.DataFrame):
 
     # Create section for voltage and current
     st.markdown("### Voltage and Current")
-    display_current_and_voltage_charts(df)
+    
+    # Create two columns for current and voltage
+    current_col, voltage_col = st.columns(2)
+    
+    with current_col:
+        display_current_time_series(df)
+        
+    with voltage_col:
+        display_voltage_time_series(df)
 
 def display_customer_tab(customer_df: pd.DataFrame):
     """Display customer data visualization."""
@@ -550,7 +558,15 @@ def display_customer_tab(customer_df: pd.DataFrame):
 
         # Voltage and Current Section
         st.markdown("### Voltage and Current")
-        display_current_and_voltage_charts(customer_df)
+        
+        # Create two columns for current and voltage
+        current_col, voltage_col = st.columns(2)
+        
+        with current_col:
+            display_current_time_series(customer_df)
+            
+        with voltage_col:
+            display_voltage_time_series(customer_df)
 
     except Exception as e:
         logger.error(f"Error in customer tab: {str(e)}")
