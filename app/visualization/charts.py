@@ -162,6 +162,9 @@ def display_current_time_series(results_df: pd.DataFrame):
             'Current': current
         })
         
+        # Display section title
+        st.markdown("#### Current Over Time")
+        
         # Create base chart with exact same dimensions and style as voltage chart
         chart = alt.Chart(df_current).mark_line(
             color='blue',
@@ -190,18 +193,19 @@ def display_current_time_series(results_df: pd.DataFrame):
                    ))
         ).properties(
             width='container',
-            height=160,
+            height=300,
             padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
+        ).configure_view(
+            strokeWidth=0
         )
-        
-        # Display section title
-        st.markdown("#### Current Over Time")
         
         # Add empty space to match voltage metrics height
         st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True)
         
-        # Display the chart
-        st.altair_chart(chart, use_container_width=True)
+        # Create a container with full width
+        with st.container():
+            # Display the chart with full width
+            st.altair_chart(chart, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying current time series: {str(e)}")
@@ -233,6 +237,9 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             'Voltage': voltage
         })
         
+        # Display section title
+        st.markdown("#### Voltage Over Time")
+        
         # Create base chart with exact same dimensions and style as current chart
         base_chart = alt.Chart(df_voltage).mark_line(
             color='blue',
@@ -261,7 +268,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                    ))
         ).properties(
             width='container',
-            height=160
+            height=300
         )
         
         # Create voltage limits
@@ -285,12 +292,11 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         # Combine charts and add padding to match current chart
         chart = alt.layer(base_chart, reference_lines).properties(
             width='container',
-            height=160,
+            height=300,
             padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
+        ).configure_view(
+            strokeWidth=0
         )
-        
-        # Display section title
-        st.markdown("#### Voltage Over Time")
         
         # Display voltage metrics
         col1, col2, col3 = st.columns(3)
@@ -318,8 +324,10 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                 </div>
             """, unsafe_allow_html=True)
             
-        # Display the chart
-        st.altair_chart(chart, use_container_width=True)
+        # Create a container with full width
+        with st.container():
+            # Display the chart with full width
+            st.altair_chart(chart, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
