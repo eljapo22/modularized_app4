@@ -162,23 +162,26 @@ def display_current_time_series(results_df: pd.DataFrame):
             'Current': current
         })
         
-        # Create base chart
+        # Create base chart with exact same dimensions as voltage chart
         chart = alt.Chart(df_current).mark_line(
             color='blue'
         ).encode(
-            x=alt.X('timestamp:T', title='Time'),
+            x=alt.X('timestamp:T', 
+                   title='Time',
+                   axis=alt.Axis(grid=True)),
             y=alt.Y('Current:Q', 
-                   scale=alt.Scale(domain=[30, 70]),  # Set range to match voltage chart style
-                   title='Current (A)')
+                   scale=alt.Scale(domain=[30, 70]),
+                   title='Current (A)',
+                   axis=alt.Axis(grid=True))
         ).properties(
             width='container',
-            height=250
-        ).configure_axis(
-            grid=True
+            height=250,
+            padding={"left": 50, "right": 20, "top": 20, "bottom": 30}  # Match voltage chart padding
         )
         
-        # Display the chart
-        st.altair_chart(chart, use_container_width=True)
+        # Use container with fixed height to ensure consistent spacing
+        with st.container():
+            st.altair_chart(chart, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying current time series: {str(e)}")
