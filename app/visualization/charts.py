@@ -617,6 +617,10 @@ def display_loading_status(df: pd.DataFrame, size_kva: Optional[float] = None):
         size_kva: Transformer size in kVA
     """
     try:
+        if df is None or df.empty:
+            st.warning("No data available to display loading status")
+            return
+
         # Normalize data
         df = normalize_timestamps(df)
         
@@ -628,43 +632,61 @@ def display_loading_status(df: pd.DataFrame, size_kva: Optional[float] = None):
             x=df['timestamp'],
             y=df['loading_percentage'],
             name='Loading %',
-            line=dict(color='blue', width=2),
-            hovertemplate='%{y:.1f}%<extra></extra>'
+            mode='lines+markers',
+            line=dict(color='#2E86C1', width=2),
+            hovertemplate='%{y:.1f}%<br>Range: %{text}<extra></extra>',
+            text=df['load_range'] if 'load_range' in df.columns else None
         ))
         
         # Add threshold lines
         thresholds = [
-            (120, 'Critical', 'red'),
-            (100, 'Overloaded', 'orange'),
-            (80, 'Warning', 'yellow'),
-            (50, 'Pre-Warning', 'green')
+            (120, 'Critical (>120%)', '#dc3545'),
+            (100, 'Overloaded (100%-120%)', '#fd7e14'),
+            (80, 'Warning (80%-100%)', '#ffc107'),
+            (50, 'Pre-Warning (50%-80%)', '#6f42c1')
         ]
         
         for threshold, label, color in thresholds:
             fig.add_hline(
                 y=threshold,
-                line_dash="dash",
-                line_color=color,
-                annotation_text=f"{label} ({threshold}%)",
-                annotation_position="right"
+                line=dict(color=color, width=1, dash='dash'),
+                annotation=dict(
+                    text=label,
+                    xref='x',  # Use x-axis reference for better positioning
+                    x=1.02,
+                    y=threshold,
+                    showarrow=False,
+                    font=dict(size=10, color=color)
+                )
             )
         
         # Update layout
         fig.update_layout(
-            title="Transformer Loading Status",
-            xaxis_title="Time",
-            yaxis_title="Loading Percentage",
+            height=400,
             showlegend=True,
             hovermode='x unified',
-            margin=dict(l=50, r=150, t=50, b=50)  # Increased right margin for threshold labels
+            xaxis_title='Time',
+            yaxis_title='Loading (%)',
+            yaxis=dict(
+                range=[0, max(150, df['loading_percentage'].max() * 1.1)],
+                gridcolor='rgba(0,0,0,0.1)'
+            ),
+            plot_bgcolor='white',
+            margin=dict(l=50, r=150, t=50, b=50),  # Increased right margin for threshold labels
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(0,0,0,0.1)',
+                showline=True,
+                linecolor='rgba(0,0,0,0.2)'
+            )
         )
         
-        return fig
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error in display_loading_status: {str(e)}")
         st.error("Failed to display loading status chart")
-        return None
 
 def parse_load_range(range_str: str) -> tuple:
     """Parse load range string (e.g. '50%-80%') into tuple of floats."""
