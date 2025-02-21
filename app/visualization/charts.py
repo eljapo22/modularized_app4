@@ -32,7 +32,8 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
         
         # Filter out points that create unrealistic gaps (more than 3 std from mean)
         valid_diffs = time_diff <= (mean_diff + 3 * std_diff)
-        df = df[valid_diffs.fillna(True, inplace=False)]  # Keep first point
+        valid_diffs = valid_diffs.fillna(True, inplace=False)  # Keep first point
+        df = df[valid_diffs]
         
         # Validate numeric columns
         numeric_cols = df.select_dtypes(include=[np.number]).columns
@@ -54,9 +55,10 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
             # Keep only valid load ranges (format: XX%-YY%)
             valid_ranges = df['load_range'].str.match(r'^\d+%-\d+%$')
             if valid_ranges is not None:
-                df = df[valid_ranges.fillna(False, inplace=False)]
+                valid_ranges = valid_ranges.fillna(False, inplace=False)
+                df = df[valid_ranges]
             
-            # Forward fill missing load ranges using ffill()
+            # Forward fill missing load ranges
             df['load_range'] = df['load_range'].ffill()
 
     return df
@@ -137,7 +139,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
                     line_color="#dc3545",
                     annotation=dict(
                         text=f"Transformer Size: {size_kva} kVA",
-                        xref="paper",  
+                        xref="x",
                         yref="y",
                         x=1,
                         y=size_kva,
@@ -197,17 +199,17 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         # Create figure
         fig = create_base_figure()
         
-        # Create mock data for three phases
+        # Create mock data for three phases with smaller variations
         timestamps = results_df['timestamp']
         nominal_voltage = 400
         
-        # Generate slightly different variations for each phase
-        phase_r = nominal_voltage + np.sin(np.linspace(0, 4*np.pi, len(timestamps))) * 5
-        phase_y = nominal_voltage + np.sin(np.linspace(0.5, 4.5*np.pi, len(timestamps))) * 4
-        phase_b = nominal_voltage + np.sin(np.linspace(1, 5*np.pi, len(timestamps))) * 4.5
+        # Generate slightly different variations for each phase (reduced amplitude)
+        phase_r = nominal_voltage + np.sin(np.linspace(0, 2*np.pi, len(timestamps))) * 2
+        phase_y = nominal_voltage + np.sin(np.linspace(2*np.pi/3, 8*np.pi/3, len(timestamps))) * 2
+        phase_b = nominal_voltage + np.sin(np.linspace(4*np.pi/3, 10*np.pi/3, len(timestamps))) * 2
         
         # Add voltage traces for three phases
-        colors = ['#dc3545', '#ffc107', '#0d6efd']  
+        colors = ['#dc3545', '#ffc107', '#0d6efd']
         phase_names = ['Phase R', 'Phase Y', 'Phase B']
         phase_data = [phase_r, phase_y, phase_b]
         
@@ -236,7 +238,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                 line_color=color,
                 annotation=dict(
                     text=label,
-                    xref="paper",  
+                    xref="x",
                     yref="y",
                     x=1,
                     y=voltage,
@@ -334,7 +336,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
                 line_color=color,
                 annotation=dict(
                     text=label,
-                    xref="paper",  
+                    xref="x",
                     yref="y",
                     x=1,
                     y=threshold,
@@ -627,11 +629,11 @@ def display_voltage_over_time(results_df: pd.DataFrame):
     )
     
     # Add voltage traces for three phases
-    colors = ['#dc3545', '#ffc107', '#0d6efd']  
+    colors = ['#dc3545', '#ffc107', '#0d6efd']
     for i, phase in enumerate(['A', 'B', 'C']):
         fig.add_trace(go.Scatter(
             x=results_df['timestamp'],
-            y=results_df['voltage_v'] + np.random.normal(0, 2, len(results_df)),  
+            y=results_df['voltage_v'] + np.random.normal(0, 2, len(results_df)),
             mode='lines',
             name=f'Phase {phase}',
             line=dict(
@@ -654,7 +656,7 @@ def display_voltage_over_time(results_df: pd.DataFrame):
             line_color=color,
             annotation=dict(
                 text=label,
-                xref="paper",  
+                xref="x",
                 yref="y",
                 x=1,
                 y=voltage,
