@@ -190,7 +190,7 @@ def display_current_time_series(results_df: pd.DataFrame):
                    ))
         ).properties(
             width='container',
-            height=160,  # Adjusted to match voltage chart
+            height=160,
             padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
         )
         
@@ -209,6 +209,10 @@ def display_current_time_series(results_df: pd.DataFrame):
             ">
         """, unsafe_allow_html=True)
         
+        # Add empty space to match voltage metrics height
+        st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True)
+        
+        # Display the chart
         st.altair_chart(chart, use_container_width=True)
         
         st.markdown("</div>", unsafe_allow_html=True)
@@ -243,8 +247,8 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             'Voltage': voltage
         })
         
-        # Create base chart
-        chart = alt.Chart(df_voltage).mark_line(
+        # Create base chart without padding
+        base_chart = alt.Chart(df_voltage).mark_line(
             color='blue',
             strokeWidth=2
         ).encode(
@@ -271,8 +275,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                    ))
         ).properties(
             width='container',
-            height=160,
-            padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
+            height=160
         )
         
         # Create tile for voltage chart
@@ -283,7 +286,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         nominal = 400
         lower_limit = 380
         
-        # Add reference lines
+        # Add reference lines without padding
         reference_lines = alt.Chart(pd.DataFrame({
             'y': [upper_limit, nominal, lower_limit],
             'color': ['red', 'gray', 'red'],
@@ -296,8 +299,12 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             strokeDash='dash:N'
         )
         
-        # Combine chart with reference lines
-        chart = alt.layer(chart, reference_lines)
+        # Combine charts and add padding to the layered chart
+        chart = alt.layer(base_chart, reference_lines).properties(
+            width='container',
+            height=160,
+            padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
+        )
         
         # Use container with consistent styling
         st.markdown("""
