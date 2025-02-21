@@ -87,7 +87,7 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
         base = alt.Chart(results_df).encode(
             x=alt.X('timestamp:T', 
                    title='Time',
-                   axis=alt.Axis(format='%Y-%m-%d')),  # Custom date format
+                   axis=alt.Axis(format='%d/%m/%y')),  # Custom date format
             y=alt.Y('power_kw:Q', title='Power (kW)')
         )
         
@@ -239,7 +239,7 @@ def display_current_time_series(results_df: pd.DataFrame):
                        titleFontSize=12,
                        tickCount=10,
                        gridWidth=0.5,
-                       format='%Y-%m-%d'
+                       format='%d/%m/%y'
                    )),
             y=alt.Y('Current:Q', 
                    scale=alt.Scale(domain=[30, 70], nice=True),
@@ -315,7 +315,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                        titleFontSize=12,
                        tickCount=10,
                        gridWidth=0.5,
-                       format='%Y-%m-%d'
+                       format='%d/%m/%y'
                    )),
             y=alt.Y('Voltage:Q', 
                    scale=alt.Scale(domain=[380, 420], nice=True),
