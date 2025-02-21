@@ -336,214 +336,138 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     logger.info("Displayed chart")
 
 def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = None, is_transformer_view: bool = False):
-    # Display current analysis time series visualization
-    st.write("Current Analysis")
-    
-    if results_df is None or results_df.empty:
-        st.warning("No current data available")
-        return
+    """Display current time series visualization."""
+    try:
+        # Ensure timestamp is in datetime format
+        results_df = results_df.copy()
+        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
 
-    # Ensure timestamp is in datetime format and reset index if it's the index
-    if isinstance(results_df.index, pd.DatetimeIndex):
-        results_df = results_df.reset_index()
-        logger.info("Reset DatetimeIndex to column")
-    if 'timestamp' not in results_df.columns:
-        st.error("No timestamp column found in data")
-        logger.error(f"Missing timestamp column. Available columns: {results_df.columns.tolist()}")
-        return
-    
-    logger.info(f"Plotting current time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
-    logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
-    
-    # Round current values based on view type
-    if is_transformer_view:
-        results_df['current_a'] = results_df['current_a'].round(2)  # xx.xx for transformers
-    else:
-        results_df['current_a'] = results_df['current_a'].round(3)  # x.xxx for customers
+        # Create figure
+        fig = create_base_figure(
+            title=None,
+            xaxis_title="Time",
+            yaxis_title="Current (A)"
+        )
 
-    # Sample a few timestamps to verify format
-    sample_timestamps = results_df['timestamp'].head()
-    logger.info(f"Sample timestamps: {sample_timestamps.tolist()}")
-        
-    # Create figure
-    fig = create_base_figure(
-        None,
-        None,
-        "Current (A)"
-    )
-    logger.info("Created base figure")
-    
-    # Add current trace
-    fig.add_trace(
-        go.Scatter(
+        # Add current trace
+        fig.add_trace(go.Scatter(
             x=results_df['timestamp'],
             y=results_df['current_a'],
             mode='lines+markers',
             name='Current',
-            line=dict(color='#3b82f6', width=2),
-            marker=dict(color='#3b82f6', size=6),
-            hoverinfo='skip'
-        )
-    )
-    logger.info("Added current trace")
-    
-    # Update layout
-    y_max = max(results_df['current_a']) * 1.35
-    fig.update_layout(
-        showlegend=True,
-        yaxis=dict(
-            title="Current (A)",
-            range=[0, y_max],
-            automargin=True,
-            gridcolor='#E1E1E1',
-            tickformat='.2f' if is_transformer_view else '.3f'  # Match rounding precision
-        ),
-        xaxis=dict(
-            title='Time',
-            gridcolor='#E1E1E1',
-            type='date',
-            tickformat='%H:%M'  # Only show hour:minute
-        )
-    )
+            line=dict(color='#0d6efd', width=2),
+            marker=dict(size=6)
+        ))
 
-    # Add hour indicator if specified
-    if selected_hour is not None and isinstance(selected_hour, int):
-        add_hour_indicator(fig, selected_hour, y_range=(0, y_max))
+        # Add hour indicator if specified
+        if selected_hour is not None and isinstance(selected_hour, int):
+            # Get y-axis range for the indicator
+            y_min = min(results_df['current_a'])
+            y_max = max(results_df['current_a'])
+            y_padding = (y_max - y_min) * 0.1
+            y_range = (y_min - y_padding, y_max + y_padding)
+            add_hour_indicator(fig, selected_hour, y_range=y_range)
 
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
+
+    except Exception as e:
+        logger.error(f"Error displaying current time series: {str(e)}")
+        st.error("Error displaying current time series visualization")
 
 def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = None):
-    # Display voltage analysis time series visualization
-    st.write("Voltage Analysis")
-    
-    if results_df is None or results_df.empty:
-        st.warning("No voltage data available")
-        return
+    """Display voltage time series visualization."""
+    try:
+        # Ensure timestamp is in datetime format
+        results_df = results_df.copy()
+        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
 
-    # Ensure timestamp is in datetime format and reset index if it's the index
-    if isinstance(results_df.index, pd.DatetimeIndex):
-        results_df = results_df.reset_index()
-        logger.info("Reset DatetimeIndex to column")
-    if 'timestamp' not in results_df.columns:
-        st.error("No timestamp column found in data")
-        logger.error(f"Missing timestamp column. Available columns: {results_df.columns.tolist()}")
-        return
-    
-    logger.info(f"Plotting voltage time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
-    logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
-    
-    # Sample a few timestamps to verify format
-    sample_timestamps = results_df['timestamp'].head()
-    logger.info(f"Sample timestamps: {sample_timestamps.tolist()}")
-        
-    # Create figure
-    fig = create_base_figure(
-        None,
-        None,
-        "Voltage (V)"
-    )
-    logger.info("Created base figure")
-    
-    # Add voltage trace
-    fig.add_trace(
-        go.Scatter(
+        # Create figure
+        fig = create_base_figure(
+            title=None,
+            xaxis_title="Time",
+            yaxis_title="Voltage (V)"
+        )
+
+        # Add voltage trace
+        fig.add_trace(go.Scatter(
             x=results_df['timestamp'],
             y=results_df['voltage_v'],
             mode='lines+markers',
             name='Voltage',
-            line=dict(color='#22c55e', width=2),
-            marker=dict(color='#22c55e', size=6),
-            hoverinfo='skip'
-        )
-    )
-    logger.info("Added voltage trace")
-    
-    # Update layout
-    y_max = max(results_df['voltage_v']) * 1.35
-    fig.update_layout(
-        showlegend=True,
-        yaxis=dict(
-            title="Voltage (V)",
-            range=[0, y_max],
-            automargin=True,
-            gridcolor='#E1E1E1',
-            tickformat='.1f'  # Match rounding precision
-        ),
-        xaxis=dict(
-            title='Time',
-            gridcolor='#E1E1E1',
-            type='date',
-            tickformat='%H:%M'  # Only show hour:minute
-        )
-    )
+            line=dict(color='#0d6efd', width=2),
+            marker=dict(size=6)
+        ))
 
-    # Add hour indicator if specified
-    if selected_hour is not None and isinstance(selected_hour, int):
-        add_hour_indicator(fig, selected_hour, y_range=(0, y_max))
+        # Add hour indicator if specified
+        if selected_hour is not None and isinstance(selected_hour, int):
+            # Get y-axis range for the indicator
+            y_min = min(results_df['voltage_v'])
+            y_max = max(results_df['voltage_v'])
+            y_padding = (y_max - y_min) * 0.1
+            y_range = (y_min - y_padding, y_max + y_padding)
+            add_hour_indicator(fig, selected_hour, y_range=y_range)
 
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
+
+    except Exception as e:
+        logger.error(f"Error displaying voltage time series: {str(e)}")
+        st.error("Error displaying voltage time series visualization")
 
 def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
-    # Display loading status visualization
-    st.write("Loading Status")
-    
-    if results_df is None or results_df.empty:
-        st.warning("No data available for loading status visualization.")
-        return
+    """Display loading status visualization."""
+    try:
+        # Ensure timestamp is in datetime format
+        results_df = results_df.copy()
+        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
 
-    # Create figure
-    fig = create_base_figure(None, None, "Loading (%)")
-    
-    # Create traces for each status with simpler formatting
-    for status, color in STATUS_COLORS.items():
-        mask = results_df['load_range'] == status
-        if not any(mask):
-            continue
-            
-        status_df = results_df[mask]
-        
-        fig.add_trace(
-            go.Scatter(
-                x=status_df['timestamp'],
-                y=status_df['loading_percentage'],
-                mode='lines+markers',
-                name=status,
-                line=dict(color=color),
-                marker=dict(
-                    color=color,
-                    size=8
-                ),
-                hovertemplate='Time: %{x}<br>Loading: %{y:.2f}%<br>Status: ' + status + '<extra></extra>'
+        # Create figure
+        fig = create_base_figure(
+            title=None,
+            xaxis_title="Time",
+            yaxis_title="Loading (%)"
+        )
+
+        # Add loading percentage line
+        fig.add_trace(go.Scatter(
+            x=results_df['timestamp'],
+            y=results_df['loading_percentage'],
+            mode='lines+markers',
+            name='Loading %',
+            line=dict(color='#0d6efd', width=2),
+            marker=dict(size=6)
+        ))
+
+        # Add threshold lines
+        thresholds = [
+            (120, 'Critical', '#dc3545'),
+            (100, 'Overloaded', '#fd7e14'),
+            (80, 'Warning', '#ffc107'),
+            (50, 'Pre-Warning', '#6f42c1')
+        ]
+
+        for threshold, label, color in thresholds:
+            fig.add_hline(
+                y=threshold,
+                line_dash="dot",
+                line_color=color,
+                annotation_text=f"{label} ({threshold}%)",
+                annotation_position="left"
             )
-        )
 
-    # Update layout with simpler time formatting
-    fig.update_layout(
-        showlegend=True,
-        yaxis=dict(
-            title="Loading (%)",
-            range=[0, 100],
-            gridcolor='#E1E1E1',
-            tickformat='.2f'  # Match rounding precision
-        ),
-        xaxis=dict(
-            title='Time',
-            gridcolor='#E1E1E1',
-            type='date',
-            tickformat='%H:%M'  # Only show hour:minute
-        ),
-        plot_bgcolor='white',
-        legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=0.01
-        )
-    )
+        # Add hour indicator if specified
+        if selected_hour is not None and isinstance(selected_hour, int):
+            # Get y-axis range for the indicator
+            y_min = min(results_df['loading_percentage'])
+            y_max = max(results_df['loading_percentage'])
+            y_padding = (y_max - y_min) * 0.1
+            y_range = (y_min - y_padding, y_max + y_padding)
+            add_hour_indicator(fig, selected_hour, y_range=y_range)
 
-    st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
+
+    except Exception as e:
+        logger.error(f"Error displaying loading status: {str(e)}")
+        st.error("Error displaying loading status visualization")
 
 def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: int = None):
     # Display the transformer analysis dashboard
