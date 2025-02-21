@@ -195,8 +195,8 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
         
         # Create hourly time range if marker_hour is provided
         if marker_hour is not None and isinstance(marker_hour, int):
-            base_time = results['timestamp'].iloc[0]  # First timestamp in the results
-            marker_timestamp = base_time + pd.Timedelta(hours=marker_hour)
+            first_timestamp = pd.to_datetime(results['timestamp'].iloc[0])
+            marker_timestamp = first_timestamp.floor('D') + pd.Timedelta(hours=marker_hour)
         
         # Create metric tiles
         create_metric_tiles(

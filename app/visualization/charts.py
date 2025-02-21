@@ -33,13 +33,8 @@ def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
     try:
         # Convert first timestamp to pandas timestamp if it's not already
         first_timestamp = pd.to_datetime(x_data[0])
-        # Create base time range for the day
-        base_time = pd.date_range(
-            start=first_timestamp.floor('D'),  # Start at beginning of day
-            periods=24,
-            freq='H'
-        )
-        indicator_time = base_time[selected_hour]
+        # Create indicator time by adding hours to start of day
+        indicator_time = first_timestamp.floor('D') + pd.Timedelta(hours=selected_hour)
     except Exception as e:
         logger.error(f"Error creating hour indicator: {str(e)}")
         return
@@ -161,8 +156,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: i
         
         # Get first timestamp and create indicator time
         first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
-        base_time = pd.date_range(start=first_timestamp.date(), periods=24, freq='H')
-        indicator_time = base_time[selected_hour]
+        indicator_time = first_timestamp.floor('D') + pd.Timedelta(hours=selected_hour)
         
         # Add the vertical line
         fig.add_shape(
