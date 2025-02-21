@@ -1,65 +1,62 @@
 import duckdb
+import streamlit as st
+import pandas as pd
+from io import StringIO
 
 print("Setting up MotherDuck database...")
 
-# Your token
-token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImpobmFwbzIyMTNAZ21haWwuY29tIiwic2Vzc2lvbiI6ImpobmFwbzIyMTMuZ21haWwuY29tIiwicGF0IjoiMFBiVDRqY2p3WTQtMGQxOXdEUmJfNlE0NXM1WWgtZlZTYkItX2hQVUJKWSIsInVzZXJJZCI6IjI4Mzg5MGMwLTZhYmEtNDIyZi04OTI1LWQyNTg0YjJiZmU1NiIsImlzcyI6Im1kX3BhdCIsInJlYWRPbmx5IjpmYWxzZSwidG9rZW5UeXBlIjoicmVhZF93cml0ZSIsImlhdCI6MTczOTk0NDc5MH0.XpT3PzKgOTz6pVlFXcxb9AXpjyc9yuhvmZxmaPXH6c'
-
 try:
-    # Connect to DuckDB
+    # Connect to DuckDB with MotherDuck token from Streamlit secrets
     print("1. Connecting to DuckDB...")
-    con = duckdb.connect()
+    motherduck_token = st.secrets["MOTHERDUCK_TOKEN"]
+    con = duckdb.connect(f'md:?motherduck_token={motherduck_token}')
     
-    # Install and load MotherDuck extension
-    print("2. Installing MotherDuck extension...")
-    con.execute("INSTALL motherduck")
-    print("3. Loading MotherDuck extension...")
-    con.execute("LOAD motherduck")
+    # Drop existing table if it exists
+    print("\n2. Dropping existing table if it exists...")
+    con.execute('DROP TABLE IF EXISTS "Transformer Feeder 1"')
     
-    # Set the token
-    print("4. Setting MotherDuck token...")
-    con.execute(f"SET motherduck_token='{token}'")
+    # Create the transformer table if it doesn't exist
+    print("\n3. Creating Transformer Feeder 1 table...")
+    con.execute("""
+        CREATE TABLE "Transformer Feeder 1" (
+            timestamp TIMESTAMP,
+            transformer_id VARCHAR,
+            size_kva DOUBLE,
+            load_range VARCHAR,
+            loading_percentage DOUBLE,
+            current_a DOUBLE,
+            voltage_v DOUBLE,
+            power_kw DOUBLE,
+            power_kva DOUBLE,
+            power_factor DOUBLE,
+            PRIMARY KEY (transformer_id, timestamp)
+        )
+    """)
     
-    # Create database if it doesn't exist
-    print("\n5. Creating database...")
-    con.execute("CREATE DATABASE IF NOT EXISTS 'md:motherduck_db'")
-    con.execute("USE 'md:motherduck_db'")
+    # Sample data
+    sample_data = """timestamp	transformer_id	size_kva	load_range	loading_percentage	current_a	voltage_v	power_kw	power_kva	power_factor
+2024-01-01 00:00:00	S1F1ATF001	75.0	50%-80%	56.05	90.68	400	33.63	36.27	0.927
+2024-01-01 01:00:00	S1F1ATF001	75.0	50%-80%	55.33	91.17	400	33.2	36.47	0.91
+2024-01-01 02:00:00	S1F1ATF001	75.0	50%-80%	54.45	89.98	400	32.67	35.99	0.908"""
     
-    # Create schema if it doesn't exist
-    print("6. Creating schema...")
-    con.execute("CREATE SCHEMA IF NOT EXISTS processed_data")
+    # Convert sample data to DataFrame
+    df = pd.read_csv(StringIO(sample_data), sep='\t')
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
     
-    # Create tables if they don't exist
-    print("7. Creating tables...")
-    for feeder in range(1, 5):
-        # Create transformer analysis table
-        table_name = f"processed_data.transformer_analysis_hourly_feeder{feeder}"
-        print(f"\nCreating {table_name}...")
-        con.execute(f"""
-            CREATE TABLE IF NOT EXISTS {table_name} (
-                transformer_id VARCHAR,
-                timestamp TIMESTAMP,
-                loading_percentage DOUBLE,
-                PRIMARY KEY (transformer_id, timestamp)
-            )
-        """)
-        
-        # Create customer analysis table
-        table_name = f"processed_data.customer_analysis_hourly_feeder{feeder}"
-        print(f"Creating {table_name}...")
-        con.execute(f"""
-            CREATE TABLE IF NOT EXISTS {table_name} (
-                customer_id VARCHAR,
-                timestamp TIMESTAMP,
-                consumption DOUBLE,
-                PRIMARY KEY (customer_id, timestamp)
-            )
-        """)
+    # Insert sample data
+    print("\n4. Inserting sample data...")
+    con.execute('INSERT INTO "Transformer Feeder 1" SELECT * FROM df')
     
-    # List all tables to verify
-    print("\n8. Listing all tables:")
-    result = con.execute("SHOW TABLES").fetchdf()
+    # Verify data
+    print("\n5. Verifying data...")
+    result = con.execute('SELECT * FROM "Transformer Feeder 1" LIMIT 3').fetchdf()
+    print("\nSample data in table:")
     print(result)
     
+    print("\nSetup completed successfully!")
+    
 except Exception as e:
-    print(f"Error: {str(e)}")
+    print(f"Error during setup: {str(e)}")
+finally:
+    if 'con' in locals():
+        con.close()

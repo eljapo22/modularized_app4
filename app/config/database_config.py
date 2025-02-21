@@ -6,27 +6,20 @@ from typing import Dict
 
 # Query templates with different precision for transformer vs customer data
 TRANSFORMER_DATA_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    hours.hour as "timestamp",
-    COALESCE(t."voltage_v", LAG(t."voltage_v") OVER (ORDER BY hours.hour)) as "voltage_v",
+    t."timestamp",
+    t."voltage_v",
     t."size_kva",
-    CAST(COALESCE(t."loading_percentage", LAG(t."loading_percentage") OVER (ORDER BY hours.hour)) AS DECIMAL(3,0)) as "loading_percentage",
-    CAST(COALESCE(t."current_a", LAG(t."current_a") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
-    CAST(COALESCE(t."power_kw", LAG(t."power_kw") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
-    CAST(COALESCE(t."power_kva", LAG(t."power_kva") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kva",
-    CAST(COALESCE(t."power_factor", LAG(t."power_factor") OVER (ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
+    t."loading_percentage",
+    t."current_a",
+    t."power_kw",
+    t."power_kva",
+    t."power_factor",
     t."transformer_id",
     t."load_range"
-FROM hours
-LEFT JOIN {table_name} t ON t."timestamp" = hours.hour AND t."transformer_id" = ?
-ORDER BY hours.hour
+FROM "Transformer Feeder 1" t 
+WHERE t."transformer_id" = ?
+ORDER BY t."timestamp"
 """
 
 TRANSFORMER_DATA_RANGE_QUERY = """
@@ -41,7 +34,7 @@ SELECT
     CAST(t."power_factor" AS DECIMAL(4,3)) as "power_factor",
     t."transformer_id",
     t."load_range"
-FROM {table_name} t 
+FROM "Transformer Feeder 1" t 
 WHERE t."timestamp" BETWEEN ?::timestamp AND ?::timestamp
     AND t."transformer_id" = ?
 ORDER BY t."timestamp"
@@ -66,9 +59,9 @@ ORDER BY c."timestamp", c."customer_id"
 """
 
 TRANSFORMER_LIST_QUERY = """
-SELECT DISTINCT "transformer_id"
-FROM {table_name}
-ORDER BY "transformer_id"
+SELECT DISTINCT transformer_id 
+FROM "Transformer Feeder 1"
+ORDER BY transformer_id
 """
 
 CUSTOMER_AGGREGATION_QUERY = """

@@ -668,9 +668,16 @@ def display_loading_status(df: pd.DataFrame, size_kva: Optional[float] = None) -
             gridcolor='rgba(0,0,0,0.1)'
         ),
         plot_bgcolor='white',
-        margin=dict(l=0, r=0, t=20, b=0)
+        margin=dict(l=50, r=100, t=20, b=50),  # Increased margins
+        xaxis=dict(
+            showgrid=True,
+            gridcolor='rgba(0,0,0,0.1)',
+            showline=True,
+            linecolor='rgba(0,0,0,0.2)'
+        )
     )
 
+    # Display the chart
     st.plotly_chart(fig, use_container_width=True)
 
 def parse_load_range(range_str: str) -> tuple:

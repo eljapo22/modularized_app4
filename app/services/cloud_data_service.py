@@ -92,39 +92,18 @@ class CloudDataService:
         logger.info(f"Returning date range: {self.min_date} to {self.max_date}")
         return self.min_date, self.max_date
 
-    def get_transformer_data(self, date: datetime, hour: int, feeder: str, transformer_id: str) -> Optional[pd.DataFrame]:
-        """
-        Get transformer data for a specific date and hour.
-        
-        Args:
-            date (datetime): The datetime object for the query
-            hour (int): Hour of the day (0-23)
-            feeder (str): Feeder identifier
-            transformer_id (str): Transformer identifier
-        
-        Returns:
-            Optional[pd.DataFrame]: DataFrame containing transformer data or None if no data found
-        """
+    def get_transformer_data(self, transformer_id: str):
+        """Get transformer data for a specific transformer"""
         try:
-            # Extract just the date part for the query
-            query_date = date.date()
+            # Execute query
+            results = execute_query(TRANSFORMER_DATA_QUERY, (transformer_id,))
             
-            # Extract feeder number from string like "Feeder 1"
-            feeder_num = int(feeder.split()[-1])
-            if feeder_num not in FEEDER_NUMBERS:
-                logger.error(f"Invalid feeder number: {feeder_num}")
-                raise ValueError(f"Invalid feeder number: {feeder_num}")
+            if results is not None and not results.empty:
+                return results
+            else:
+                logger.warning(f"No data found for transformer {transformer_id}")
+                return pd.DataFrame()
                 
-            # Table name already includes quotes
-            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
-            logger.debug(f"Querying table: {table}")
-            query = TRANSFORMER_DATA_QUERY.format(table_name=table)
-            results = execute_query(query, (transformer_id, query_date, hour))
-            
-            if results and len(results) > 0:
-                return pd.DataFrame(results)
-            return None
-            
         except Exception as e:
             logger.error(f"Error getting transformer data: {str(e)}")
             raise
