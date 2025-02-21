@@ -4,17 +4,17 @@ Database configuration for MotherDuck
 import os
 from typing import Dict
 
-# Query templates with proper rounding
+# Query templates with decimal precision matching business requirements
 TRANSFORMER_DATA_QUERY = """
 SELECT 
     "timestamp",
     "voltage_v",
     "size_kva",
-    ROUND("loading_percentage", 2) as "loading_percentage",
-    ROUND("current_a", 2) as "current_a",
-    ROUND("power_kw", 2) as "power_kw",
-    "power_kva",
-    "power_factor",
+    CAST("loading_percentage" AS DECIMAL(3,0)) as "loading_percentage",
+    CAST("current_a" AS DECIMAL(6,1)) as "current_a",
+    CAST("power_kw" AS DECIMAL(8,2)) as "power_kw",
+    CAST("power_kva" AS DECIMAL(8,2)) as "power_kva",
+    CAST("power_factor" AS DECIMAL(4,3)) as "power_factor",
     "transformer_id",
     "load_range"
 FROM {table_name}
@@ -25,12 +25,12 @@ ORDER BY "timestamp"
 
 CUSTOMER_DATA_QUERY = """
 SELECT 
-    ROUND("current_a", 1) as "current_a",
+    CAST("current_a" AS DECIMAL(6,1)) as "current_a",
     "customer_id",
     "hour",
-    "power_factor",
-    ROUND("power_kva", 1) as "power_kva",
-    ROUND("power_kw", 1) as "power_kw",
+    CAST("power_factor" AS DECIMAL(4,3)) as "power_factor",
+    CAST("power_kva" AS DECIMAL(8,2)) as "power_kva",
+    CAST("power_kw" AS DECIMAL(8,2)) as "power_kw",
     "size_kva",
     "timestamp",
     "transformer_id",
@@ -51,10 +51,10 @@ CUSTOMER_AGGREGATION_QUERY = """
 SELECT 
     "timestamp"::DATE as date,
     "customer_id",
-    AVG(ROUND("power_kw", 1)) as avg_power_kw,
-    MAX(ROUND("power_kw", 1)) as max_power_kw,
-    MIN(ROUND("power_kw", 1)) as min_power_kw,
-    AVG(ROUND("power_factor", 2)) as avg_power_factor
+    CAST(AVG("power_kw") AS DECIMAL(8,2)) as avg_power_kw,
+    CAST(MAX("power_kw") AS DECIMAL(8,2)) as max_power_kw,
+    CAST(MIN("power_kw") AS DECIMAL(8,2)) as min_power_kw,
+    CAST(AVG("power_factor") AS DECIMAL(4,3)) as avg_power_factor
 FROM {table_name}
 WHERE "transformer_id" = ?
   AND "timestamp"::DATE BETWEEN ?::DATE AND ?::DATE
@@ -67,11 +67,11 @@ SELECT
     "timestamp",
     "voltage_v",
     "size_kva",
-    ROUND("loading_percentage", 2) as "loading_percentage",
-    ROUND("current_a", 2) as "current_a",
-    ROUND("power_kw", 2) as "power_kw",
-    "power_kva",
-    "power_factor",
+    CAST("loading_percentage" AS DECIMAL(3,0)) as "loading_percentage",
+    CAST("current_a" AS DECIMAL(6,1)) as "current_a",
+    CAST("power_kw" AS DECIMAL(8,2)) as "power_kw",
+    CAST("power_kva" AS DECIMAL(8,2)) as "power_kva",
+    CAST("power_factor" AS DECIMAL(4,3)) as "power_factor",
     "transformer_id",
     "load_range"
 FROM {table_name}
