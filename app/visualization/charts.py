@@ -92,30 +92,43 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
         # Add the power consumption line
         power_line = base.mark_line(color='blue')
 
-        # Create peak loading line
+        # Create peak loading point
         peak_df = pd.DataFrame({
             'timestamp': [peak_time],
-            'power': [peak_power],
+            'power_kw': [peak_power],
             'text': [f'Peak: {peak_loading:.1f}%\n{peak_time.strftime("%Y-%m-%d %H:%M")}']
         })
         
-        peak_line = alt.Chart(peak_df).mark_rule(
+        # Add circle highlight for peak point
+        peak_point = alt.Chart(peak_df).mark_circle(
+            size=100,  # Size of the circle
             color='red',
-            strokeDash=[4, 4]
+            opacity=0.3  # Semi-transparent
         ).encode(
-            x='timestamp:T'
+            x='timestamp:T',
+            y='power_kw:Q'
+        )
+        
+        # Add smaller center point
+        peak_center = alt.Chart(peak_df).mark_circle(
+            size=50,  # Size of the center point
+            color='red'
+        ).encode(
+            x='timestamp:T',
+            y='power_kw:Q'
         )
         
         peak_text = alt.Chart(peak_df).mark_text(
             color='red',
             align='left',
-            baseline='top',
+            baseline='bottom',
             dx=5,
+            dy=-5,
             fontSize=11,
             fontWeight='bold'
         ).encode(
             x='timestamp:T',
-            y=alt.value(20),  # Position text near top of chart
+            y='power_kw:Q',
             text='text:N'
         )
 
@@ -152,7 +165,8 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
                 power_line,
                 transformer_line,
                 transformer_text,
-                peak_line,
+                peak_point,
+                peak_center,
                 peak_text
             ).properties(
                 width='container',
@@ -163,7 +177,8 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
         else:
             chart = alt.layer(
                 power_line,
-                peak_line,
+                peak_point,
+                peak_center,
                 peak_text
             ).properties(
                 width='container',
