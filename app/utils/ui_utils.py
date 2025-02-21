@@ -201,6 +201,11 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
         # Get the first row for metrics
         current_data = results.iloc[0]
         
+        # Create hourly time range if marker_hour is provided
+        if marker_hour is not None:
+            base_time = pd.date_range(start=results['timestamp'].dt.date.iloc[0], periods=24, freq='H')
+            marker_timestamp = base_time[marker_hour]
+        
         # Create metric tiles
         create_metric_tiles(
             transformer_id=current_data['transformer_id'],
@@ -215,7 +220,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
         if marker_hour is not None:
             # Add vertical line for selected hour
             loading_fig.add_vline(
-                x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]) + pd.Timedelta(hours=marker_hour),
+                x=marker_timestamp,
                 line_dash="dash",
                 line_color="gray",
                 annotation_text=f"{marker_hour:02d}:00"
@@ -228,7 +233,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
         if marker_hour is not None:
             # Add vertical line for selected hour
             power_fig.add_vline(
-                x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]) + pd.Timedelta(hours=marker_hour),
+                x=marker_timestamp,
                 line_dash="dash",
                 line_color="gray",
                 annotation_text=f"{marker_hour:02d}:00"
@@ -244,7 +249,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
             if marker_hour is not None:
                 # Add vertical line for selected hour
                 current_fig.add_vline(
-                    x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]) + pd.Timedelta(hours=marker_hour),
+                    x=marker_timestamp,
                     line_dash="dash",
                     line_color="gray",
                     annotation_text=f"{marker_hour:02d}:00"
@@ -257,7 +262,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
             if marker_hour is not None:
                 # Add vertical line for selected hour
                 voltage_fig.add_vline(
-                    x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]) + pd.Timedelta(hours=marker_hour),
+                    x=marker_timestamp,
                     line_dash="dash",
                     line_color="gray",
                     annotation_text=f"{marker_hour:02d}:00"
