@@ -23,33 +23,25 @@ def create_metric_tiles(transformer_id: str, feeder: str, size_kva: float, loadi
     """Create metric tiles for transformer details"""
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.markdown(f"""
-            <div style="background-color:white; padding:1rem; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12);">
-                <p style="margin:0; color:#666;">Transformer ID</p>
-                <h3 style="margin:0;">{transformer_id}</h3>
-            </div>
-        """, unsafe_allow_html=True)
+        st.metric(
+            label="Transformer ID",
+            value=transformer_id
+        )
     with col2:
-        st.markdown(f"""
-            <div style="background-color:white; padding:1rem; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12);">
-                <p style="margin:0; color:#666;">Feeder</p>
-                <h3 style="margin:0;">{feeder}</h3>
-            </div>
-        """, unsafe_allow_html=True)
+        st.metric(
+            label="Feeder",
+            value=feeder
+        )
     with col3:
-        st.markdown(f"""
-            <div style="background-color:white; padding:1rem; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12);">
-                <p style="margin:0; color:#666;">Size</p>
-                <h3 style="margin:0;">{size_kva:.0f} kVA</h3>
-            </div>
-        """, unsafe_allow_html=True)
+        st.metric(
+            label="Size",
+            value=f"{size_kva:.0f} kVA"
+        )
     with col4:
-        st.markdown(f"""
-            <div style="background-color:white; padding:1rem; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12);">
-                <p style="margin:0; color:#666;">Loading</p>
-                <h3 style="margin:0;">{loading_pct:.1f}%</h3>
-            </div>
-        """, unsafe_allow_html=True)
+        st.metric(
+            label="Loading",
+            value=f"{loading_pct:.1f}%"
+        )
 
 def create_power_chart(data: pd.DataFrame) -> go.Figure:
     """Create power consumption chart"""
