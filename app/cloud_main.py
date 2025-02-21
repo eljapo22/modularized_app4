@@ -297,14 +297,14 @@ def main():
                                 with voltage_col:
                                     create_section_header("Voltage Over Time")
                                     display_voltage_time_series(transformer_data)
-                        
-                        with customer_tab:
-                            if customer_data is not None and not customer_data.empty:
-                                display_customer_tab(customer_data)
-                            else:
-                                st.warning("No customer data available for the selected period")
-                    else:
-                        st.warning("No transformer data available for the selected criteria.")
+                            
+                            with customer_tab:
+                                if customer_data is not None and not customer_data.empty:
+                                    display_customer_tab(customer_data)
+                                else:
+                                    st.warning("No customer data available for the selected period")
+                        else:
+                            st.warning("No transformer data available for the selected criteria.")
     
     except Exception as e:
         logger.error(f"Application error: {str(e)}\nTraceback: {traceback.format_exc()}")
