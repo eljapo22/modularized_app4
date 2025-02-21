@@ -194,28 +194,14 @@ def display_current_time_series(results_df: pd.DataFrame):
             padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
         )
         
-        # Create tile for current chart
-        create_tile("Current Over Time", "")
-        
-        # Use container with consistent styling
-        st.markdown("""
-            <div style="
-                background-color: white;
-                border-radius: 3px;
-                padding: 0px;
-                margin: 0px;
-                height: 240px;
-                box-shadow: none;
-            ">
-        """, unsafe_allow_html=True)
+        # Display section title
+        st.markdown("#### Current Over Time")
         
         # Add empty space to match voltage metrics height
         st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True)
         
         # Display the chart
         st.altair_chart(chart, use_container_width=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
         
     except Exception as e:
         logger.error(f"Error displaying current time series: {str(e)}")
@@ -247,7 +233,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             'Voltage': voltage
         })
         
-        # Create base chart without padding
+        # Create base chart with exact same dimensions and style as current chart
         base_chart = alt.Chart(df_voltage).mark_line(
             color='blue',
             strokeWidth=2
@@ -278,15 +264,12 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             height=160
         )
         
-        # Create tile for voltage chart
-        create_tile("Voltage Over Time", "")
-        
         # Create voltage limits
         upper_limit = 420
         nominal = 400
         lower_limit = 380
         
-        # Add reference lines without padding
+        # Add reference lines
         reference_lines = alt.Chart(pd.DataFrame({
             'y': [upper_limit, nominal, lower_limit],
             'color': ['red', 'gray', 'red'],
@@ -299,42 +282,66 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             strokeDash='dash:N'
         )
         
-        # Combine charts and add padding to the layered chart
+        # Combine charts and add padding to match current chart
         chart = alt.layer(base_chart, reference_lines).properties(
             width='container',
             height=160,
             padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
         )
         
-        # Use container with consistent styling
-        st.markdown("""
-            <div style="
-                background-color: white;
-                border-radius: 3px;
-                padding: 0px;
-                margin: 0px;
-                height: 240px;
-                box-shadow: none;
-            ">
-        """, unsafe_allow_html=True)
+        # Display section title
+        st.markdown("#### Voltage Over Time")
         
         # Display voltage metrics
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown(f"<p style='color: red; margin: 0;'>Upper Limit<br/><strong>{upper_limit}V</strong></p>", unsafe_allow_html=True)
+            st.markdown(f"""
+                <div style='text-align: left; padding: 5px 0;'>
+                    <span style='color: red; font-size: 12px;'>Upper Limit</span><br/>
+                    <span style='color: red; font-size: 16px; font-weight: 500;'>{upper_limit}V</span>
+                    <span style='color: red; font-size: 11px;'> (+5%)</span>
+                </div>
+            """, unsafe_allow_html=True)
         with col2:
-            st.markdown(f"<p style='color: gray; margin: 0;'>Nominal<br/><strong>{nominal}V</strong></p>", unsafe_allow_html=True)
+            st.markdown(f"""
+                <div style='text-align: center; padding: 5px 0;'>
+                    <span style='color: gray; font-size: 12px;'>Nominal</span><br/>
+                    <span style='color: gray; font-size: 16px; font-weight: 500;'>{nominal}V</span>
+                </div>
+            """, unsafe_allow_html=True)
         with col3:
-            st.markdown(f"<p style='color: red; margin: 0;'>Lower Limit<br/><strong>{lower_limit}V</strong></p>", unsafe_allow_html=True)
+            st.markdown(f"""
+                <div style='text-align: right; padding: 5px 0;'>
+                    <span style='color: red; font-size: 12px;'>Lower Limit</span><br/>
+                    <span style='color: red; font-size: 16px; font-weight: 500;'>{lower_limit}V</span>
+                    <span style='color: red; font-size: 11px;'> (-5%)</span>
+                </div>
+            """, unsafe_allow_html=True)
             
         # Display the chart
         st.altair_chart(chart, use_container_width=True)
         
-        st.markdown("</div>", unsafe_allow_html=True)
-        
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
         st.error("Error displaying voltage time series chart")
+
+def display_current_and_voltage_charts(results_df: pd.DataFrame):
+    """Display current and voltage time series visualizations side by side."""
+    try:
+        # Create two columns for the charts
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Current Chart
+            display_current_time_series(results_df)
+            
+        with col2:
+            # Voltage Chart
+            display_voltage_time_series(results_df)
+                
+    except Exception as e:
+        logger.error(f"Error displaying current and voltage charts: {str(e)}")
+        st.error("Error displaying charts")
 
 def display_loading_status_line_chart(results_df: pd.DataFrame):
     """Display loading status as a line chart with threshold indicators."""
@@ -501,13 +508,7 @@ def display_transformer_tab(df: pd.DataFrame):
 
     # Create section for voltage and current
     st.markdown("### Voltage and Current")
-    cols = st.columns(2)
-    with cols[0]:
-        create_tile("Current Over Time", "")
-        display_current_time_series(df)
-    with cols[1]:
-        create_tile("Voltage Over Time", "")
-        display_voltage_time_series(df)
+    display_current_and_voltage_charts(df)
 
 def display_customer_tab(customer_df: pd.DataFrame):
     """Display customer data visualization."""
@@ -541,13 +542,7 @@ def display_customer_tab(customer_df: pd.DataFrame):
 
         # Voltage and Current Section
         st.markdown("### Voltage and Current")
-        current_col, voltage_col = st.columns([1, 1])
-        
-        with current_col:
-            display_current_time_series(customer_df)
-            
-        with voltage_col:
-            display_voltage_time_series(customer_df)
+        display_current_and_voltage_charts(customer_df)
 
     except Exception as e:
         logger.error(f"Error in customer tab: {str(e)}")
