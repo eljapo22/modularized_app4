@@ -98,7 +98,7 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
         peak_df = pd.DataFrame({
             'timestamp': [peak_time],
             'power_kw': [peak_power],
-            'text': [f'{peak_loading:.1f}%']  # Simplified annotation
+            'text': [f'{peak_power:.1f} kW']  # Show peak power instead of loading percentage
         })
         
         # Add circle highlight for peak point
@@ -120,76 +120,34 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
             y='power_kw:Q'
         )
         
+        # Add text annotation for peak
         peak_text = alt.Chart(peak_df).mark_text(
-            color='red',
             align='left',
             baseline='bottom',
-            dx=5,
-            dy=-5,
-            fontSize=11,
-            fontWeight='bold'
+            dx=10,  # Offset text to the right
+            dy=-10,  # Offset text upward
+            fontSize=12,
+            color='red'
         ).encode(
             x='timestamp:T',
             y='power_kw:Q',
             text='text:N'
         )
 
-        # Add transformer size reference if provided
-        if size_kva is not None:
-            # Create a DataFrame for the transformer size
-            transformer_df = pd.DataFrame({
-                'x': [results_df['timestamp'].max()],  # Position at the rightmost point
-                'y': [size_kva]
-            })
-            
-            # Add the transformer size line
-            transformer_line = alt.Chart(transformer_df).mark_rule(
-                color='red',
-                strokeDash=[4, 4]
-            ).encode(y='y:Q')
+        # Combine all layers
+        chart = alt.layer(
+            power_line,
+            peak_point,
+            peak_center,
+            peak_text
+        ).properties(
+            width=700,
+            height=400
+        ).configure_axis(
+            labelFontSize=12,
+            titleFontSize=14
+        )
 
-            # Add text annotation for transformer size on the right
-            transformer_text = alt.Chart(transformer_df).mark_text(
-                color='red',
-                align='left',  # Align to the left of the point
-                baseline='middle',
-                dx=5,  # Small offset to the right
-                fontSize=11,
-                fontWeight='bold',
-                text=f'Transformer Size: {size_kva:.0f} kVA'
-            ).encode(
-                x='x:T',  # Position at the rightmost timestamp
-                y='y:Q'
-            )
-
-            # Combine all layers
-            chart = alt.layer(
-                power_line,
-                transformer_line,
-                transformer_text,
-                peak_point,
-                peak_center,
-                peak_text
-            ).properties(
-                width='container',
-                height=250
-            ).configure_axis(
-                grid=True
-            )
-        else:
-            chart = alt.layer(
-                power_line,
-                peak_point,
-                peak_center,
-                peak_text
-            ).properties(
-                width='container',
-                height=250
-            ).configure_axis(
-                grid=True
-            )
-
-        # Display the chart
         st.altair_chart(chart, use_container_width=True)
 
     except Exception as e:
