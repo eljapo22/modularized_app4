@@ -79,7 +79,9 @@ def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
             'zeroline': False,
             'showline': True,
             'linewidth': 1,
-            'linecolor': '#e0e0e0'
+            'linecolor': '#e0e0e0',
+            'type': 'date',
+            'tickformat': '%Y-%m-%d %H:%M'
         },
         'yaxis': {
             'showgrid': True,
@@ -834,7 +836,7 @@ def display_voltage_over_time(results_df: pd.DataFrame):
             tickformat='.1f'  # Match rounding precision
         ),
         xaxis=dict(
-            tickformat='%H:%M',  # Show hours and minutes
+            tickformat='%Y-%m-%d %H:%M',  # Show full datetime
             dtick=3*3600000,  # Show tick every 3 hours (in milliseconds)
             tickangle=0,
             gridcolor='#E1E1E1',  # Darker grey for x-axis grid

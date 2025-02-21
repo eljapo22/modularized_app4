@@ -21,26 +21,30 @@ def create_banner(title: str):
 
 def create_metric_tiles(transformer_id: str, feeder: str, size_kva: float, loading_pct: float):
     """Create metric tiles for transformer details"""
+    # Handle NaN values
+    size_kva = 0 if pd.isna(size_kva) else size_kva
+    loading_pct = 0 if pd.isna(loading_pct) else loading_pct
+    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric(
             label="Transformer ID",
-            value=transformer_id
+            value=str(transformer_id) if transformer_id else "N/A"
         )
     with col2:
         st.metric(
             label="Feeder",
-            value=feeder
+            value=str(feeder) if feeder else "N/A"
         )
     with col3:
         st.metric(
             label="Size",
-            value=f"{size_kva:.0f} kVA"
+            value=f"{size_kva:.0f} kVA" if pd.notna(size_kva) else "N/A"
         )
     with col4:
         st.metric(
             label="Loading",
-            value=f"{loading_pct:.1f}%"
+            value=f"{loading_pct:.1f}%" if pd.notna(loading_pct) else "N/A"
         )
 
 def create_power_chart(data: pd.DataFrame) -> go.Figure:
