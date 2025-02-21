@@ -46,8 +46,8 @@ def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
         first_x = pd.Timestamp(first_x)
         
     # Create a new timestamp for the indicator at the same date but different hour
-    base_time = pd.Timestamp(first_x.date())  # Get the date part only
-    indicator_time = base_time + pd.Timedelta(hours=selected_hour)
+    base_time = pd.date_range(start=first_x.date(), periods=24, freq='H')  # Create hourly range
+    indicator_time = base_time[selected_hour]  # Select the desired hour
     
     # If no y_range provided, try to get it from the figure
     if y_range is None:
