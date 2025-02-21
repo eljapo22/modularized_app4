@@ -12,7 +12,7 @@ from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService  # Import for alert functionality
 from app.utils.ui_utils import create_banner, display_transformer_dashboard
 from app.utils.ui_components import create_section_header, create_tile, create_two_column_charts
-from app.visualization.charts import display_customer_tab, display_power_time_series, display_current_time_series, display_voltage_time_series
+from app.visualization.charts import display_customer_tab, display_power_time_series, display_current_time_series, display_voltage_time_series, display_loading_status_line_chart
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -206,6 +206,10 @@ def main():
                                 transformer_data,
                                 size_kva=transformer_data['size_kva'].iloc[0] if 'size_kva' in transformer_data.columns else None
                             )
+
+                            # Display loading status chart
+                            st.markdown("### Loading Status")
+                            display_loading_status_line_chart(transformer_data)
 
                             # Display current and voltage charts side by side
                             current_col, voltage_col = create_two_column_charts()
