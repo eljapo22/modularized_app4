@@ -4,11 +4,14 @@ Uses app.-prefixed imports required by Streamlit Cloud
 """
 import streamlit as st
 import logging
+import os
+import traceback
 import pandas as pd
+from datetime import datetime, date, timedelta
 
 from services.cloud_data_service import CloudDataService
 from services.cloud_alert_service import CloudAlertService
-from utils.ui_utils import create_banner, display_transformer_dashboard
+from utils.ui_utils import display_transformer_dashboard, setup_page
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +48,7 @@ def main():
         start_date_str = params.get('start', '')
         alert_time_str = params.get('alert_time', '')
         
-        create_banner("Transformer Loading Analysis")
+        setup_page("Transformer Loading Analysis")
         
         # Sidebar for analysis parameters
         with st.sidebar:
@@ -132,7 +135,7 @@ def main():
                         logger.warning("Missing required parameters for alert")
                         st.error("Please select all required parameters")
                     else:
-                        query_datetime = datetime.combine(start_date, time(selected_hour))
+                        query_datetime = datetime.combine(start_date, datetime.min.time()) + timedelta(hours=selected_hour)
                         logger.info(f"Checking alerts for {query_datetime}")
                         
                         # Check and send alerts if needed
@@ -176,17 +179,24 @@ def main():
                             selected_transformer
                         )
                     
-                    if results is not None and not results.empty:
-                        # Display dashboard with alert time marker if available
-                        alert_hour = None
+                    if results is not None:
+                        # Display transformer dashboard
                         if alert_time_str:
                             try:
                                 alert_time = datetime.fromisoformat(alert_time_str)
                                 alert_hour = alert_time.hour
                             except ValueError:
                                 logger.warning("Invalid alert time format")
-                        
-                        display_transformer_dashboard(results, alert_hour)
+                                alert_hour = None
+                        else:
+                            alert_hour = None
+
+                        display_transformer_dashboard(
+                            results=results,
+                            start_date=start_date,
+                            end_date=end_date,
+                            hour=selected_hour
+                        )
                         
                         # Check and send alerts if needed
                         if alert_service is not None and alert_clicked:
