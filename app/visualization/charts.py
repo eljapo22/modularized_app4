@@ -30,14 +30,14 @@ def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
         return
 
     try:
-        first_timestamp = pd.to_datetime(x_data[0])
+        # Convert the first timestamp to pandas Timestamp and normalize to start of day
+        first_timestamp = pd.to_datetime(x_data[0]).normalize()
         if pd.isna(first_timestamp):
             logger.warning("First timestamp is NaT, skipping hour indicator")
             return
 
-        # Calculate the indicator time using normalize() and Timedelta
-        base_time = first_timestamp.normalize()  # Get start of day
-        indicator_time = base_time + pd.Timedelta(hours=int(selected_hour))
+        # Calculate the indicator time using Timedelta
+        indicator_time = first_timestamp + pd.Timedelta(hours=selected_hour)
         
         # Get y-axis range if not provided
         if y_range is None:
