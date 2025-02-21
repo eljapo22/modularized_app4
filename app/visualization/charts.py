@@ -97,13 +97,12 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
             transformer_text = alt.Chart(transformer_df).mark_text(
                 color='red',
                 align='right',
+                baseline='middle',
                 dx=-5,
                 fontSize=11,
-                fontWeight='bold'
-            ).encode(
-                y='y:Q',
-                text=alt.value(f'Transformer Size: {size_kva:.0f} kVA')
-            )
+                fontWeight='bold',
+                text=f'Transformer Size: {size_kva:.0f} kVA'
+            ).encode(y='y:Q')
 
             # Combine all layers
             chart = alt.layer(
@@ -113,11 +112,15 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
             ).properties(
                 width='container',
                 height=250
+            ).configure_axis(
+                grid=True
             )
         else:
             chart = power_line.properties(
                 width='container',
                 height=250
+            ).configure_axis(
+                grid=True
             )
 
         # Display the chart
@@ -196,20 +199,19 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         n_points = len(timestamps)
         
         # Create a base voltage variation that all phases will follow
-        # Using a smoother variation pattern between 370V and 415V
         base_variation = np.cumsum(np.random.uniform(-0.1, 0.1, n_points))  # Create smooth random walk
         base_variation = base_variation - np.mean(base_variation)  # Center around zero
-        base_variation = base_variation * (22.5 / np.max(np.abs(base_variation)))  # Scale to ±22.5V (half of 370V to 415V range)
+        base_variation = base_variation * (22.5 / np.max(np.abs(base_variation)))  # Scale to ±22.5V
         base_voltage = nominal_voltage + base_variation
         
-        # Fixed phase offsets (small variations between phases)
+        # Fixed phase offsets
         phase_offsets = {
-            'Phase R': 0.5,    # +0.5V from base
-            'Phase Y': -0.3,   # -0.3V from base
-            'Phase B': 0.2     # +0.2V from base
+            'Phase R': 0.5,
+            'Phase Y': -0.3,
+            'Phase B': 0.2
         }
         
-        # Generate data for each phase with fixed offsets
+        # Generate data for each phase
         df_phases = pd.DataFrame({
             'timestamp': timestamps,
             'Phase R': base_voltage + phase_offsets['Phase R'],
@@ -217,26 +219,56 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             'Phase B': base_voltage + phase_offsets['Phase B']
         })
         
-        # Display the chart using native Streamlit
-        st.line_chart(
-            df_phases.set_index('timestamp')[['Phase R', 'Phase Y', 'Phase B']],
-            use_container_width=True,
-            height=250
+        # Melt the dataframe for Altair
+        df_melted = df_phases.melt(
+            id_vars=['timestamp'],
+            var_name='Phase',
+            value_name='Voltage'
         )
         
-        # Add reference lines using markdown
-        st.markdown(
-            f'<hr style="border: 1px dashed red; margin-top: -125px; opacity: 0.5;">', # Upper limit
-            unsafe_allow_html=True
+        # Create base chart
+        base = alt.Chart(df_melted).encode(
+            x=alt.X('timestamp:T', title='Time'),
+            y=alt.Y('Voltage:Q', 
+                   scale=alt.Scale(domain=[370, 415]),
+                   title='Voltage (V)')
         )
-        st.markdown(
-            f'<hr style="border: 1px dashed gray; margin-top: -125px; opacity: 0.5;">', # Nominal
-            unsafe_allow_html=True
+        
+        # Add phase lines
+        phase_lines = base.mark_line().encode(
+            color=alt.Color('Phase:N')
         )
-        st.markdown(
-            f'<hr style="border: 1px dashed red; margin-top: -125px; opacity: 0.5;">', # Lower limit
-            unsafe_allow_html=True
+        
+        # Add reference lines
+        ref_data = pd.DataFrame({
+            'voltage': [lower_limit, nominal_voltage, upper_limit],
+            'type': ['Lower Limit', 'Nominal', 'Upper Limit']
+        })
+        
+        ref_lines = alt.Chart(ref_data).mark_rule(
+            strokeDash=[4, 4],
+            opacity=0.5
+        ).encode(
+            y='voltage:Q',
+            color=alt.condition(
+                alt.datum.type == 'Nominal',
+                alt.value('gray'),
+                alt.value('red')
+            )
         )
+        
+        # Combine charts
+        chart = alt.layer(
+            phase_lines, ref_lines
+        ).properties(
+            width='container',
+            height=250
+        ).configure_axis(
+            grid=True
+        )
+        
+        # Display the chart
+        st.altair_chart(chart, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
@@ -417,66 +449,52 @@ def display_transformer_tab(df: pd.DataFrame):
 
 def display_customer_tab(customer_df: pd.DataFrame):
     """Display customer data visualization."""
-    if len(customer_df) == 0:
-        st.warning("No customer data available")
-        return
+    try:
+        if customer_df.empty:
+            st.warning("No customer data available")
+            return
 
-    # Get latest values
-    latest = customer_df.iloc[-1]
-    
-    # Calculate loading percentage based on power consumption
-    nominal_power = 400  # Example nominal power, adjust as needed
-    customer_df['loading_percentage'] = (customer_df['power_kw'] / nominal_power) * 100
-    
-    # Round values according to spec
-    customer_df['power_kw'] = customer_df['power_kw'].round(3)  
-    customer_df['current_a'] = customer_df['current_a'].round(3)  
-    customer_df['voltage_v'] = customer_df['voltage_v'].round(1)  
-    customer_df['loading_percentage'] = customer_df['loading_percentage'].round(1)
+        # Create section for customer details
+        st.markdown("### Customer Details")
+        
+        # Display customer metrics in a grid
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            create_tile("Customer ID", customer_df['customer_id'].iloc[0])
+        with col2:
+            create_tile("Location", customer_df['location'].iloc[0])
+        with col3:
+            create_tile("Latitude", "45.5123")  # Example coordinates
+        with col4:
+            create_tile("Longitude", "-79.3892")  # Example coordinates
 
-    # Display customer metrics in tiles
-    st.markdown("### Customer Metrics")
-    cols = st.columns(4)
-    with cols[0]:
-        create_tile(
-            "Power",
-            f"{latest['power_kw']} kW"  
-        )
-    with cols[1]:
-        create_tile(
-            "Current",
-            f"{latest['current_a']} A"  
-        )
-    with cols[2]:
-        create_tile(
-            "Voltage",
-            f"{latest['voltage_v']} V"  
-        )
-    with cols[3]:
-        create_tile(
-            "Loading Status",
-            f"{customer_df['loading_percentage'].iloc[-1]:.1f}%"  
-        )
-    
-    # Display customer charts
-    st.markdown("### Power Consumption")
-    display_power_consumption(customer_df)
-    
-    st.markdown("### Current")
-    display_current_time_series(customer_df)
-    
-    st.markdown("### Voltage")
-    display_voltage_time_series(customer_df)
-    
-    st.markdown("### Loading Status")
-    display_loading_status_line_chart(customer_df)
-    
-    # Display customer table
-    st.markdown("### Customer Details")
-    st.dataframe(
-        customer_df[['timestamp', 'power_kw', 'voltage_v', 'current_a', 'loading_percentage']].sort_values('timestamp', ascending=False),
-        use_container_width=True
-    )
+        # Power Analysis Section
+        st.markdown("### Power Analysis")
+        with st.container():
+            create_tile("Power Consumption Over Time", "")
+            display_power_time_series(customer_df)
+
+        # Voltage and Current Section
+        st.markdown("### Voltage and Current")
+        current_col, voltage_col = st.columns(2)
+        
+        with current_col:
+            create_tile("Current Over Time", "")
+            display_current_time_series(customer_df)
+            
+        with voltage_col:
+            create_tile("Voltage Over Time", "")
+            display_voltage_time_series(customer_df)
+
+        # Loading Status Section
+        st.markdown("### Loading Status")
+        with st.container():
+            create_tile("Loading Status Over Time", "")
+            display_loading_status_line_chart(customer_df)
+
+    except Exception as e:
+        logger.error(f"Error in customer tab: {str(e)}")
+        st.error("Error displaying customer data")
 
 def display_voltage_over_time(results_df: pd.DataFrame):
     # Display voltage over time chart
