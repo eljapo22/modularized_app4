@@ -166,16 +166,30 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         with col3:
             st.metric("Lower Limit", f"{lower_limit:.0f}V", "-5%", delta_color="inverse")
         
-        # Create mock data with very small variations around nominal
+        # Create mock data with phases moving together
         timestamps = results_df['timestamp']
         n_points = len(timestamps)
         
-        # Generate small random variations (max ±1V) around nominal voltage
+        # Create a base voltage variation that all phases will follow
+        # Using a smoother variation pattern between 370V and 415V
+        base_variation = np.cumsum(np.random.uniform(-0.1, 0.1, n_points))  # Create smooth random walk
+        base_variation = base_variation - np.mean(base_variation)  # Center around zero
+        base_variation = base_variation * (22.5 / np.max(np.abs(base_variation)))  # Scale to ±22.5V (half of 370V to 415V range)
+        base_voltage = nominal_voltage + base_variation
+        
+        # Fixed phase offsets (small variations between phases)
+        phase_offsets = {
+            'Phase R': 0.5,    # +0.5V from base
+            'Phase Y': -0.3,   # -0.3V from base
+            'Phase B': 0.2     # +0.2V from base
+        }
+        
+        # Generate data for each phase with fixed offsets
         df_phases = pd.DataFrame({
             'timestamp': timestamps,
-            'Phase R': nominal_voltage + np.random.uniform(-1, 1, n_points),
-            'Phase Y': nominal_voltage + np.random.uniform(-1, 1, n_points),
-            'Phase B': nominal_voltage + np.random.uniform(-1, 1, n_points)
+            'Phase R': base_voltage + phase_offsets['Phase R'],
+            'Phase Y': base_voltage + phase_offsets['Phase Y'],
+            'Phase B': base_voltage + phase_offsets['Phase B']
         })
         
         # Melt the dataframe for Altair
@@ -189,7 +203,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         voltage_chart = alt.Chart(df_melted).mark_line().encode(
             x=alt.X('timestamp:T', title='Time'),
             y=alt.Y('Voltage:Q', 
-                   scale=alt.Scale(domain=[nominal_voltage * 0.9, nominal_voltage * 1.1]),
+                   scale=alt.Scale(domain=[360, 440]),  # Fixed range for better visibility
                    title='Voltage (V)'),
             color=alt.Color('Phase:N')
         )
