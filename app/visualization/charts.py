@@ -85,7 +85,10 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
         # Add transformer size reference if provided
         if size_kva is not None:
             # Create a DataFrame for the transformer size
-            transformer_df = pd.DataFrame({'y': [size_kva]})
+            transformer_df = pd.DataFrame({
+                'x': [results_df['timestamp'].max()],  # Position at the rightmost point
+                'y': [size_kva]
+            })
             
             # Add the transformer size line
             transformer_line = alt.Chart(transformer_df).mark_rule(
@@ -93,16 +96,19 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
                 strokeDash=[4, 4]
             ).encode(y='y:Q')
 
-            # Add text annotation for transformer size
+            # Add text annotation for transformer size on the right
             transformer_text = alt.Chart(transformer_df).mark_text(
                 color='red',
-                align='right',
+                align='left',  # Align to the left of the point
                 baseline='middle',
-                dx=-5,
+                dx=5,  # Small offset to the right
                 fontSize=11,
                 fontWeight='bold',
                 text=f'Transformer Size: {size_kva:.0f} kVA'
-            ).encode(y='y:Q')
+            ).encode(
+                x='x:T',  # Position at the rightmost timestamp
+                y='y:Q'
+            )
 
             # Combine all layers
             chart = alt.layer(
@@ -459,14 +465,18 @@ def display_customer_tab(customer_df: pd.DataFrame):
         
         # Display customer metrics in a grid
         col1, col2, col3, col4 = st.columns(4)
+        
+        # Get customer ID if available, otherwise use placeholder
+        customer_id = customer_df['customer_id'].iloc[0] if 'customer_id' in customer_df.columns else "N/A"
+        
         with col1:
-            create_tile("Customer ID", customer_df['customer_id'].iloc[0])
+            create_tile("Customer ID", customer_id)
         with col2:
-            create_tile("Location", customer_df['location'].iloc[0])
+            create_tile("Feeder", "Feeder 1")  # From table name in logs
         with col3:
-            create_tile("Latitude", "45.5123")  # Example coordinates
+            create_tile("Records", f"{len(customer_df):,}")
         with col4:
-            create_tile("Longitude", "-79.3892")  # Example coordinates
+            create_tile("Date Range", f"{customer_df['timestamp'].min().strftime('%Y-%m-%d')} to {customer_df['timestamp'].max().strftime('%Y-%m-%d')}")
 
         # Power Analysis Section
         st.markdown("### Power Analysis")
@@ -494,7 +504,7 @@ def display_customer_tab(customer_df: pd.DataFrame):
 
     except Exception as e:
         logger.error(f"Error in customer tab: {str(e)}")
-        st.error("Error displaying customer data")
+        st.error("Error displaying customer data. Please check the data format and try again.")
 
 def display_voltage_over_time(results_df: pd.DataFrame):
     # Display voltage over time chart
