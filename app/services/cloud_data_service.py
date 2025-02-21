@@ -235,7 +235,7 @@ class CloudDataService:
             transformer_id: str,
             date: datetime,
             hour: int
-        ) -> Optional[CustomerData]:
+        ) -> Optional[pd.DataFrame]:
         """Get customer data for a specific transformer"""
         try:
             logger.info(f"Retrieving customer data for transformer {transformer_id} on {date} at hour {hour}")
@@ -261,18 +261,11 @@ class CloudDataService:
             logger.info(f"Found {len(results)} customer records for transformer {transformer_id}")
             logger.debug(f"First record timestamp: {results[0]['timestamp']}")
             
-            return CustomerData(
-                current_a=[r['current_a'] for r in results],
-                customer_id=[r['customer_id'] for r in results],
-                hour=[r['hour'] for r in results],
-                power_factor=[r['power_factor'] for r in results],
-                power_kva=[r['power_kva'] for r in results],
-                power_kw=[r['power_kw'] for r in results],
-                size_kva=[r['size_kva'] for r in results],
-                timestamp=[r['timestamp'] for r in results],
-                transformer_id=[r['transformer_id'] for r in results],
-                voltage_v=[r['voltage_v'] for r in results]
-            )
+            # Convert to DataFrame
+            df = pd.DataFrame(results)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            return df
+            
         except Exception as e:
             logger.error(f"Error getting customer data: {str(e)}")
             return None
