@@ -190,18 +190,22 @@ def display_current_time_series(results_df: pd.DataFrame):
                    ))
         ).properties(
             width='container',
-            height=180,  # Reduced height to account for padding
-            padding={"left": 45, "right": 20, "top": 5, "bottom": 30}
+            height=160,  # Adjusted to match voltage chart
+            padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
         )
+        
+        # Create tile for current chart
+        create_tile("Current Over Time", "")
         
         # Use container with consistent styling
         st.markdown("""
             <div style="
-                background-color: #F8F9FA;
-                border-radius: 5px;
-                padding: 15px;
-                margin: 10px 0;
-                height: 280px;
+                background-color: white;
+                border-radius: 3px;
+                padding: 0px;
+                margin: 0px;
+                height: 240px;
+                box-shadow: none;
             ">
         """, unsafe_allow_html=True)
         
@@ -223,117 +227,100 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             st.warning("No valid voltage data available for the selected time range")
             return
             
-        # Constants for voltage thresholds
-        nominal_voltage = 400
-        upper_limit = nominal_voltage * 1.05  # +5%
-        lower_limit = nominal_voltage * 0.95  # -5%
-        
-        # Display metrics for voltage thresholds
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric(
-                label="Upper Limit",
-                value=f"{upper_limit:.0f}V",
-                delta="+5%",
-                delta_color="inverse"
-            )
-        with col2:
-            st.metric(
-                label="Nominal",
-                value=f"{nominal_voltage:.0f}V"
-            )
-        with col3:
-            st.metric(
-                label="Lower Limit",
-                value=f"{lower_limit:.0f}V",
-                delta="-5%",
-                delta_color="inverse"
-            )
-        
-        # Create mock data with phases moving together
+        # Create mock data
         timestamps = results_df['timestamp']
         n_points = len(timestamps)
         
-        # Create a base voltage variation that all phases will follow
-        base_variation = np.cumsum(np.random.uniform(-0.1, 0.1, n_points))  # Create smooth random walk
-        base_variation = base_variation - np.mean(base_variation)  # Center around zero
-        base_variation = base_variation * (22.5 / np.max(np.abs(base_variation)))  # Scale to ±22.5V
-        base_voltage = nominal_voltage + base_variation
+        # Create voltage variation
+        base_variation = np.cumsum(np.random.uniform(-0.1, 0.1, n_points))
+        base_variation = base_variation - np.mean(base_variation)
+        base_variation = base_variation * (10 / np.max(np.abs(base_variation)))  # Scale to ±10V
+        voltage = 400 + base_variation  # Center around 400V
         
-        # Fixed phase offsets
-        phase_offsets = {
-            'Phase R': 0.5,
-            'Phase Y': -0.3,
-            'Phase B': 0.2
-        }
-        
-        # Generate data for each phase
-        df_phases = pd.DataFrame({
+        # Generate data
+        df_voltage = pd.DataFrame({
             'timestamp': timestamps,
-            'Phase R': base_voltage + phase_offsets['Phase R'],
-            'Phase Y': base_voltage + phase_offsets['Phase Y'],
-            'Phase B': base_voltage + phase_offsets['Phase B']
+            'Voltage': voltage
         })
-        
-        # Melt the dataframe for Altair
-        df_melted = df_phases.melt(
-            id_vars=['timestamp'],
-            var_name='Phase',
-            value_name='Voltage'
-        )
         
         # Create base chart
-        base = alt.Chart(df_melted).encode(
-            x=alt.X('timestamp:T', title='Time'),
-            y=alt.Y('Voltage:Q', 
-                   scale=alt.Scale(domain=[370, 415]),
-                   title='Voltage (V)')
-        )
-        
-        # Add phase lines
-        phase_lines = base.mark_line().encode(
-            color=alt.Color('Phase:N')
-        )
-        
-        # Add reference lines
-        ref_data = pd.DataFrame({
-            'voltage': [lower_limit, nominal_voltage, upper_limit],
-            'type': ['Lower Limit', 'Nominal', 'Upper Limit']
-        })
-        
-        ref_lines = alt.Chart(ref_data).mark_rule(
-            strokeDash=[4, 4],
-            opacity=0.5
+        chart = alt.Chart(df_voltage).mark_line(
+            color='blue',
+            strokeWidth=2
         ).encode(
-            y='voltage:Q',
-            color=alt.condition(
-                alt.datum.type == 'Nominal',
-                alt.value('gray'),
-                alt.value('red')
-            )
-        )
-        
-        # Combine charts
-        chart = alt.layer(
-            phase_lines, ref_lines
+            x=alt.X('timestamp:T', 
+                   title='Time',
+                   axis=alt.Axis(
+                       grid=True,
+                       gridOpacity=0.5,
+                       labelFontSize=11,
+                       titleFontSize=12,
+                       tickCount=10,
+                       gridWidth=0.5
+                   )),
+            y=alt.Y('Voltage:Q', 
+                   scale=alt.Scale(domain=[380, 420], nice=True),
+                   title='Voltage (V)',
+                   axis=alt.Axis(
+                       grid=True,
+                       gridOpacity=0.5,
+                       labelFontSize=11,
+                       titleFontSize=12,
+                       tickCount=5,
+                       gridWidth=0.5
+                   ))
         ).properties(
             width='container',
-            height=250
-        ).configure_axis(
-            grid=True
+            height=160,
+            padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
         )
         
-        # Display the chart
+        # Create tile for voltage chart
+        create_tile("Voltage Over Time", "")
+        
+        # Create voltage limits
+        upper_limit = 420
+        nominal = 400
+        lower_limit = 380
+        
+        # Add reference lines
+        reference_lines = alt.Chart(pd.DataFrame({
+            'y': [upper_limit, nominal, lower_limit],
+            'color': ['red', 'gray', 'red'],
+            'dash': ['dashed', 'dashed', 'dashed']
+        })).mark_rule(
+            strokeDash=[5, 5]
+        ).encode(
+            y='y:Q',
+            color=alt.Color('color:N', scale=None),
+            strokeDash='dash:N'
+        )
+        
+        # Combine chart with reference lines
+        chart = alt.layer(chart, reference_lines)
+        
+        # Use container with consistent styling
         st.markdown("""
             <div style="
-                background-color: #F8F9FA;
-                border-radius: 5px;
-                padding: 15px;
-                margin: 10px 0;
-                height: 280px;
+                background-color: white;
+                border-radius: 3px;
+                padding: 0px;
+                margin: 0px;
+                height: 240px;
+                box-shadow: none;
             ">
         """, unsafe_allow_html=True)
         
+        # Display voltage metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown(f"<p style='color: red; margin: 0;'>Upper Limit<br/><strong>{upper_limit}V</strong></p>", unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"<p style='color: gray; margin: 0;'>Nominal<br/><strong>{nominal}V</strong></p>", unsafe_allow_html=True)
+        with col3:
+            st.markdown(f"<p style='color: red; margin: 0;'>Lower Limit<br/><strong>{lower_limit}V</strong></p>", unsafe_allow_html=True)
+            
+        # Display the chart
         st.altair_chart(chart, use_container_width=True)
         
         st.markdown("</div>", unsafe_allow_html=True)
@@ -543,19 +530,16 @@ def display_customer_tab(customer_df: pd.DataFrame):
         # Power Analysis Section
         st.markdown("### Power Analysis")
         with st.container():
-            create_tile("Power Consumption Over Time", "")
             display_power_time_series(customer_df)
 
         # Voltage and Current Section
         st.markdown("### Voltage and Current")
-        current_col, voltage_col = st.columns(2)
+        current_col, voltage_col = st.columns([1, 1])
         
         with current_col:
-            create_tile("Current Over Time", "")
             display_current_time_series(customer_df)
             
         with voltage_col:
-            create_tile("Voltage Over Time", "")
             display_voltage_time_series(customer_df)
 
     except Exception as e:
