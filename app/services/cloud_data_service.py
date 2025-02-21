@@ -137,18 +137,10 @@ class CloudDataService:
     ) -> Optional[pd.DataFrame]:
         """
         Get transformer data for a date range.
-        
-        Args:
-            start_date (date): Start date for the query
-            end_date (date): End date for the query
-            feeder (str): Feeder identifier
-            transformer_id (str): Transformer identifier
-            
-        Returns:
-            Optional[pd.DataFrame]: DataFrame with transformer data or None if error
         """
         try:
-            logger.info(f"Fetching transformer data for {transformer_id} from {start_date} to {end_date}")
+            logger.info(f"Fetching transformer data for {transformer_id}")
+            logger.info(f"Date range: {start_date} to {end_date}")
             
             # Extract feeder number
             feeder_num = int(feeder.split()[-1])
@@ -158,6 +150,7 @@ class CloudDataService:
             
             # Get table name
             table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
+            logger.info(f"Using table: {table}")
             
             # Execute query
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
@@ -173,12 +166,9 @@ class CloudDataService:
             # Convert to DataFrame
             df = pd.DataFrame(results)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
-            df.set_index('timestamp', inplace=True)
+            logger.info(f"Data timestamp range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+            logger.info(f"Retrieved {len(df)} records")
             
-            # Sort by timestamp
-            df.sort_index(inplace=True)
-            
-            logger.info(f"Retrieved {len(df)} records for transformer {transformer_id}")
             return df
             
         except Exception as e:
@@ -236,14 +226,22 @@ class CloudDataService:
         start_date: date,
         end_date: date
     ) -> Optional[pd.DataFrame]:
-        """Get customer data for a specific transformer and date range"""
+        """
+        Get customer data for a specific transformer and date range.
+        """
         try:
-            logger.info(f"Fetching customer data for {transformer_id} from {start_date} to {end_date}")
+            logger.info(f"Fetching customer data for transformer {transformer_id}")
+            logger.info(f"Date range: {start_date} to {end_date}")
             
-            # Extract feeder number from transformer ID (format: S1F1ATF001)
-            # Split by 'F' and take the number before it
-            feeder_num = int(transformer_id.split('F')[0].replace('S', ''))
+            # Get feeder number from transformer ID (e.g., "S1F1ATF001" -> 1)
+            feeder_num = int(transformer_id[3])
+            if feeder_num not in FEEDER_NUMBERS:
+                logger.error(f"Invalid feeder number in transformer ID: {feeder_num}")
+                return None
+            
+            # Get table name
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
+            logger.info(f"Using table: {table}")
             
             # Execute query
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
@@ -253,14 +251,15 @@ class CloudDataService:
             )
             
             if not results:
-                logger.warning(f"No customer data found for transformer {transformer_id}")
+                logger.warning(f"No customer data found for transformer {transformer_id} in date range")
                 return None
-                
+            
             # Convert to DataFrame
             df = pd.DataFrame(results)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
+            logger.info(f"Data timestamp range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+            logger.info(f"Retrieved {len(df)} records")
             
-            logger.info(f"Retrieved {len(df)} customer records")
             return df
             
         except Exception as e:

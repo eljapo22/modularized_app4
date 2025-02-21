@@ -68,6 +68,15 @@ def main():
         else:
             start_date, end_date = dates[0], dates[-1]  # Handle both list and tuple cases
         
+        # Hour selection
+        selected_hour = st.sidebar.slider(
+            "Select Hour",
+            min_value=0,
+            max_value=23,
+            value=12,
+            format="%H:00"
+        )
+        
         # Feeder and transformer selection
         feeder = st.sidebar.selectbox("Select Feeder", data_service.get_feeder_options())
         transformer_id = st.sidebar.selectbox(
@@ -111,6 +120,8 @@ def main():
                 if not all([start_date, end_date, feeder, transformer_id]):
                     st.error("Please select all required parameters")
                 else:
+                    logger.info(f"Fetching data for date range: {start_date} to {end_date}")
+                    
                     # Get transformer data
                     transformer_data = data_service.get_transformer_data_range(
                         start_date,
@@ -118,6 +129,8 @@ def main():
                         feeder,
                         transformer_id
                     )
+                    if transformer_data is not None:
+                        logger.info(f"Transformer data timestamp range: {transformer_data['timestamp'].min()} to {transformer_data['timestamp'].max()}")
                     
                     # Get customer data
                     customer_data = data_service.get_customer_data(
@@ -125,24 +138,19 @@ def main():
                         start_date,
                         end_date
                     )
-                    
-                    # Get customer aggregation
-                    customer_agg = data_service.get_customer_aggregation(
-                        transformer_id,
-                        start_date,
-                        end_date
-                    )
+                    if customer_data is not None:
+                        logger.info(f"Customer data timestamp range: {customer_data['timestamp'].min()} to {customer_data['timestamp'].max()}")
                     
                     if transformer_data is not None and not transformer_data.empty:
                         # Create tabs for transformer and customer data
                         tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
                         
                         with tab1:
-                            display_transformer_dashboard(transformer_data)
+                            display_transformer_dashboard(transformer_data, selected_hour)
                         
                         with tab2:
                             if customer_data is not None and not customer_data.empty:
-                                display_customer_tab(customer_data, customer_agg)
+                                display_customer_tab(customer_data, selected_hour=selected_hour)
                             else:
                                 st.warning("No customer data available for the selected criteria.")
                     else:

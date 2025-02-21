@@ -249,6 +249,15 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     if 'size_kva' in results_df.columns:
         logger.info(f"size_kva value in visualization: {results_df['size_kva'].iloc[0]}")
 
+    # Ensure timestamp is in datetime format and reset index if it's the index
+    if isinstance(results_df.index, pd.DatetimeIndex):
+        results_df = results_df.reset_index()
+    if 'timestamp' not in results_df.columns:
+        st.error("No timestamp column found in data")
+        return
+
+    logger.info(f"Plotting power time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
+    
     # Create figure
     fig = create_base_figure(
         None,
@@ -349,6 +358,13 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
     if results_df is None or results_df.empty:
         st.warning("No data available for current analysis visualization. Please check your database connection and try again.")
         return
+
+    # Ensure timestamp is in datetime format and reset index if it's the index
+    if isinstance(results_df.index, pd.DatetimeIndex):
+        results_df = results_df.reset_index()
+    if 'timestamp' not in results_df.columns:
+        st.error("No timestamp column found in data")
+        return
         
     # Create figure
     fig = create_base_figure(
@@ -396,6 +412,13 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
     """Display voltage analysis time series visualization"""
     if results_df is None or results_df.empty:
         st.warning("No data available for voltage analysis visualization. Please check your database connection and try again.")
+        return
+
+    # Ensure timestamp is in datetime format and reset index if it's the index
+    if isinstance(results_df.index, pd.DatetimeIndex):
+        results_df = results_df.reset_index()
+    if 'timestamp' not in results_df.columns:
+        st.error("No timestamp column found in data")
         return
         
     # Create figure
@@ -551,7 +574,7 @@ def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
     
     # Add loading percentage trace
     fig.add_trace(go.Scatter(
-        x=results_df.index,
+        x=results_df['timestamp'],
         y=results_df['loading_pct'],
         mode='lines',
         name='Loading %',
@@ -633,6 +656,8 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: i
 
 def display_transformer_tab(df: pd.DataFrame, selected_hour: int = None):
     """Display transformer analysis tab"""
+    logger.info(f"Displaying transformer tab with data range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+    
     # Create metrics row
     cols = st.columns(4)
     
@@ -687,6 +712,8 @@ def display_transformer_tab(df: pd.DataFrame, selected_hour: int = None):
 
 def display_customer_tab(df: pd.DataFrame, selected_hour: int = None):
     """Display customer analysis tab"""
+    logger.info(f"Displaying customer tab with data range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+    
     if df is None or df.empty:
         st.warning("No customer data available")
         return
