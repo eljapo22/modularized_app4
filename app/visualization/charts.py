@@ -15,51 +15,34 @@ from app.config.constants import STATUS_COLORS
 logger = logging.getLogger(__name__)
 
 def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
-    # Add a vertical line indicator for the selected hour to any Plotly figure.
-    # 
-    # Args:
-    #     fig: The Plotly figure to add the indicator to
-    #     selected_hour: The hour to mark (0-23)
-    #     y_range: Optional tuple of (min, max) y-values for the line
-    if y_range is None:
-        y_range = (0, 100)  # Default range
-    
-    # Get first timestamp from x-axis data and ensure it's a pandas timestamp
+    """Add a vertical line indicator for the selected hour to any Plotly figure."""
+    if selected_hour is None or not isinstance(selected_hour, int):
+        logger.warning("Selected hour is invalid, skipping hour indicator")
+        return
+
+    if not fig.data or len(fig.data) == 0:
+        logger.warning("No x-axis data found for hour indicator")
+        return
+
     x_data = fig.data[0].x  # Assuming first trace has the timestamps
     if not isinstance(x_data, (list, np.ndarray)) or len(x_data) == 0:
         logger.warning("No x-axis data found for hour indicator")
         return
-    
-    try:
-        # Convert first timestamp to pandas timestamp if it's not already
-        first_timestamp = pd.to_datetime(x_data[0])
-        # Create indicator time by adding hours to start of day
-        indicator_time = first_timestamp.floor('D') + pd.Timedelta(hours=selected_hour)
-    except Exception as e:
-        logger.error(f"Error creating hour indicator: {str(e)}")
+
+    first_timestamp = pd.to_datetime(x_data[0])
+
+    if pd.isna(first_timestamp):
+        logger.warning("First timestamp is NaT, skipping hour indicator")
         return
+
+    indicator_time = first_timestamp.normalize() + pd.Timedelta(hours=selected_hour)
     
-    # Add vertical line
-    fig.add_shape(
-        type="line",
-        x0=indicator_time,
-        x1=indicator_time,
-        y0=y_range[0],
-        y1=y_range[1],
-        line=dict(
-            color='#9ca3af',
-            width=1,
-            dash='dash'
-        )
-    )
-    
-    # Add annotation
-    fig.add_annotation(
+    fig.add_vline(
         x=indicator_time,
-        y=y_range[1],
-        text=f"{selected_hour:02d}:00",
-        showarrow=False,
-        yshift=10
+        line_dash="dash",
+        line_color="gray",
+        annotation_text=f"{selected_hour:02d}:00",
+        annotation_position="top right"
     )
 
 def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
@@ -108,104 +91,63 @@ def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
     return fig
 
 def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: int = None):
-    # Display a scatter plot of loading status events with detailed hover data
-    if results_df is None or results_df.empty:
-        st.warning("No data available for loading status visualization. Please check your database connection and try again.")
-        return
+    """Display loading status as a line chart with threshold indicators."""
+    try:
+        # Ensure timestamp is in datetime format
+        results_df = results_df.copy()
+        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
         
-    # Ensure required columns exist
-    required_columns = ['timestamp', 'loading_percentage', 'load_range']
-    missing_columns = [col for col in required_columns if col not in results_df.columns]
-    if missing_columns:
-        st.error(f"Missing required columns: {', '.join(missing_columns)}")
-        return
-    
-    # Create figure
-    fig = create_base_figure(
-        None,
-        None,
-        "Loading (%)"
-    )
-    
-    # Add scatter plot for each status
-    for status, color in STATUS_COLORS.items():
-        mask = results_df['load_range'] == status
-        if not mask.any():
-            continue
-            
-        status_data = results_df[mask]
-        fig.add_trace(
-            go.Scatter(
-                x=status_data['timestamp'],
-                y=status_data['loading_percentage'],
-                mode='markers',
-                name=status,
-                marker=dict(
-                    color=color,
-                    size=8
-                ),
-                hovertemplate='%{x|%Y-%m-%d %H:%M}<br>Loading: %{y:.1f}%<br>Status: ' + status + '<extra></extra>'
-            )
-        )
-    
-    # Add hour indicator if selected
-    if selected_hour is not None:
-        # Get y-axis range from data
-        y_min = results_df['loading_percentage'].min()
-        y_max = results_df['loading_percentage'].max()
-        y_padding = (y_max - y_min) * 0.1  # Add 10% padding
-        y_range = (y_min - y_padding, y_max + y_padding)
-        
-        # Get first timestamp and create indicator time
-        first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
-        indicator_time = first_timestamp.floor('D') + pd.Timedelta(hours=selected_hour)
-        
-        # Add the vertical line
-        fig.add_shape(
-            type="line",
-            x0=indicator_time,
-            x1=indicator_time,
-            y0=y_range[0],
-            y1=y_range[1],
-            line=dict(
-                color='#9ca3af',
-                width=1,
-                dash='dash'
-            )
+        # Create the line chart
+        fig = create_base_figure(
+            title="Loading Status Over Time",
+            xaxis_title="Time",
+            yaxis_title="Loading (%)"
         )
         
-        # Add the annotation
-        fig.add_annotation(
-            text=f"{selected_hour:02d}:00",
-            x=indicator_time,
-            y=y_range[1],
-            yanchor="bottom",
-            showarrow=False,
-            textangle=-90,
-            font=dict(
-                color='#2f4f4f',
-                size=12
+        # Add loading percentage line
+        fig.add_trace(go.Scatter(
+            x=results_df['timestamp'],
+            y=results_df['loading_percentage'],
+            mode='lines+markers',
+            name='Loading %',
+            line=dict(color='#0d6efd', width=2),
+            marker=dict(size=6)
+        ))
+        
+        # Add threshold lines
+        thresholds = [
+            (120, 'Critical', '#dc3545'),
+            (100, 'Overloaded', '#fd7e14'),
+            (80, 'Warning', '#ffc107'),
+            (50, 'Pre-Warning', '#6f42c1')
+        ]
+        
+        for threshold, label, color in thresholds:
+            fig.add_hline(
+                y=threshold,
+                line_dash="dot",
+                line_color=color,
+                annotation_text=f"{label} ({threshold}%)",
+                annotation_position="left"
             )
+        
+        # Add hour indicator if specified
+        if selected_hour is not None and isinstance(selected_hour, int):
+            first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
+            indicator_time = first_timestamp.normalize() + pd.Timedelta(hours=selected_hour)
+            add_hour_indicator(fig, selected_hour)
+        
+        # Update layout
+        fig.update_layout(
+            showlegend=False,
+            margin=dict(t=0, b=0, l=0, r=150)  # Extra right margin for threshold labels
         )
-    
-    # Update layout
-    fig.update_layout(
-        showlegend=True,
-        legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=0.01,
-            bgcolor="rgba(255, 255, 255, 0.8)"
-        ),
-        margin=dict(l=0, r=0, t=0, b=0),
-        xaxis_title="Time",
-        yaxis_title="Loading (%)",
-        hovermode='closest'
-    )
-    
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying loading status chart: {str(e)}")
+        st.error("Error displaying loading status chart")
 
 def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = None, is_transformer_view: bool = False):
     # Display power consumption time series visualization
@@ -346,6 +288,10 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         )
     )
 
+    # Add hour indicator if specified
+    if selected_hour is not None and isinstance(selected_hour, int):
+        add_hour_indicator(fig, selected_hour, y_range=(0, y_max))
+
     st.plotly_chart(fig, use_container_width=True)
     logger.info("Displayed chart")
 
@@ -421,7 +367,7 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
     )
 
     # Add hour indicator if specified
-    if selected_hour is not None:
+    if selected_hour is not None and isinstance(selected_hour, int):
         add_hour_indicator(fig, selected_hour, y_range=(0, y_max))
 
     # Display the figure
@@ -493,7 +439,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
     )
 
     # Add hour indicator if specified
-    if selected_hour is not None:
+    if selected_hour is not None and isinstance(selected_hour, int):
         add_hour_indicator(fig, selected_hour, y_range=(0, y_max))
 
     # Display the figure
