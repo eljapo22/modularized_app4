@@ -291,7 +291,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
             name='Power',
             line=dict(color='#3b82f6', width=2),
             marker=dict(color='#3b82f6', size=6),
-            hovertemplate='Time: %{x}<br>Power: %{y:.2f} kW<extra></extra>'
+            hovertemplate='Time: %{x}<br>Power: %{y:.3f} kW<extra></extra>' if not is_transformer_view else 'Time: %{x}<br>Power: %{y:.2f} kW<extra></extra>'
         )
     )
     logger.info("Added power consumption trace")
@@ -365,7 +365,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
 def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = None):
     """Display current analysis time series visualization"""
     if results_df is None or results_df.empty:
-        st.warning("No data available for current analysis visualization. Please check your database connection and try again.")
+        st.warning("No current data available")
         return
 
     # Ensure timestamp is in datetime format and reset index if it's the index
@@ -393,7 +393,7 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
     logger.info("Created base figure")
     
     # Add current trace
-    hover_template = '%{x|%Y-%m-%d %H:%M}<br>Current: %{y:.1f} A<extra></extra>'
+    hover_template = '%{x|%Y-%m-%d %H:%M}<br>Current: %{y:.3f} A<extra></extra>'
     logger.info(f"Using hover template: {hover_template}")
     
     fig.add_trace(
@@ -415,29 +415,34 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
     )
     logger.info("Added current trace")
     
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        fig = add_hour_indicator(fig, selected_hour)
-    
     # Update layout
+    y_max = max(results_df['current_a']) * 1.35
     fig.update_layout(
-        showlegend=False,
-        margin=dict(l=0, r=0, t=0, b=0),
+        showlegend=True,
+        yaxis=dict(
+            title="Current (A)",
+            range=[0, y_max],
+            automargin=True,
+            gridcolor='#E1E1E1'
+        ),
         xaxis=dict(
             title='Time',
-            tickformat='%Y-%m-%d %H:%M'
-        ),
-        yaxis_title="Current (A)",
-        hovermode='closest'
+            gridcolor='#E1E1E1',
+            type='date'
+        )
     )
-    
+
+    # Add hour indicator if specified
+    if selected_hour is not None:
+        add_hour_indicator(fig, selected_hour, y_range=(0, y_max))
+
     # Display the figure
     st.plotly_chart(fig, use_container_width=True)
 
 def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = None):
     """Display voltage analysis time series visualization"""
     if results_df is None or results_df.empty:
-        st.warning("No data available for voltage analysis visualization. Please check your database connection and try again.")
+        st.warning("No voltage data available")
         return
 
     # Ensure timestamp is in datetime format and reset index if it's the index
@@ -487,22 +492,27 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
     )
     logger.info("Added voltage trace")
     
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        fig = add_hour_indicator(fig, selected_hour)
-    
     # Update layout
+    y_max = max(results_df['voltage_v']) * 1.35
     fig.update_layout(
-        showlegend=False,
-        margin=dict(l=0, r=0, t=0, b=0),
+        showlegend=True,
+        yaxis=dict(
+            title="Voltage (V)",
+            range=[0, y_max],
+            automargin=True,
+            gridcolor='#E1E1E1'
+        ),
         xaxis=dict(
             title='Time',
-            tickformat='%Y-%m-%d %H:%M'
-        ),
-        yaxis_title="Voltage (V)",
-        hovermode='closest'
+            gridcolor='#E1E1E1',
+            type='date'
+        )
     )
-    
+
+    # Add hour indicator if specified
+    if selected_hour is not None:
+        add_hour_indicator(fig, selected_hour, y_range=(0, y_max))
+
     # Display the figure
     st.plotly_chart(fig, use_container_width=True)
 
@@ -763,17 +773,17 @@ def display_customer_tab(df: pd.DataFrame, selected_hour: int = None):
     with cols[0]:
         create_tile(
             "Current Power",
-            f"{latest['power_kw']:.1f} kW"
+            f"{latest['power_kw']:.3f} kW"
         )
     with cols[1]:
         create_tile(
             "Power Factor",
-            f"{latest['power_factor']:.2f}"
+            f"{latest['power_factor']:.3f}"
         )
     with cols[2]:
         create_tile(
             "Current",
-            f"{latest['current_a']:.1f} A"
+            f"{latest['current_a']:.3f} A"
         )
     with cols[3]:
         create_tile(
