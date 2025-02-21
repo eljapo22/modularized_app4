@@ -7,6 +7,8 @@ textColor = "#262730"
 [server]
 maxUploadSize = 200
 enableXsrfProtection = true
+# Ensure we always use the correct entry point
+entrypoint = "app/cloud_main.py"
 
 [browser]
 gatherUsageStats = false
