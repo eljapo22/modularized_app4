@@ -347,35 +347,31 @@ def display_transformer_tab(df: pd.DataFrame):
         create_tile("Voltage Over Time", "")
         display_voltage_time_series(df)
 
-def display_customer_tab(df: pd.DataFrame):
-    # Display customer analysis tab
-    if df is None or df.empty:
+def display_customer_tab(customer_df: pd.DataFrame):
+    """Display customer data visualization."""
+    if len(customer_df) == 0:
         st.warning("No customer data available")
         return
 
-    # Create customer selector
-    customer_ids = sorted(df['customer_id'].unique())
-    selected_customer = st.selectbox(
-        "Select Customer",
-        customer_ids,
-        format_func=lambda x: f"Customer {x}"
-    )
-
-    # Filter data for selected customer
-    customer_df = df[df['customer_id'] == selected_customer].copy()  
+    # Get latest values
+    latest = customer_df.iloc[-1]
+    
+    # Calculate loading percentage based on power consumption
+    nominal_power = 400  # Example nominal power, adjust as needed
+    customer_df['loading_percentage'] = (customer_df['power_kw'] / nominal_power) * 100
     
     # Round values according to spec
     customer_df['power_kw'] = customer_df['power_kw'].round(3)  
     customer_df['current_a'] = customer_df['current_a'].round(3)  
     customer_df['voltage_v'] = customer_df['voltage_v'].round(1)  
+    customer_df['loading_percentage'] = customer_df['loading_percentage'].round(1)
 
     # Display customer metrics in tiles
+    st.markdown("### Customer Metrics")
     cols = st.columns(4)
-    latest = customer_df.iloc[-1]
-    
     with cols[0]:
         create_tile(
-            "Current Power",
+            "Power",
             f"{latest['power_kw']} kW"  
         )
     with cols[1]:
@@ -391,25 +387,22 @@ def display_customer_tab(df: pd.DataFrame):
     with cols[3]:
         create_tile(
             "Loading Status",
-            f"{latest['loading_percentage']:.1f}%"  
+            f"{customer_df['loading_percentage'].iloc[-1]:.1f}%"  
         )
     
     # Display customer charts
     st.markdown("### Power Consumption")
-    with st.container():
-        create_tile("Power Over Time", "")
-        display_power_time_series(customer_df, is_transformer_view=False)
-
-    cols = st.columns(2)
-    with cols[0]:
-        st.markdown("### Current")
-        create_tile("Current Over Time", "")
-        display_current_time_series(customer_df, is_transformer_view=False)
-    with cols[1]:
-        st.markdown("### Voltage")
-        create_tile("Voltage Over Time", "")
-        display_voltage_time_series(customer_df)
-
+    display_power_consumption(customer_df)
+    
+    st.markdown("### Current")
+    display_current_time_series(customer_df)
+    
+    st.markdown("### Voltage")
+    display_voltage_time_series(customer_df)
+    
+    st.markdown("### Loading Status")
+    display_loading_status_line_chart(customer_df)
+    
     # Display customer table
     st.markdown("### Customer Details")
     st.dataframe(
