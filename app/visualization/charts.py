@@ -28,16 +28,25 @@ def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
     if y_range is None:
         y_range = (0, 100)  # Default range
     
-    # Get first timestamp from x-axis data
+    # Get first timestamp from x-axis data and ensure it's a pandas timestamp
     x_data = fig.data[0].x  # Assuming first trace has the timestamps
-    if not x_data:
+    if not isinstance(x_data, (list, np.ndarray)) or len(x_data) == 0:
         logger.warning("No x-axis data found for hour indicator")
         return
     
-    # Create indicator time using date_range
-    first_timestamp = pd.to_datetime(x_data[0])
-    base_time = pd.date_range(start=first_timestamp.date(), periods=24, freq='H')
-    indicator_time = base_time[selected_hour]
+    try:
+        # Convert first timestamp to pandas timestamp if it's not already
+        first_timestamp = pd.to_datetime(x_data[0])
+        # Create base time range for the day
+        base_time = pd.date_range(
+            start=first_timestamp.floor('D'),  # Start at beginning of day
+            periods=24,
+            freq='H'
+        )
+        indicator_time = base_time[selected_hour]
+    except Exception as e:
+        logger.error(f"Error creating hour indicator: {str(e)}")
+        return
     
     # Add vertical line
     fig.add_shape(
