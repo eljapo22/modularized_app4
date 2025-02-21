@@ -517,12 +517,6 @@ def display_customer_tab(customer_df: pd.DataFrame):
             create_tile("Voltage Over Time", "")
             display_voltage_time_series(customer_df)
 
-        # Loading Status Section
-        st.markdown("### Loading Status")
-        with st.container():
-            create_tile("Loading Status Over Time", "")
-            display_loading_status_line_chart(customer_df)
-
     except Exception as e:
         logger.error(f"Error in customer tab: {str(e)}")
         st.error("Error displaying customer data. Please check the data format and try again.")
