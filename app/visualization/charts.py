@@ -191,28 +191,30 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                 delta_color="inverse"
             )
         
-        # Create mock data with phases moving together but with individual variations
+        # Create mock data with phases moving together
         timestamps = results_df['timestamp']
         n_points = len(timestamps)
         
-        # Base variation pattern (slower changes)
-        t = np.linspace(0, 4*np.pi, n_points)  # Slower oscillation
-        base_variation = np.sin(t) * 2  # Base variation of ±2V
+        # Create a base voltage variation that all phases will follow
+        # Using a smoother variation pattern between 370V and 415V
+        base_variation = np.cumsum(np.random.uniform(-0.1, 0.1, n_points))  # Create smooth random walk
+        base_variation = base_variation - np.mean(base_variation)  # Center around zero
+        base_variation = base_variation * (22.5 / np.max(np.abs(base_variation)))  # Scale to ±22.5V (half of 370V to 415V range)
+        base_voltage = nominal_voltage + base_variation
         
-        # Add some random walk component for more realism
-        random_walk = np.cumsum(np.random.normal(0, 0.05, n_points))
-        random_walk = random_walk - np.mean(random_walk)  # Center around zero
-        random_walk = random_walk * (1 / np.max(np.abs(random_walk)))  # Scale to ±1V
+        # Fixed phase offsets (small variations between phases)
+        phase_offsets = {
+            'Phase R': 0.5,    # +0.5V from base
+            'Phase Y': -0.3,   # -0.3V from base
+            'Phase B': 0.2     # +0.2V from base
+        }
         
-        # Combine base variation with random walk
-        base_voltage = nominal_voltage + base_variation + random_walk
-        
-        # Generate individual phase variations with fixed offsets and small individual noise
+        # Generate data for each phase with fixed offsets
         df_phases = pd.DataFrame({
             'timestamp': timestamps,
-            'Phase R': base_voltage + 0.5 + np.random.normal(0, 0.1, n_points),
-            'Phase Y': base_voltage - 0.3 + np.random.normal(0, 0.1, n_points),
-            'Phase B': base_voltage + 0.2 + np.random.normal(0, 0.1, n_points)
+            'Phase R': base_voltage + phase_offsets['Phase R'],
+            'Phase Y': base_voltage + phase_offsets['Phase Y'],
+            'Phase B': base_voltage + phase_offsets['Phase B']
         })
         
         # Display the chart using native Streamlit
