@@ -85,7 +85,10 @@ def main():
                     else:
                         # If somehow we get a single date, use it for both
                         start_date = end_date = date_input
-                
+                except Exception as e:
+                    logger.error(f"Error processing date input: {str(e)}")
+                    st.error("Failed to process date input. Please try again.")
+            
             with col2:
                 # Hour selection
                 selected_hour = st.number_input(
