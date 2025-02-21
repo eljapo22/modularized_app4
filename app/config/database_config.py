@@ -62,12 +62,12 @@ WITH RECURSIVE hours AS (
     WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
 )
 SELECT 
-    CAST(COALESCE(c."current_a", LAG(c."current_a") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(4,3)) as "current_a",
+    CAST(COALESCE(c."current_a", LAG(c."current_a") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
     c."customer_id",
     EXTRACT(HOUR FROM hours.hour) as "hour",
     CAST(COALESCE(c."power_factor", LAG(c."power_factor") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
-    CAST(COALESCE(c."power_kva", LAG(c."power_kva") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_kva",
-    CAST(COALESCE(c."power_kw", LAG(c."power_kw") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_kw",
+    CAST(COALESCE(c."power_kva", LAG(c."power_kva") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kva",
+    CAST(COALESCE(c."power_kw", LAG(c."power_kw") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
     c."size_kva",
     hours.hour as "timestamp",
     c."transformer_id",

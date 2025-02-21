@@ -349,12 +349,14 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
             title="Power (kW)",
             range=[0, y_max],
             automargin=True,
-            gridcolor='#E1E1E1'
+            gridcolor='#E1E1E1',
+            tickformat='.2f' if is_transformer_view else '.3f'  # Match rounding precision
         ),
         xaxis=dict(
             title='Time',
             gridcolor='#E1E1E1',
-            type='date'
+            type='date',
+            tickformat='%H:%M'  # Only show hour:minute
         ),
         plot_bgcolor='white',
         legend=dict(
@@ -426,12 +428,14 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
             title="Current (A)",
             range=[0, y_max],
             automargin=True,
-            gridcolor='#E1E1E1'
+            gridcolor='#E1E1E1',
+            tickformat='.2f' if is_transformer_view else '.3f'  # Match rounding precision
         ),
         xaxis=dict(
             title='Time',
             gridcolor='#E1E1E1',
-            type='date'
+            type='date',
+            tickformat='%H:%M'  # Only show hour:minute
         )
     )
 
@@ -494,12 +498,14 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
             title="Voltage (V)",
             range=[0, y_max],
             automargin=True,
-            gridcolor='#E1E1E1'
+            gridcolor='#E1E1E1',
+            tickformat='.1f'  # Match rounding precision
         ),
         xaxis=dict(
             title='Time',
             gridcolor='#E1E1E1',
-            type='date'
+            type='date',
+            tickformat='%H:%M'  # Only show hour:minute
         )
     )
 
@@ -585,7 +591,8 @@ def display_voltage_over_time(results_df: pd.DataFrame):
             automargin=True,
             gridcolor='#E1E1E1',  # Darker grey for y-axis grid
             gridwidth=1,
-            showgrid=True
+            showgrid=True,
+            tickformat='.1f'  # Match rounding precision
         ),
         xaxis=dict(
             tickformat='%H:%M',  # Show hours and minutes
@@ -640,12 +647,14 @@ def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
         yaxis=dict(
             title="Loading (%)",
             range=[0, 100],
-            gridcolor='#E1E1E1'
+            gridcolor='#E1E1E1',
+            tickformat='.2f'  # Match rounding precision
         ),
         xaxis=dict(
             title='Time',
             gridcolor='#E1E1E1',
-            type='date'
+            type='date',
+            tickformat='%H:%M'  # Only show hour:minute
         ),
         plot_bgcolor='white',
         legend=dict(
