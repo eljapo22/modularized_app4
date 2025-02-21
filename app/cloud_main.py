@@ -138,10 +138,11 @@ def main():
                         logger.info(f"Transformer data timestamp range: {transformer_data['timestamp'].min()} to {transformer_data['timestamp'].max()}")
                     
                     # Get customer data
-                    customer_data = data_service.get_customer_data(
-                        selected_transformer,
+                    customer_data = data_service.get_customer_data_range(
                         start_date,
-                        end_date
+                        end_date,
+                        selected_feeder,
+                        selected_transformer
                     )
                     if customer_data is not None:
                         logger.info(f"Customer data timestamp range: {customer_data['timestamp'].min()} to {customer_data['timestamp'].max()}")

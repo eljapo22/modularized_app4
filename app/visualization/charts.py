@@ -533,28 +533,37 @@ def display_customer_tab(customer_df: pd.DataFrame):
             st.warning("No customer data available")
             return
 
-        # Create section for customer details
-        st.markdown("### Customer Details")
+        # Get unique customers
+        unique_customers = customer_df['customer_id'].unique()
         
-        # Display customer metrics in a grid
+        # Create section for customer overview
+        st.markdown("### Customer Overview")
         col1, col2, col3, col4 = st.columns(4)
         
-        # Get customer ID if available, otherwise use placeholder
-        customer_id = customer_df['customer_id'].iloc[0] if 'customer_id' in customer_df.columns else "N/A"
-        
         with col1:
-            create_tile("Customer ID", customer_id)
+            create_tile("Total Customers", f"{len(unique_customers)}")
         with col2:
-            create_tile("Feeder", "Feeder 1")  # From table name in logs
+            create_tile("Total Records", f"{len(customer_df):,}")
         with col3:
-            create_tile("Records", f"{len(customer_df):,}")
-        with col4:
             create_tile("Date Range", f"{customer_df['timestamp'].min().strftime('%Y-%m-%d')} to {customer_df['timestamp'].max().strftime('%Y-%m-%d')}")
+        with col4:
+            total_power = customer_df.groupby('timestamp')['power_kw'].sum().mean()
+            create_tile("Avg. Total Power", f"{total_power:.1f} kW")
 
+        # Customer selector
+        selected_customer = st.selectbox(
+            "Select Customer",
+            unique_customers,
+            format_func=lambda x: f"Customer {x}"
+        )
+        
+        # Filter data for selected customer
+        customer_data = customer_df[customer_df['customer_id'] == selected_customer]
+        
         # Power Analysis Section
         st.markdown("### Power Analysis")
         with st.container():
-            display_power_time_series(customer_df)
+            display_power_time_series(customer_data)
 
         # Voltage and Current Section
         st.markdown("### Voltage and Current")
@@ -563,10 +572,10 @@ def display_customer_tab(customer_df: pd.DataFrame):
         current_col, voltage_col = st.columns(2)
         
         with current_col:
-            display_current_time_series(customer_df)
+            display_current_time_series(customer_data)
             
         with voltage_col:
-            display_voltage_time_series(customer_df)
+            display_voltage_time_series(customer_data)
 
     except Exception as e:
         logger.error(f"Error in customer tab: {str(e)}")
