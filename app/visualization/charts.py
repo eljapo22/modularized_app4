@@ -136,7 +136,7 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
         logger.error(f"Error displaying power time series: {str(e)}")
         st.error("Error displaying power time series chart")
 
-def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = True):
+def display_current_time_series(results_df: pd.DataFrame):
     """Display current time series visualization."""
     try:
         # Normalize and validate data
@@ -146,18 +146,77 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             st.warning("No valid current data available for the selected time range")
             return
             
-        # Create DataFrame for display
-        df_current = pd.DataFrame({
-            'timestamp': results_df['timestamp'],
-            'Current (A)': results_df['current_a']
-        }).set_index('timestamp')
+        # Create mock data with phases moving together
+        timestamps = results_df['timestamp']
+        n_points = len(timestamps)
         
-        # Display the line chart
-        st.line_chart(
-            df_current,
-            use_container_width=True,
-            height=250
+        # Create a base current variation that all phases will follow
+        base_variation = np.cumsum(np.random.uniform(-0.1, 0.1, n_points))
+        base_variation = base_variation - np.mean(base_variation)
+        base_variation = base_variation * (10 / np.max(np.abs(base_variation)))  # Scale to ±10A
+        base_current = 50 + base_variation  # Center around 50A
+        
+        # Fixed phase offsets
+        phase_offsets = {
+            'Phase R': 0.5,
+            'Phase Y': -0.3,
+            'Phase B': 0.2
+        }
+        
+        # Generate data for each phase
+        df_phases = pd.DataFrame({
+            'timestamp': timestamps,
+            'Phase R': base_current + phase_offsets['Phase R'],
+            'Phase Y': base_current + phase_offsets['Phase Y'],
+            'Phase B': base_current + phase_offsets['Phase B']
+        })
+        
+        # Melt the dataframe for Altair
+        df_melted = df_phases.melt(
+            id_vars=['timestamp'],
+            var_name='Phase',
+            value_name='Current'
         )
+        
+        # Create base chart
+        base = alt.Chart(df_melted).encode(
+            x=alt.X('timestamp:T', title='Time'),
+            y=alt.Y('Current:Q', 
+                   scale=alt.Scale(domain=[30, 70]),  # Set range to match voltage chart style
+                   title='Current (A)')
+        )
+        
+        # Add phase lines
+        phase_lines = base.mark_line().encode(
+            color=alt.Color('Phase:N')
+        )
+        
+        # Add reference lines for nominal current
+        ref_data = pd.DataFrame({
+            'current': [50],  # Nominal current
+            'type': ['Nominal']
+        })
+        
+        ref_lines = alt.Chart(ref_data).mark_rule(
+            strokeDash=[4, 4],
+            opacity=0.5,
+            color='gray'
+        ).encode(
+            y='current:Q'
+        )
+        
+        # Combine charts
+        chart = alt.layer(
+            phase_lines, ref_lines
+        ).properties(
+            width='container',
+            height=250
+        ).configure_axis(
+            grid=True
+        )
+        
+        # Display the chart
+        st.altair_chart(chart, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying current time series: {str(e)}")
@@ -448,7 +507,7 @@ def display_transformer_tab(df: pd.DataFrame):
     cols = st.columns(2)
     with cols[0]:
         create_tile("Current Over Time", "")
-        display_current_time_series(df, is_transformer_view=True)
+        display_current_time_series(df)
     with cols[1]:
         create_tile("Voltage Over Time", "")
         display_voltage_time_series(df)
