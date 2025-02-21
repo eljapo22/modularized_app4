@@ -393,3 +393,99 @@ class CloudDataService:
         except Exception as e:
             logger.error(f"Error getting customer aggregation: {str(e)}")
             return None
+
+    def analyze_loading_conditions(self, df: pd.DataFrame) -> Dict:
+        """Analyze loading conditions for a transformer."""
+        try:
+            if 'loading_percentage' not in df.columns:
+                logger.warning("No loading percentage data available for analysis")
+                return {}
+                
+            # Initialize condition tracking
+            conditions = {
+                'Critical': {'threshold': 120, 'count': 0, 'time': 0},
+                'Overloaded': {'threshold': 100, 'count': 0, 'time': 0},
+                'Warning': {'threshold': 80, 'count': 0, 'time': 0},
+                'Pre-Warning': {'threshold': 50, 'count': 0, 'time': 0},
+                'Normal': {'threshold': 0, 'count': 0, 'time': 0}
+            }
+            
+            total_points = len(df)
+            current_condition = None
+            condition_start = None
+            sustained_overloads = []
+            
+            # Sort by timestamp to ensure chronological order
+            df = df.sort_values('timestamp')
+            
+            # Track peak loading
+            peak_idx = df['loading_percentage'].idxmax()
+            peak_loading = df.loc[peak_idx, 'loading_percentage']
+            peak_time = df.loc[peak_idx, 'timestamp']
+            
+            # Calculate average loading
+            average_loading = df['loading_percentage'].mean()
+            
+            # Analyze each point
+            for idx, row in df.iterrows():
+                loading = row['loading_percentage']
+                
+                # Determine condition
+                new_condition = 'Normal'
+                for cond, info in conditions.items():
+                    if loading >= info['threshold']:
+                        new_condition = cond
+                        break
+                
+                # Track condition changes
+                if new_condition != current_condition:
+                    if current_condition:
+                        conditions[current_condition]['time'] += (idx - condition_start).total_seconds()
+                        conditions[current_condition]['count'] += 1
+                    current_condition = new_condition
+                    condition_start = idx
+                
+                # Check for sustained overloads
+                if loading >= 100:
+                    overload_duration = pd.Timedelta(hours=1)
+                    overload_end = idx + overload_duration
+                    overload_period = df[(df.index >= idx) & (df.index <= overload_end)]
+                    
+                    if len(overload_period) > 0 and overload_period['loading_percentage'].min() >= 100:
+                        sustained_overloads.append({
+                            'start': idx,
+                            'end': overload_end,
+                            'duration_hours': 1,
+                            'peak_loading': overload_period['loading_percentage'].max()
+                        })
+            
+            # Add final condition duration
+            if current_condition and condition_start:
+                conditions[current_condition]['time'] += (df.index[-1] - condition_start).total_seconds()
+                conditions[current_condition]['count'] += 1
+            
+            # Calculate percentages
+            total_time = sum(c['time'] for c in conditions.values())
+            condition_percentages = {
+                cond: (info['time'] / total_time * 100) if total_time > 0 else 0 
+                for cond, info in conditions.items()
+            }
+            
+            # Extract counts
+            condition_counts = {
+                cond: info['count']
+                for cond, info in conditions.items()
+            }
+            
+            return {
+                'peak_loading': peak_loading,
+                'peak_time': peak_time,
+                'average_loading': average_loading,
+                'condition_percentages': condition_percentages,
+                'condition_counts': condition_counts,
+                'sustained_overloads': sustained_overloads
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing loading conditions: {str(e)}")
+            return {}

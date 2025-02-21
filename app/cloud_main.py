@@ -241,12 +241,14 @@ def main():
                                 # Show condition percentages
                                 st.write("Time spent in each condition:")
                                 percentages = loading_analytics['condition_percentages']
+                                condition_counts = loading_analytics.get('condition_counts', {})
                                 for condition, pct in percentages.items():
                                     status, color = get_alert_status(120 if condition == 'Critical' else 
                                                                    100 if condition == 'Overloaded' else
                                                                    80 if condition == 'Warning' else
                                                                    50 if condition == 'Pre-Warning' else 0)
-                                    st.markdown(f"<span style='color: {color}'>{condition}</span>: {pct:.1f}%", unsafe_allow_html=True)
+                                    count = condition_counts.get(condition, 0)
+                                    st.markdown(f"<span style='color: {color}'>{condition}</span>: {pct:.1f}% / {count} instances", unsafe_allow_html=True)
                                 
                                 # Show sustained overloads if any
                                 if loading_analytics['sustained_overloads']:
