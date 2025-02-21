@@ -14,7 +14,7 @@ from app.services.cloud_alert_service import (
     get_alert_status,
     analyze_loading_conditions
 )  # Import for alert functionality
-from app.utils.ui_utils import create_banner, display_transformer_dashboard
+from app.utils.ui_utils import display_transformer_dashboard
 from app.utils.ui_components import create_section_header, create_tile, create_two_column_charts
 from app.visualization.charts import display_customer_tab, display_power_time_series, display_current_time_series, display_voltage_time_series, display_loading_status_line_chart
 
@@ -85,10 +85,8 @@ def main():
             layout="wide"
         )
         
-        create_banner("Transformer Loading Analysis")
-        
         # Analysis Parameters in sidebar
-        st.sidebar.header("Analysis Parameters")
+        st.sidebar.title("Analysis Parameters")
         
         # Date range selection with default range
         default_start = st.session_state.selections.get('start_date', min_date) if 'selections' in st.session_state else min_date
@@ -123,11 +121,11 @@ def main():
             index=transformer_options.index(st.session_state.selections['transformer_id']) if 'selections' in st.session_state else 0
         )
         
-        # Search button with icon
+        # Search button
         search_clicked = st.sidebar.button(
-            "🔍 Search" + (" 🔔" if st.session_state.alert_state.get('pending', False) else ""),
+            "Search",
             type="primary",
-            key="search_button"
+            use_container_width=True
         )
         
         # Auto-trigger search if coming from alert link
