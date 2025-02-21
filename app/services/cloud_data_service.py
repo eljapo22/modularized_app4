@@ -264,7 +264,7 @@ class CloudDataService:
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
                 query,
-                params=(start_date, end_date, transformer_id, start_date, end_date)  # Fixed parameter order to match SQL query
+                params=(start_date, end_date, transformer_id)  # Remove duplicate date parameters
             )
             
             if not results:
