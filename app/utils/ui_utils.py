@@ -445,98 +445,8 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
             )
             
             if customer_data is not None and not customer_data.empty:
-                # Display customer metrics
-                st.markdown("#### Customer Overview")
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.metric(
-                        "Total Customers",
-                        f"{len(customer_data)}",
-                        help="Number of customers connected to this transformer"
-                    )
-                
-                with col2:
-                    total_power = customer_data['power_kw'].sum()
-                    st.metric(
-                        "Total Power",
-                        f"{total_power:.1f} kW",
-                        help="Total power consumption across all customers"
-                    )
-                
-                with col3:
-                    avg_pf = customer_data['power_factor'].mean()
-                    st.metric(
-                        "Average Power Factor",
-                        f"{avg_pf:.2f}",
-                        help="Average power factor across all customers"
-                    )
-                
-                # Customer power distribution
-                st.markdown("#### Power Distribution")
-                fig = go.Figure()
-                
-                # Sort customers by power consumption
-                sorted_data = customer_data.sort_values('power_kw', ascending=True)
-                
-                # Create bar chart
-                fig.add_trace(go.Bar(
-                    x=sorted_data['power_kw'],
-                    y=sorted_data['customer_id'],
-                    orientation='h',
-                    marker_color='rgb(55, 83, 109)'
-                ))
-                
-                fig.update_layout(
-                    title="Customer Power Consumption",
-                    xaxis_title="Power (kW)",
-                    yaxis_title="Customer ID",
-                    showlegend=False,
-                    height=max(350, len(customer_data) * 25)  # Dynamic height based on number of customers
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Customer metrics visualization
-                st.markdown("#### Customer Metrics")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Power factor distribution
-                    fig = go.Figure()
-                    fig.add_trace(go.Box(
-                        y=customer_data['power_factor'],
-                        name="Power Factor",
-                        boxpoints='all',
-                        jitter=0.3,
-                        pointpos=-1.8
-                    ))
-                    fig.update_layout(
-                        title="Power Factor Distribution",
-                        yaxis_title="Power Factor",
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                with col2:
-                    # Current distribution
-                    fig = go.Figure()
-                    fig.add_trace(go.Box(
-                        y=customer_data['current_a'],
-                        name="Current",
-                        boxpoints='all',
-                        jitter=0.3,
-                        pointpos=-1.8
-                    ))
-                    fig.update_layout(
-                        title="Current Distribution",
-                        yaxis_title="Current (A)",
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                # Detailed customer data table
-                st.markdown("#### Detailed Customer Data")
+                # Display customer data table
+                st.markdown("#### Customer Data")
                 st.dataframe(
                     customer_data[[
                         'customer_id',
@@ -547,7 +457,8 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                     ]].style.format({
                         'power_kw': '{:.1f}',
                         'power_factor': '{:.2f}',
-                        'current_a': '{:.1f}'
+                        'current_a': '{:.1f}',
+                        'voltage_v': '{:d}'
                     })
                 )
             else:
