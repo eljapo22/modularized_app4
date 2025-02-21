@@ -38,7 +38,7 @@ SELECT
     "voltage_v"
 FROM {table_name}
 WHERE "transformer_id" = ?
-  AND DATE("timestamp") BETWEEN ? AND ?
+  AND "timestamp"::DATE BETWEEN ?::DATE AND ?::DATE
 ORDER BY "timestamp", "customer_id"
 """
 
@@ -50,7 +50,7 @@ ORDER BY "transformer_id"
 
 CUSTOMER_AGGREGATION_QUERY = """
 SELECT 
-    DATE("timestamp") as date,
+    "timestamp"::DATE as date,
     "customer_id",
     AVG(ROUND("power_kw", 1)) as avg_power_kw,
     MAX(ROUND("power_kw", 1)) as max_power_kw,
@@ -58,9 +58,9 @@ SELECT
     AVG(ROUND("power_factor", 2)) as avg_power_factor
 FROM {table_name}
 WHERE "transformer_id" = ?
-  AND DATE("timestamp") BETWEEN ? AND ?
-GROUP BY DATE("timestamp"), "customer_id"
-ORDER BY DATE("timestamp"), "customer_id"
+  AND "timestamp"::DATE BETWEEN ?::DATE AND ?::DATE
+GROUP BY "timestamp"::DATE, "customer_id"
+ORDER BY "timestamp"::DATE, "customer_id"
 """
 
 TRANSFORMER_DATA_RANGE_QUERY = """
@@ -77,6 +77,6 @@ SELECT
     "load_range"
 FROM {table_name}
 WHERE "transformer_id" = ? 
-  AND DATE("timestamp") BETWEEN ? AND ?
+  AND "timestamp"::DATE BETWEEN ?::DATE AND ?::DATE
 ORDER BY "timestamp"
 """

@@ -240,8 +240,9 @@ class CloudDataService:
         try:
             logger.info(f"Fetching customer data for {transformer_id} from {start_date} to {end_date}")
             
-            # Get table name from transformer ID
-            feeder_num = int(transformer_id.split('_')[0])
+            # Extract feeder number from transformer ID (format: S1F1ATF001)
+            # Split by 'F' and take the number before it
+            feeder_num = int(transformer_id.split('F')[0].replace('S', ''))
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Execute query
@@ -276,8 +277,9 @@ class CloudDataService:
         try:
             logger.info(f"Getting customer aggregation for {transformer_id}")
             
-            # Get table name from transformer ID
-            feeder_num = int(transformer_id.split('_')[0])
+            # Extract feeder number from transformer ID (format: S1F1ATF001)
+            # Split by 'F' and take the number before it
+            feeder_num = int(transformer_id.split('F')[0].replace('S', ''))
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Execute query
