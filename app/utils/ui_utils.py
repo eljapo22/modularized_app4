@@ -461,6 +461,57 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                         'voltage_v': '{:d}'
                     })
                 )
+
+                # Sort data by customer_id for consistent plotting
+                sorted_data = customer_data.sort_values('customer_id')
+                
+                # Power (kW) plot
+                st.markdown("#### Power Distribution")
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=sorted_data['customer_id'],
+                    y=sorted_data['power_kw'],
+                    name='Power',
+                    marker_color='#1f77b4'
+                ))
+                fig.update_layout(
+                    xaxis_title="Customer ID",
+                    yaxis_title="Power (kW)",
+                    showlegend=False
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Current plot
+                st.markdown("#### Current Distribution")
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=sorted_data['customer_id'],
+                    y=sorted_data['current_a'],
+                    name='Current',
+                    marker_color='#2ca02c'
+                ))
+                fig.update_layout(
+                    xaxis_title="Customer ID",
+                    yaxis_title="Current (A)",
+                    showlegend=False
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Voltage plot
+                st.markdown("#### Voltage Distribution")
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=sorted_data['customer_id'],
+                    y=sorted_data['voltage_v'],
+                    name='Voltage',
+                    marker_color='#ff7f0e'
+                ))
+                fig.update_layout(
+                    xaxis_title="Customer ID",
+                    yaxis_title="Voltage (V)",
+                    showlegend=False
+                )
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("No customer data available for this transformer at the selected time")
             
