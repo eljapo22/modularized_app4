@@ -256,16 +256,24 @@ def create_customer_power_chart(customer_data: pd.DataFrame) -> None:
     
     st.plotly_chart(fig, use_container_width=True)
 
-def display_transformer_dashboard(results, alert_hour=None):
+def setup_page():
+    """Configure the Streamlit page."""
+    st.set_page_config(
+        page_title="Transformer Dashboard",
+        page_icon="⚡",
+        layout="wide"
+    )
+
+def display_transformer_dashboard(results, start_date=None, end_date=None, hour=None):
     """Display transformer dashboard with loading status and graphs."""
     if results is None or results.empty:
         st.warning("No data available for display")
         return
 
-    # Get date range and hour from results and session state
-    start_date = results.index.min().date()
-    end_date = results.index.max().date()
-    selected_hour = st.session_state.get('selected_hour', None)
+    # Use provided dates or get from results
+    start_date = start_date or results.index.min().date()
+    end_date = end_date or results.index.max().date()
+    selected_hour = hour or st.session_state.get('selected_hour')
 
     # Display loading status
     st.markdown("#### Loading Status")
