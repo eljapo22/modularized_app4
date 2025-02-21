@@ -468,48 +468,57 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 # Power (kW) plot
                 st.markdown("#### Power Distribution")
                 fig = go.Figure()
-                fig.add_trace(go.Bar(
+                fig.add_trace(go.Scatter(
                     x=sorted_data['customer_id'],
                     y=sorted_data['power_kw'],
                     name='Power',
-                    marker_color='#1f77b4'
+                    line=dict(color='#0d6efd', width=2),
+                    mode='lines+markers',
+                    hovertemplate='%{y:.1f} kW<br>%{x}<extra></extra>'
                 ))
                 fig.update_layout(
                     xaxis_title="Customer ID",
                     yaxis_title="Power (kW)",
-                    showlegend=False
+                    showlegend=False,
+                    hovermode='x unified'
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
                 # Current plot
                 st.markdown("#### Current Distribution")
                 fig = go.Figure()
-                fig.add_trace(go.Bar(
+                fig.add_trace(go.Scatter(
                     x=sorted_data['customer_id'],
                     y=sorted_data['current_a'],
                     name='Current',
-                    marker_color='#2ca02c'
+                    line=dict(color='#198754', width=2),
+                    mode='lines+markers',
+                    hovertemplate='%{y:.1f} A<br>%{x}<extra></extra>'
                 ))
                 fig.update_layout(
                     xaxis_title="Customer ID",
                     yaxis_title="Current (A)",
-                    showlegend=False
+                    showlegend=False,
+                    hovermode='x unified'
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
                 # Voltage plot
                 st.markdown("#### Voltage Distribution")
                 fig = go.Figure()
-                fig.add_trace(go.Bar(
+                fig.add_trace(go.Scatter(
                     x=sorted_data['customer_id'],
                     y=sorted_data['voltage_v'],
                     name='Voltage',
-                    marker_color='#ff7f0e'
+                    line=dict(color='#dc3545', width=2),
+                    mode='lines+markers',
+                    hovertemplate='%{y} V<br>%{x}<extra></extra>'
                 ))
                 fig.update_layout(
                     xaxis_title="Customer ID",
                     yaxis_title="Voltage (V)",
-                    showlegend=False
+                    showlegend=False,
+                    hovermode='x unified'
                 )
                 st.plotly_chart(fig, use_container_width=True)
             else:
