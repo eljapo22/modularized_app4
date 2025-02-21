@@ -275,8 +275,8 @@ class CloudDataService:
             transformer_id: str,
             date: datetime,
             hour: int
-        ) -> Optional[AggregatedCustomerData]:
-        """Get aggregated customer metrics for a transformer"""
+        ) -> Optional[pd.DataFrame]:
+        """Get aggregated customer data for a specific transformer"""
         try:
             logger.info(f"Retrieving aggregated customer data for transformer {transformer_id} on {date} at hour {hour}")
             # Extract feeder number from transformer ID (format: S{feeder}F...)
@@ -297,21 +297,15 @@ class CloudDataService:
             if not results:
                 logger.warning(f"No aggregated customer data found for transformer {transformer_id}")
                 return None
+                
+            logger.info(f"Found aggregated data with {len(results)} customers")
             
-            result = results[0]  # We expect only one row
-            logger.info(f"Found aggregated data with {result['customer_count']} customers")
-            logger.debug(f"Aggregated metrics: power_kw={result['total_power_kw']:.1f}, " +
-                      f"power_factor={result['avg_power_factor']:.2f}, " +
-                      f"current_a={result['total_current_a']:.1f}")
+            # Convert to DataFrame
+            df = pd.DataFrame(results)
+            return df
             
-            return AggregatedCustomerData(
-                customer_count=result['customer_count'],
-                total_power_kw=result['total_power_kw'],
-                avg_power_factor=result['avg_power_factor'],
-                total_current_a=result['total_current_a']
-            )
         except Exception as e:
-            logger.error(f"Error getting customer aggregation: {str(e)}")
+            logger.error(f"Error getting aggregated customer data: {str(e)}")
             return None
 
 # Initialize the service as a singleton

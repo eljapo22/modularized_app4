@@ -3,14 +3,12 @@ Cloud-specific entry point for the Transformer Loading Analysis Application
 Uses app.-prefixed imports required by Streamlit Cloud
 """
 import streamlit as st
-import traceback
-from datetime import datetime, time, date
 import logging
 import pandas as pd
 
-from app.services.cloud_data_service import CloudDataService
-from app.services.cloud_alert_service import CloudAlertService
-from app.utils.ui_utils import create_banner, display_transformer_dashboard
+from services.cloud_data_service import CloudDataService
+from services.cloud_alert_service import CloudAlertService
+from utils.ui_utils import create_banner, display_transformer_dashboard
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
