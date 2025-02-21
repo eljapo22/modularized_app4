@@ -174,7 +174,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: i
                     color=color,
                     size=8
                 ),
-                hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Loading: %{y:.1f}%<br>Status: ' + status + '<extra></extra>'
+                hovertemplate='%{x|%Y-%m-%d %H:%M}<br>Loading: %{y:.1f}%<br>Status: ' + status + '<extra></extra>'
             )
         )
     
@@ -252,20 +252,31 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     # Ensure timestamp is in datetime format and reset index if it's the index
     if isinstance(results_df.index, pd.DatetimeIndex):
         results_df = results_df.reset_index()
+        logger.info("Reset DatetimeIndex to column")
     if 'timestamp' not in results_df.columns:
         st.error("No timestamp column found in data")
+        logger.error(f"Missing timestamp column. Available columns: {results_df.columns.tolist()}")
         return
-
-    logger.info(f"Plotting power time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
     
+    logger.info(f"Plotting power time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
+    logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
+    
+    # Sample a few timestamps to verify format
+    sample_timestamps = results_df['timestamp'].head()
+    logger.info(f"Sample timestamps: {sample_timestamps.tolist()}")
+        
     # Create figure
     fig = create_base_figure(
         None,
         None,
         "Power (kW)"
     )
+    logger.info("Created base figure")
     
     # Add power consumption trace
+    hover_template = '%{x|%Y-%m-%d %H:%M}<br>Power: %{y:.1f} kW<extra></extra>'
+    logger.info(f"Using hover template: {hover_template}")
+    
     fig.add_trace(
         go.Scatter(
             x=results_df['timestamp'],
@@ -280,9 +291,10 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
                 color='#3b82f6',
                 size=6
             ),
-            hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Power: %{y:.1f} kW<extra></extra>'
+            hovertemplate=hover_template
         )
     )
+    logger.info("Added power consumption trace")
     
     # Add transformer size line if in transformer view
     if is_transformer_view and 'size_kva' in results_df.columns:
@@ -301,7 +313,8 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
                     color='red',
                     width=2,
                     dash='dash'
-                )
+                ),
+                hovertemplate='%{y:.1f} kVA<extra></extra>'
             )
         )
         logger.info("Added size_kva trace")
@@ -310,7 +323,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         fig.add_annotation(
             x=results_df['timestamp'].iloc[-1],
             y=size_kva,
-            text=f"{size_kva} kVA",
+            text=f"{size_kva:.1f} kVA",
             showarrow=False,
             yshift=10,
             xshift=5,
@@ -338,7 +351,8 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         ),
         xaxis=dict(
             gridcolor='#E1E1E1',
-            title='Time'
+            title='Time',
+            tickformat='%Y-%m-%d %H:%M'
         ),
         plot_bgcolor='white',
         legend=dict(
@@ -348,7 +362,6 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
             x=0.01
         )
     )
-    logger.info(f"Updated layout with y-axis range: [0, {y_max}]")
 
     st.plotly_chart(fig, use_container_width=True)
     logger.info("Displayed chart")
@@ -362,9 +375,18 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
     # Ensure timestamp is in datetime format and reset index if it's the index
     if isinstance(results_df.index, pd.DatetimeIndex):
         results_df = results_df.reset_index()
+        logger.info("Reset DatetimeIndex to column")
     if 'timestamp' not in results_df.columns:
         st.error("No timestamp column found in data")
+        logger.error(f"Missing timestamp column. Available columns: {results_df.columns.tolist()}")
         return
+    
+    logger.info(f"Plotting current time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
+    logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
+    
+    # Sample a few timestamps to verify format
+    sample_timestamps = results_df['timestamp'].head()
+    logger.info(f"Sample timestamps: {sample_timestamps.tolist()}")
         
     # Create figure
     fig = create_base_figure(
@@ -372,8 +394,12 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
         None,
         "Current (A)"
     )
+    logger.info("Created base figure")
     
     # Add current trace
+    hover_template = '%{x|%Y-%m-%d %H:%M}<br>Current: %{y:.1f} A<extra></extra>'
+    logger.info(f"Using hover template: {hover_template}")
+    
     fig.add_trace(
         go.Scatter(
             x=results_df['timestamp'],
@@ -388,9 +414,10 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
                 color='#ef4444',
                 size=6
             ),
-            hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Current: %{y:.1f} A<extra></extra>'
+            hovertemplate=hover_template
         )
     )
+    logger.info("Added current trace")
     
     # Add hour indicator if specified
     if selected_hour is not None:
@@ -400,7 +427,10 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
     fig.update_layout(
         showlegend=False,
         margin=dict(l=0, r=0, t=0, b=0),
-        xaxis_title="Time",
+        xaxis=dict(
+            title='Time',
+            tickformat='%Y-%m-%d %H:%M'
+        ),
         yaxis_title="Current (A)",
         hovermode='closest'
     )
@@ -417,9 +447,18 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
     # Ensure timestamp is in datetime format and reset index if it's the index
     if isinstance(results_df.index, pd.DatetimeIndex):
         results_df = results_df.reset_index()
+        logger.info("Reset DatetimeIndex to column")
     if 'timestamp' not in results_df.columns:
         st.error("No timestamp column found in data")
+        logger.error(f"Missing timestamp column. Available columns: {results_df.columns.tolist()}")
         return
+    
+    logger.info(f"Plotting voltage time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
+    logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
+    
+    # Sample a few timestamps to verify format
+    sample_timestamps = results_df['timestamp'].head()
+    logger.info(f"Sample timestamps: {sample_timestamps.tolist()}")
         
     # Create figure
     fig = create_base_figure(
@@ -427,8 +466,12 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
         None,
         "Voltage (V)"
     )
+    logger.info("Created base figure")
     
     # Add voltage trace
+    hover_template = '%{x|%Y-%m-%d %H:%M}<br>Voltage: %{y:.1f} V<extra></extra>'
+    logger.info(f"Using hover template: {hover_template}")
+    
     fig.add_trace(
         go.Scatter(
             x=results_df['timestamp'],
@@ -443,9 +486,10 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
                 color='#22c55e',
                 size=6
             ),
-            hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Voltage: %{y:.1f} V<extra></extra>'
+            hovertemplate=hover_template
         )
     )
+    logger.info("Added voltage trace")
     
     # Add hour indicator if specified
     if selected_hour is not None:
@@ -455,7 +499,10 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
     fig.update_layout(
         showlegend=False,
         margin=dict(l=0, r=0, t=0, b=0),
-        xaxis_title="Time",
+        xaxis=dict(
+            title='Time',
+            tickformat='%Y-%m-%d %H:%M'
+        ),
         yaxis_title="Voltage (V)",
         hovermode='closest'
     )
