@@ -146,68 +146,30 @@ def display_current_time_series(results_df: pd.DataFrame):
             st.warning("No valid current data available for the selected time range")
             return
             
-        # Create mock data with phases moving together
+        # Create mock data
         timestamps = results_df['timestamp']
         n_points = len(timestamps)
         
-        # Create a base current variation that all phases will follow
+        # Create current variation
         base_variation = np.cumsum(np.random.uniform(-0.1, 0.1, n_points))
         base_variation = base_variation - np.mean(base_variation)
         base_variation = base_variation * (10 / np.max(np.abs(base_variation)))  # Scale to ±10A
-        base_current = 50 + base_variation  # Center around 50A
+        current = 50 + base_variation  # Center around 50A
         
-        # Fixed phase offsets
-        phase_offsets = {
-            'Phase R': 0.5,
-            'Phase Y': -0.3,
-            'Phase B': 0.2
-        }
-        
-        # Generate data for each phase
-        df_phases = pd.DataFrame({
+        # Generate data
+        df_current = pd.DataFrame({
             'timestamp': timestamps,
-            'Phase R': base_current + phase_offsets['Phase R'],
-            'Phase Y': base_current + phase_offsets['Phase Y'],
-            'Phase B': base_current + phase_offsets['Phase B']
+            'Current': current
         })
         
-        # Melt the dataframe for Altair
-        df_melted = df_phases.melt(
-            id_vars=['timestamp'],
-            var_name='Phase',
-            value_name='Current'
-        )
-        
         # Create base chart
-        base = alt.Chart(df_melted).encode(
+        chart = alt.Chart(df_current).mark_line(
+            color='blue'
+        ).encode(
             x=alt.X('timestamp:T', title='Time'),
             y=alt.Y('Current:Q', 
                    scale=alt.Scale(domain=[30, 70]),  # Set range to match voltage chart style
                    title='Current (A)')
-        )
-        
-        # Add phase lines
-        phase_lines = base.mark_line().encode(
-            color=alt.Color('Phase:N')
-        )
-        
-        # Add reference lines for nominal current
-        ref_data = pd.DataFrame({
-            'current': [50],  # Nominal current
-            'type': ['Nominal']
-        })
-        
-        ref_lines = alt.Chart(ref_data).mark_rule(
-            strokeDash=[4, 4],
-            opacity=0.5,
-            color='gray'
-        ).encode(
-            y='current:Q'
-        )
-        
-        # Combine charts
-        chart = alt.layer(
-            phase_lines, ref_lines
         ).properties(
             width='container',
             height=250
