@@ -109,32 +109,26 @@ def main():
                     if transformer_data is not None and not transformer_data.empty:
                         logger.info(f"Transformer data loaded successfully: {len(transformer_data)} records")
                         
-                        # Create columns for alert button placement
+                        # Automatically check alerts if unusual values detected
+                        if any(transformer_data['loading_percentage'] >= 80):  # Alert threshold
+                            logger.info("High loading detected - checking alerts automatically")
+                            alert_service = CloudAlertService()
+                            alert_service.check_and_send_alerts(
+                                transformer_data,
+                                start_date=start_date,
+                                alert_time=datetime.now()
+                            )
+                        
+                        # Keep manual alert button for user control
                         alert_col1, alert_col2 = st.columns([3, 1])
                         with alert_col2:
-                            # Track alert button state
-                            alert_clicked = st.button("🔔 Check Alerts", key="check_alerts")
-                            logger.info(f"Alert check button clicked: {alert_clicked}")
-                            
-                            if alert_clicked:
-                                logger.info("Starting alert check process...")
-                                try:
-                                    alert_service = CloudAlertService()
-                                    # Log before alert check
-                                    logger.info(f"Checking alerts for transformer {transformer_id}")
-                                    logger.info(f"Data range: {transformer_data['timestamp'].min()} to {transformer_data['timestamp'].max()}")
-                                    
-                                    # Perform alert check
-                                    alert_result = alert_service.check_and_send_alerts(
-                                        transformer_data,
-                                        start_date=start_date,
-                                        alert_time=datetime.now()
-                                    )
-                                    
-                                    # Log after alert check
-                                    logger.info(f"Alert check completed. Result: {alert_result}")
-                                except Exception as e:
-                                    logger.error(f"Alert check failed: {str(e)}", exc_info=True)
+                            if st.button("🔔 Check Alerts", key="check_alerts"):
+                                alert_service = CloudAlertService()
+                                alert_service.check_and_send_alerts(
+                                    transformer_data,
+                                    start_date=start_date,
+                                    alert_time=datetime.now()
+                                )
                         
                         # Create tabs for transformer and customer data
                         tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
