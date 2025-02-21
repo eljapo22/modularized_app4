@@ -9,8 +9,8 @@ import logging
 import pandas as pd
 
 from app.services.cloud_data_service import CloudDataService
-from app.utils.ui_utils import create_banner, display_transformer_dashboard
-from app.visualization.charts import display_customer_tab
+from app.utils.ui_utils import create_banner, display_transformer_dashboard, create_section_header, create_tile, create_two_column_charts
+from app.visualization.charts import display_customer_tab, display_power_time_series, display_current_time_series, display_voltage_time_series
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -96,7 +96,32 @@ def main():
                         tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
                         
                         with tab1:
-                            display_transformer_dashboard(transformer_data)
+                            # Display transformer details
+                            create_section_header("Transformer Details")
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                create_tile("Transformer ID", transformer_id)
+                            with col2:
+                                create_tile("Customers", str(len(customer_data)))
+                            with col3:
+                                create_tile("Latitude", str(transformer_data['latitude'].iloc[0]))
+                            with col4:
+                                create_tile("Longitude", str(transformer_data['longitude'].iloc[0]))
+
+                            # Display power consumption chart
+                            create_section_header("Power Consumption Over Time")
+                            display_power_time_series(transformer_data, is_transformer_view=True)
+
+                            # Display current and voltage charts side by side
+                            current_col, voltage_col = create_two_column_charts()
+                            
+                            with current_col:
+                                create_section_header("Current Over Time")
+                                display_current_time_series(transformer_data)
+                                
+                            with voltage_col:
+                                create_section_header("Voltage Over Time")
+                                display_voltage_time_series(transformer_data)
                         
                         with tab2:
                             if customer_data is not None and not customer_data.empty:

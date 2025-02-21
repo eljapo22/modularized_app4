@@ -51,22 +51,20 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def create_base_figure(title: str = None, xaxis_title: str = None, yaxis_title: str = None) -> go.Figure:
+def create_base_figure(xaxis_title: str = None, yaxis_title: str = None) -> go.Figure:
     """Create a base plotly figure with common settings"""
     fig = go.Figure()
     
     # Update layout with common settings
     fig.update_layout(
-        title=title,
-        xaxis_title=xaxis_title,
-        yaxis_title=yaxis_title,
         plot_bgcolor='white',
         paper_bgcolor='white',
+        height=250,  # Smaller chart height
         xaxis=dict(
             showgrid=True,
             gridcolor='#E1E1E1',
             type='date',
-            tickformat='%Y-%m-%d %H:%M',
+            tickformat='%H:%M',  # Show only time for compactness
             tickangle=-45,
             dtick='H2',  # Show every 2 hours
             tickmode='auto',
@@ -84,7 +82,7 @@ def create_base_figure(title: str = None, xaxis_title: str = None, yaxis_title: 
             showline=True,
             linecolor='#E1E1E1'
         ),
-        margin=dict(t=30, b=50, l=50, r=50),
+        margin=dict(t=10, b=40, l=40, r=40),  # Reduced margins
         hovermode='x unified',
         showlegend=False
     )
@@ -104,11 +102,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             return
             
         # Create figure
-        fig = create_base_figure(
-            title="Power Consumption Over Time",
-            xaxis_title="Time",
-            yaxis_title="Power (kW)"
-        )
+        fig = create_base_figure()
         
         # Add power consumption trace
         fig.add_trace(go.Scatter(
@@ -130,25 +124,16 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
                 fig.add_hline(
                     y=size_kva,
                     line_dash="dash",
-                    line_color="red",
+                    line_color="#dc3545",
                     annotation=dict(
                         text=f"Transformer Size: {size_kva} kVA",
                         xref="paper",
                         x=1,
                         y=size_kva,
                         showarrow=False,
-                        font=dict(color="red")
+                        font=dict(color="#dc3545")
                     )
                 )
-                y_max = min(max(results_df['power_kw']) * 1.1, size_kva * 1.2)
-            else:
-                y_max = max(results_df['power_kw']) * 1.1
-        else:
-            y_max = max(results_df['power_kw']) * 1.1
-            
-        fig.update_layout(
-            yaxis=dict(range=[0, y_max])
-        )
         
         st.plotly_chart(fig, use_container_width=True)
         
@@ -167,11 +152,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             return
             
         # Create figure
-        fig = create_base_figure(
-            title="Current Over Time",
-            xaxis_title="Time",
-            yaxis_title="Current (A)"
-        )
+        fig = create_base_figure()
         
         # Add current trace
         fig.add_trace(go.Scatter(
@@ -203,31 +184,28 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             return
             
         # Create figure
-        fig = create_base_figure(
-            title="Voltage Over Time",
-            xaxis_title="Time",
-            yaxis_title="Voltage (V)"
-        )
+        fig = create_base_figure()
         
         # Add voltage traces for three phases
         colors = ['#dc3545', '#ffc107', '#0d6efd']  # Red, Yellow, Blue
-        for i, phase in enumerate(['A', 'B', 'C']):
+        phase_names = ['Phase 1', 'Phase 2', 'Phase 3']
+        for i, phase in enumerate(phase_names):
             fig.add_trace(go.Scatter(
                 x=results_df['timestamp'],
                 y=results_df['voltage_v'] + np.random.normal(0, 2, len(results_df)),  # Simulate 3 phases
                 mode='lines',
-                name=f'Phase {phase}',
+                name=phase,
                 line=dict(
                     color=colors[i],
                     width=1
                 ),
-                hovertemplate=f'Phase {phase}: %{{y:.1f}} V<br>%{{x}}<extra></extra>'
+                hovertemplate=f'{phase}: %{{y:.1f}} V<br>%{{x}}<extra></extra>'
             ))
         
         # Add nominal voltage and limits
         nominal_voltage = 400
         for voltage, label, color in [
-            (nominal_voltage, "Nominal Voltage", "#6c757d"),
+            (nominal_voltage, "Nominal", "#6c757d"),
             (nominal_voltage * 1.05, "+5%", "#dc3545"),
             (nominal_voltage * 0.95, "-5%", "#dc3545")
         ]:

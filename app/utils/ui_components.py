@@ -45,3 +45,62 @@ def create_banner(title: str):
 def create_section_banner(title: str):
     """Create a section banner with professional styling"""
     st.header(title)
+
+def create_section_header(title: str):
+    """Create a section header with blue vertical bar."""
+    st.markdown(
+        f"""
+        <div style="
+            border-left: 4px solid #0d6efd;
+            padding-left: 10px;
+            margin: 20px 0 10px 0;
+            ">
+            <h3 style="
+                margin: 0;
+                color: #333;
+                font-size: 16px;
+                font-weight: 500;
+                ">{title}</h3>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+def create_tile(label: str, value: str):
+    """Create a metric tile with light gray background."""
+    st.markdown(
+        f"""
+        <div style="
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 5px 0;
+            ">
+            <div style="
+                color: #6c757d;
+                font-size: 12px;
+                margin-bottom: 5px;
+                ">{label}</div>
+            <div style="
+                color: #212529;
+                font-size: 14px;
+                font-weight: 500;
+                ">{value}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+def create_chart_container():
+    """Create a container for charts with proper height."""
+    return st.container().markdown(
+        """
+        <div style="height: 250px;">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+def create_two_column_charts():
+    """Create a two-column layout for charts."""
+    return st.columns(2)
