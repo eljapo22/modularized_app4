@@ -49,32 +49,16 @@ def main():
         
         create_banner("Transformer Loading Analysis")
         
-        # Sidebar for parameters
-        with st.sidebar:
-            st.markdown("### Search Controls")
+        # Main content area
+        main_container = st.container()
+        with main_container:
+            # Analysis Parameters section
+            st.subheader("Analysis Parameters")
+            col1, col2, col3 = st.columns([2, 1, 1])
             
-            try:
-                # Search mode toggle
-                search_mode = st.radio("Search Mode", ("Single Day", "Date Range"))
-                
-                if search_mode == "Single Day":
-                    # Single day inputs
-                    selected_date = st.date_input(
-                        "Date",
-                        value=max_date,
-                        min_value=min_date,
-                        max_value=max_date,
-                        key="single_date"
-                    )
-                    
-                    selected_hour = st.selectbox(
-                        "Time",
-                        range(24),
-                        format_func=lambda x: f"{x:02d}:00",
-                        key="hour"
-                    )
-                else:
-                    # Date range inputs with URL parameter handling
+            with col1:
+                # Date selection
+                try:
                     if from_alert and start_date_str:
                         try:
                             url_start_date = datetime.fromisoformat(start_date_str).date()
@@ -102,6 +86,17 @@ def main():
                         # If somehow we get a single date, use it for both
                         start_date = end_date = date_input
                 
+            with col2:
+                # Hour selection
+                selected_hour = st.number_input(
+                    "Hour (0-23)",
+                    min_value=0,
+                    max_value=23,
+                    value=12,
+                    step=1,
+                    key="hour_select"
+                )
+                
                 # Feeder selection
                 with st.spinner("Loading feeders..."):
                     feeder_options = data_service.get_feeder_options()
@@ -111,7 +106,8 @@ def main():
                     options=feeder_options,
                     disabled=True
                 )
-                
+            
+            with col3:
                 # Transformer ID selection
                 with st.spinner("Loading transformers..."):
                     transformer_ids = data_service.get_load_options(selected_feeder)
@@ -123,124 +119,93 @@ def main():
                     index=transformer_index
                 )
                 
-                # Search and Alert buttons
-                search_clicked = st.button("Search & Analyze")
-                alert_clicked = st.button("Set Alert", key="set_alert")
-                
-                if alert_clicked:
-                    logger.info("Alert button clicked")
-                    if alert_service is None:
-                        logger.warning("Alert service not available")
-                        st.error("Alert service is not available")
+                # Action buttons
+                search_clicked = st.button("Search & Analyze", use_container_width=True)
+                alert_clicked = st.button("Set Alert", key="set_alert", use_container_width=True)
+            
+            # Add a separator
+            st.markdown("---")
+            
+            if alert_clicked:
+                logger.info("Alert button clicked")
+                if alert_service is None:
+                    logger.warning("Alert service not available")
+                    st.error("Alert service is not available")
+                else:
+                    logger.info("Checking alert conditions...")
+                    if not all([start_date, end_date, selected_feeder, selected_transformer]):
+                        logger.warning("Missing required parameters for alert")
+                        st.error("Please select all required parameters")
                     else:
-                        logger.info("Checking alert conditions...")
-                        if search_mode == "Single Day":
-                            if not all([selected_date, selected_hour is not None, selected_feeder, selected_transformer]):
-                                logger.warning("Missing required parameters for alert")
-                                st.error("Please select all required parameters")
-                            else:
-                                query_datetime = datetime.combine(selected_date, time(selected_hour))
-                                logger.info(f"Checking alerts for {query_datetime}")
-                                
-                                # Check and send alerts if needed
-                                if alert_service.check_and_send_alerts(
-                                    results,
-                                    selected_date,
-                                    query_datetime
-                                ):
-                                    logger.info("Alert email sent successfully")
-                                    st.success("Alert email sent successfully")
-                                else:
-                                    logger.warning("Alert check completed without sending email")
-                
-                if search_clicked or (from_alert and alert_transformer):
-                    if search_mode == "Single Day":
-                        if not all([selected_date, selected_hour is not None, selected_feeder, selected_transformer]):
-                            st.error("Please select all required parameters")
+                        query_datetime = datetime.combine(start_date, time(selected_hour))
+                        logger.info(f"Checking alerts for {query_datetime}")
+                        
+                        # Check and send alerts if needed
+                        if alert_service.check_and_send_alerts(
+                            None,
+                            start_date,
+                            query_datetime
+                        ):
+                            logger.info("Alert email sent successfully")
+                            st.success("Alert email sent successfully")
                         else:
-                            query_datetime = datetime.combine(selected_date, time(selected_hour))
-                            results = data_service.get_transformer_data(
-                                query_datetime, 
-                                selected_hour,
+                            logger.warning("Alert check completed without sending email")
+            
+            if search_clicked or (from_alert and alert_transformer):
+                if not all([start_date, end_date, selected_feeder, selected_transformer]):
+                    st.error("Please select all required parameters")
+                else:
+                    # Handle alert URL parameters
+                    if from_alert and alert_time_str:
+                        try:
+                            alert_time = datetime.fromisoformat(alert_time_str)
+                            results = data_service.get_transformer_data_to_point(
+                                start_date,
+                                alert_time,
                                 selected_feeder,
                                 selected_transformer
                             )
-                            if results is not None and not results.empty:
-                                logger.info("Displaying transformer dashboard...")
-                                display_transformer_dashboard(results, selected_hour)
-                                
-                                # Check and send alerts if needed
-                                if alert_service is not None and alert_clicked:
-                                    logger.info("Attempting to send alert email...")
-                                    if alert_service.check_and_send_alerts(
-                                        results,
-                                        selected_date,
-                                        query_datetime
-                                    ):
-                                        st.success("Alert email sent successfully")
-                                    else:
-                                        st.warning("No alert conditions met or email sending failed")
-                            else:
-                                st.warning("No data available for the selected criteria.")
+                        except ValueError:
+                            logger.warning("Invalid alert time format in URL")
+                            results = data_service.get_transformer_data_range(
+                                start_date,
+                                end_date,
+                                selected_feeder,
+                                selected_transformer
+                            )
                     else:
-                        if not all([start_date, end_date, selected_feeder, selected_transformer]):
-                            st.error("Please select all required parameters")
-                        else:
-                            # Handle alert URL parameters
-                            if from_alert and alert_time_str:
-                                try:
-                                    alert_time = datetime.fromisoformat(alert_time_str)
-                                    results = data_service.get_transformer_data_to_point(
-                                        start_date,
-                                        alert_time,
-                                        selected_feeder,
-                                        selected_transformer
-                                    )
-                                except ValueError:
-                                    logger.warning("Invalid alert time format in URL")
-                                    results = data_service.get_transformer_data_range(
-                                        start_date,
-                                        end_date,
-                                        selected_feeder,
-                                        selected_transformer
-                                    )
+                        results = data_service.get_transformer_data_range(
+                            start_date,
+                            end_date,
+                            selected_feeder,
+                            selected_transformer
+                        )
+                    
+                    if results is not None and not results.empty:
+                        # Display dashboard with alert time marker if available
+                        alert_hour = None
+                        if alert_time_str:
+                            try:
+                                alert_time = datetime.fromisoformat(alert_time_str)
+                                alert_hour = alert_time.hour
+                            except ValueError:
+                                logger.warning("Invalid alert time format")
+                        
+                        display_transformer_dashboard(results, alert_hour)
+                        
+                        # Check and send alerts if needed
+                        if alert_service is not None and alert_clicked:
+                            logger.info("Attempting to send alert email for date range...")
+                            if alert_service.check_and_send_alerts(
+                                results,
+                                start_date,
+                                alert_time if alert_time_str else None
+                            ):
+                                st.success("Alert email sent successfully")
                             else:
-                                results = data_service.get_transformer_data_range(
-                                    start_date,
-                                    end_date,
-                                    selected_feeder,
-                                    selected_transformer
-                                )
-                            
-                            if results is not None and not results.empty:
-                                # Display dashboard with alert time marker if available
-                                alert_hour = None
-                                if alert_time_str:
-                                    try:
-                                        alert_time = datetime.fromisoformat(alert_time_str)
-                                        alert_hour = alert_time.hour
-                                    except ValueError:
-                                        logger.warning("Invalid alert time format")
-                                
-                                display_transformer_dashboard(results, alert_hour)
-                                
-                                # Check and send alerts if needed
-                                if alert_service is not None and alert_clicked:
-                                    logger.info("Attempting to send alert email for date range...")
-                                    if alert_service.check_and_send_alerts(
-                                        results,
-                                        start_date,
-                                        alert_time if alert_time_str else None
-                                    ):
-                                        st.success("Alert email sent successfully")
-                                    else:
-                                        st.warning("No alert conditions met or email sending failed")
-                            else:
-                                st.warning("No data available for the selected criteria.")
-                
-            except Exception as e:
-                logger.error(f"Error in sidebar: {str(e)}\nTraceback: {traceback.format_exc()}")
-                st.error("An error occurred while loading the interface. Please try again.")
+                                st.warning("No alert conditions met or email sending failed")
+                    else:
+                        st.warning("No data available for the selected criteria.")
         
     except Exception as e:
         logger.error(f"Application error: {str(e)}\nTraceback: {traceback.format_exc()}")
