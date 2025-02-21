@@ -93,11 +93,11 @@ def main():
         default_end = st.session_state.selections.get('end_date', min_date) if 'selections' in st.session_state else min_date
         
         dates = st.sidebar.date_input(
-            "Select Date Range (DD/MM/YYYY)",  # Show expected format
+            "Date Range (DD/MM/YYYY)",  
             value=[default_start, default_end],
             min_value=min_date,
             max_value=max_date,
-            format="DD/MM/YYYY"  # Using supported format
+            format="DD/MM/YYYY"  
         )
         
         # Ensure we have a start and end date
@@ -109,20 +109,37 @@ def main():
         # Feeder and transformer selection
         feeder_options = data_service.get_feeder_options()
         selected_feeder = st.sidebar.selectbox(
-            "Select Feeder",
+            "Feeder",  
             feeder_options,
             index=feeder_options.index(st.session_state.selections['feeder']) if 'selections' in st.session_state else 0
         )
         
         transformer_options = data_service.get_load_options(selected_feeder)
         selected_transformer = st.sidebar.selectbox(
-            "Select Transformer",
+            "Transformer",  
             transformer_options,
             index=transformer_options.index(st.session_state.selections['transformer_id']) if 'selections' in st.session_state else 0
         )
         
+        # Create two columns for reset and search buttons
+        col1, col2 = st.sidebar.columns(2)
+        
+        # Reset button
+        if col1.button("Reset", use_container_width=True):
+            # Reset session state
+            st.session_state.selections = {
+                'transformer_id': transformer_options[0],
+                'feeder': feeder_options[0],
+                'start_date': min_date,
+                'end_date': min_date,
+                'auto_search': False
+            }
+            st.session_state.search_triggered = False
+            st.session_state.view_mode = 'simple'
+            st.rerun()
+        
         # Search button
-        search_clicked = st.sidebar.button(
+        search_clicked = col2.button(
             "Search",
             type="primary",
             use_container_width=True
