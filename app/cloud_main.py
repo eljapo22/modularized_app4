@@ -14,12 +14,22 @@ from app.utils.ui_utils import create_banner, display_transformer_dashboard
 from app.utils.ui_components import create_section_header, create_tile, create_two_column_charts
 from app.visualization.charts import display_customer_tab, display_power_time_series, display_current_time_series, display_voltage_time_series
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with more detailed format
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('transformer_alerts.log')
+    ]
+)
 logger = logging.getLogger(__name__)
 
 def main():
     try:
+        # Track session start
+        logger.info("=== Starting new analysis session ===")
+        
         # Initialize data service
         data_service = CloudDataService()
         logger.info("Services initialized successfully")
@@ -64,11 +74,14 @@ def main():
         
         # Search button
         search_clicked = st.sidebar.button("Search & Analyze")
+        logger.info(f"Search button clicked: {search_clicked}")
         
         # Main content area for visualization
         main_container = st.container()
         with main_container:
             if search_clicked:
+                logger.info(f"Processing search with parameters: date_range={start_date} to {end_date}, feeder={feeder}, transformer={transformer_id}")
+                
                 if not all([start_date, end_date, feeder, transformer_id]):
                     st.error("Please select all required parameters")
                 else:
@@ -94,20 +107,34 @@ def main():
                         logger.info(f"Customer data timestamp range: {customer_data['timestamp'].min()} to {customer_data['timestamp'].max()}")
                     
                     if transformer_data is not None and not transformer_data.empty:
-                        logger.info(f"Transformer data timestamp range: {transformer_data['timestamp'].min()} to {transformer_data['timestamp'].max()}")
+                        logger.info(f"Transformer data loaded successfully: {len(transformer_data)} records")
                         
                         # Create columns for alert button placement
                         alert_col1, alert_col2 = st.columns([3, 1])
                         with alert_col2:
-                            # Add alert check button in a smaller column to maintain layout
-                            if st.button("🔔 Check Alerts", key="check_alerts"):
-                                # Initialize alert service and check conditions
-                                alert_service = CloudAlertService()
-                                alert_service.check_and_send_alerts(
-                                    transformer_data,
-                                    start_date=start_date,  # Pass selected date for deep link
-                                    alert_time=datetime.now()  # Current time for alert timestamp
-                                )
+                            # Track alert button state
+                            alert_clicked = st.button("🔔 Check Alerts", key="check_alerts")
+                            logger.info(f"Alert check button clicked: {alert_clicked}")
+                            
+                            if alert_clicked:
+                                logger.info("Starting alert check process...")
+                                try:
+                                    alert_service = CloudAlertService()
+                                    # Log before alert check
+                                    logger.info(f"Checking alerts for transformer {transformer_id}")
+                                    logger.info(f"Data range: {transformer_data['timestamp'].min()} to {transformer_data['timestamp'].max()}")
+                                    
+                                    # Perform alert check
+                                    alert_result = alert_service.check_and_send_alerts(
+                                        transformer_data,
+                                        start_date=start_date,
+                                        alert_time=datetime.now()
+                                    )
+                                    
+                                    # Log after alert check
+                                    logger.info(f"Alert check completed. Result: {alert_result}")
+                                except Exception as e:
+                                    logger.error(f"Alert check failed: {str(e)}", exc_info=True)
                         
                         # Create tabs for transformer and customer data
                         tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])

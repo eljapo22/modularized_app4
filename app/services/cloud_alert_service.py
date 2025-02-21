@@ -64,23 +64,29 @@ class CloudAlertService:
     def _select_alert_point(self, results_df: pd.DataFrame) -> Optional[pd.Series]:
         """Select the point to alert on"""
         try:
+            logger.info("=== Starting Alert Point Selection ===")
+            logger.info(f"Analyzing {len(results_df)} data points")
+            
             # Find the highest loading percentage
             max_loading_idx = results_df['loading_percentage'].idxmax()
             max_loading = results_df.loc[max_loading_idx]
             
-            # Log the max loading found
-            logger.info(f"Found max loading: {max_loading['loading_percentage']:.1f}% at {max_loading.name}")
+            # Log detailed loading information
+            logger.info(f"Maximum loading found: {max_loading['loading_percentage']:.1f}%")
+            logger.info(f"At timestamp: {max_loading.name}")
+            logger.info(f"Transformer ID: {max_loading.get('transformer_id', 'N/A')}")
             
             # Only alert if loading is high enough
             if max_loading['loading_percentage'] >= 80:
+                logger.info(f"Alert threshold met: {max_loading['loading_percentage']:.1f}% >= 80%")
                 return max_loading
             else:
-                logger.info(f"Max loading {max_loading['loading_percentage']:.1f}% below alert threshold (80%)")
+                logger.info(f"Below alert threshold: {max_loading['loading_percentage']:.1f}% < 80%")
                 st.info(f"🔍 Maximum loading ({max_loading['loading_percentage']:.1f}%) is below alert threshold (80%)")
                 return None
                 
         except Exception as e:
-            logger.error(f"Error selecting alert point: {str(e)}")
+            logger.error(f"Error in alert point selection: {str(e)}", exc_info=True)
             return None
 
     def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
@@ -177,7 +183,9 @@ class CloudAlertService:
         recipient: str = None
     ) -> bool:
         """Check loading conditions and send alert if needed"""
-        logger.info("Starting alert check process...")
+        logger.info("=== Starting Alert Check Process ===")
+        logger.info(f"Data points to analyze: {len(results_df)}")
+        logger.info(f"Time range: {results_df.index[0]} to {results_df.index[-1]}")
         
         if not self.email_enabled:
             msg = "Email alerts disabled - Gmail app password not found in secrets.toml"
@@ -186,14 +194,9 @@ class CloudAlertService:
             return False
 
         try:
-            # Log the data we're checking
-            logger.info(f"Checking {len(results_df)} data points from {results_df.index[0]} to {results_df.index[-1]}")
-            logger.info(f"Current email settings - From: {self.email}, App password configured: {bool(self.app_password)}")
-            
             # Create an expander for detailed alert info
             with st.expander("📋 Alert Check Details", expanded=True):
                 st.write("**Checking Alert Conditions**")
-                st.write(f"Analyzing {len(results_df)} data points...")
                 
                 # Select the alert point
                 alert_point = self._select_alert_point(results_df)
@@ -204,10 +207,7 @@ class CloudAlertService:
                 
                 # Get alert status and color
                 status, color = get_alert_status(alert_point['loading_percentage'])
-                logger.info(f"Alert status: {status} ({alert_point['loading_percentage']:.1f}%)")
-                st.write(f"**Alert Status:** {status}")
-                st.write(f"**Loading:** {alert_point['loading_percentage']:.1f}%")
-                st.write(f"**Time:** {alert_point.name}")
+                logger.info(f"Alert status determined: {status} at {alert_point['loading_percentage']:.1f}%")
                 
                 # Create deep link
                 deep_link = self._create_deep_link(
@@ -215,34 +215,31 @@ class CloudAlertService:
                     alert_time or alert_point.name,
                     alert_point['transformer_id']
                 )
-                logger.info(f"Created deep link: {deep_link}")
+                logger.info(f"Deep link created: {deep_link}")
                 
-                # Create and send email
+                # Prepare email
                 msg = MIMEMultipart('alternative')
                 msg['Subject'] = f"Transformer Loading Alert - {alert_point['loading_percentage']:.1f}% Loading"
                 msg['From'] = self.email
                 msg['To'] = recipient or self.email
                 
-                logger.info(f"Preparing email to: {msg['To']}")
-                st.write("**Sending Email Alert**")
-                st.write(f"To: {msg['To']}")
+                logger.info(f"Preparing email: Subject={msg['Subject']}, To={msg['To']}")
                 
-                # Create HTML content
+                # Create and send email
                 html_content = self._create_email_content(
                     alert_point, status, color, deep_link
                 )
                 msg.attach(MIMEText(html_content, 'html'))
                 
-                # Send the email
+                # Send and log result
                 if self._send_email(msg):
-                    st.success(f"✉️ Alert email sent successfully")
+                    logger.info("=== Alert Process Completed Successfully ===")
                     return True
                 else:
-                    st.error(f"❌ Failed to send alert email")
+                    logger.error("=== Alert Process Failed - Email Send Error ===")
                     return False
                 
         except Exception as e:
-            error_msg = f"Error in check_and_send_alerts: {str(e)}"
-            logger.error(error_msg)
-            st.error(f"❌ {error_msg}")
+            logger.error(f"=== Alert Process Failed - Error: {str(e)} ===", exc_info=True)
+            st.error(f"❌ Error in alert process: {str(e)}")
             return False
