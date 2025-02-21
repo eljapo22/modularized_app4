@@ -219,6 +219,9 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     """Display power consumption time series visualization"""
     logger.info(f"display_power_time_series called with is_transformer_view={is_transformer_view}")
     
+    # Display section title
+    st.subheader("Power Consumption")
+    
     if results_df is None or results_df.empty:
         st.warning("No data available for power consumption visualization. Please check your database connection and try again.")
         return
@@ -350,6 +353,10 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
 
 def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = None, is_transformer_view: bool = False):
     """Display current analysis time series visualization"""
+    
+    # Display section title
+    st.subheader("Current Analysis")
+    
     if results_df is None or results_df.empty:
         st.warning("No current data available")
         return
@@ -426,6 +433,10 @@ def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = N
 
 def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = None):
     """Display voltage analysis time series visualization"""
+    
+    # Display section title
+    st.subheader("Voltage Analysis")
+    
     if results_df is None or results_df.empty:
         st.warning("No voltage data available")
         return
@@ -494,101 +505,12 @@ def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = N
     # Display the figure
     st.plotly_chart(fig, use_container_width=True)
 
-def display_voltage_over_time(results_df: pd.DataFrame):
-    """Display voltage over time chart."""
-    if results_df is None or results_df.empty:
-        st.warning("No data available for voltage over time visualization. Please check your database connection and try again.")
-        return
-
-    # Create sample voltage data
-    voltage_df = get_sample_voltage_data(results_df)
-    
-    # Create figure
-    fig = go.Figure()
-    
-    # Add voltage traces
-    fig.add_trace(go.Scatter(
-        x=voltage_df.index,
-        y=voltage_df['Red Phase'],
-        name='Red Phase',
-        line=dict(color='red', width=1)
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=voltage_df.index,
-        y=voltage_df['Yellow Phase'],
-        name='Yellow Phase',
-        line=dict(color='#FFD700', width=1)  # Dark yellow for better visibility
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=voltage_df.index,
-        y=voltage_df['Blue Phase'],
-        name='Blue Phase',
-        line=dict(color='blue', width=1)
-    ))
-    
-    # Add nominal voltage line
-    fig.add_hline(
-        y=120,
-        line_dash="dash",
-        line_color="gray",
-        annotation_text="Nominal (120V)",
-        annotation_position="right"
-    )
-    
-    # Add +5% limit line (126V)
-    fig.add_hline(
-        y=126,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="+5% (126V)",
-        annotation_position="right"
-    )
-    
-    # Add -5% limit line (114V)
-    fig.add_hline(
-        y=114,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="-5% (114V)",
-        annotation_position="right"
-    )
-    
-    # Update layout
-    fig.update_layout(
-        margin=dict(l=0, r=100, t=0, b=0),  # Add right margin for annotations
-        height=250,
-        yaxis=dict(
-            title=dict(
-                text="Voltage (V)",
-                font=dict(size=12),
-                standoff=25
-            ),
-            range=[110, 130],  # Expanded range to show limits clearly
-            automargin=True,
-            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
-            gridwidth=1,
-            showgrid=True,
-            tickformat='.1f'  # Match rounding precision
-        ),
-        xaxis=dict(
-            tickformat='%H:%M',  # Show hours and minutes
-            dtick=3*3600000,  # Show tick every 3 hours (in milliseconds)
-            tickangle=0,
-            gridcolor='#E1E1E1',  # Darker grey for x-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
-        showlegend=False,
-        plot_bgcolor='white'  # White background to make grid more visible
-    )
-    
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
-
 def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
     """Display loading status visualization"""
+    
+    # Display section title
+    st.subheader("Loading Status")
+    
     if results_df is None or results_df.empty:
         st.warning("No data available for loading status visualization.")
         return
@@ -840,3 +762,96 @@ def get_sample_voltage_data(df):
         'Yellow Phase': phase_b,
         'Blue Phase': phase_c
     }, index=time_index)
+
+def display_voltage_over_time(results_df: pd.DataFrame):
+    """Display voltage over time chart."""
+    if results_df is None or results_df.empty:
+        st.warning("No data available for voltage over time visualization. Please check your database connection and try again.")
+        return
+
+    # Create sample voltage data
+    voltage_df = get_sample_voltage_data(results_df)
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Add voltage traces
+    fig.add_trace(go.Scatter(
+        x=voltage_df.index,
+        y=voltage_df['Red Phase'],
+        name='Red Phase',
+        line=dict(color='red', width=1)
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=voltage_df.index,
+        y=voltage_df['Yellow Phase'],
+        name='Yellow Phase',
+        line=dict(color='#FFD700', width=1)  # Dark yellow for better visibility
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=voltage_df.index,
+        y=voltage_df['Blue Phase'],
+        name='Blue Phase',
+        line=dict(color='blue', width=1)
+    ))
+    
+    # Add nominal voltage line
+    fig.add_hline(
+        y=120,
+        line_dash="dash",
+        line_color="gray",
+        annotation_text="Nominal (120V)",
+        annotation_position="right"
+    )
+    
+    # Add +5% limit line (126V)
+    fig.add_hline(
+        y=126,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="+5% (126V)",
+        annotation_position="right"
+    )
+    
+    # Add -5% limit line (114V)
+    fig.add_hline(
+        y=114,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="-5% (114V)",
+        annotation_position="right"
+    )
+    
+    # Update layout
+    fig.update_layout(
+        margin=dict(l=0, r=100, t=0, b=0),  # Add right margin for annotations
+        height=250,
+        yaxis=dict(
+            title=dict(
+                text="Voltage (V)",
+                font=dict(size=12),
+                standoff=25
+            ),
+            range=[110, 130],  # Expanded range to show limits clearly
+            automargin=True,
+            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
+            gridwidth=1,
+            showgrid=True,
+            tickformat='.1f'  # Match rounding precision
+        ),
+        xaxis=dict(
+            tickformat='%H:%M',  # Show hours and minutes
+            dtick=3*3600000,  # Show tick every 3 hours (in milliseconds)
+            tickangle=0,
+            gridcolor='#E1E1E1',  # Darker grey for x-axis grid
+            gridwidth=1,
+            showgrid=True
+        ),
+        showlegend=False,
+        plot_bgcolor='white'  # White background to make grid more visible
+    )
+    
+    # Display the figure
+    st.plotly_chart(fig, use_container_width=True)
