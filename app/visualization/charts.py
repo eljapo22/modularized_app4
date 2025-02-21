@@ -261,6 +261,15 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     logger.info(f"Plotting power time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
     logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
     
+    # Log some sample data for debugging
+    if not results_df.empty:
+        logger.info("Sample power data:")
+        logger.info(results_df[['timestamp', 'power_kw']].head().to_string())
+        if 'size_kva' in results_df.columns:
+            logger.info(f"Transformer size: {results_df['size_kva'].iloc[0]} kVA")
+            logger.info(f"Max power: {results_df['power_kw'].max():.2f} kW")
+            logger.info(f"Min power: {results_df['power_kw'].min():.2f} kW")
+
     # Sample a few timestamps to verify format
     sample_timestamps = results_df['timestamp'].head()
     logger.info(f"Sample timestamps: {sample_timestamps.tolist()}")
@@ -273,25 +282,16 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     )
     logger.info("Created base figure")
     
-    # Add power consumption trace
-    hover_template = '%{x|%Y-%m-%d %H:%M}<br>Power: %{y:.1f} kW<extra></extra>'
-    logger.info(f"Using hover template: {hover_template}")
-    
+    # Add power consumption trace with simpler formatting
     fig.add_trace(
         go.Scatter(
             x=results_df['timestamp'],
             y=results_df['power_kw'],
             mode='lines+markers',
             name='Power',
-            line=dict(
-                color='#3b82f6',
-                width=2
-            ),
-            marker=dict(
-                color='#3b82f6',
-                size=6
-            ),
-            hovertemplate=hover_template
+            line=dict(color='#3b82f6', width=2),
+            marker=dict(color='#3b82f6', size=6),
+            hovertemplate='Time: %{x}<br>Power: %{y:.2f} kW<extra></extra>'
         )
     )
     logger.info("Added power consumption trace")
@@ -309,12 +309,8 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
                 y=[size_kva] * len(results_df),
                 mode='lines',
                 name='Transformer Capacity (kVA)',
-                line=dict(
-                    color='red',
-                    width=2,
-                    dash='dash'
-                ),
-                hovertemplate='%{y:.1f} kVA<extra></extra>'
+                line=dict(color='red', width=2, dash='dash'),
+                hovertemplate='Capacity: %{y:.2f} kVA<extra></extra>'
             )
         )
         logger.info("Added size_kva trace")
@@ -323,7 +319,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         fig.add_annotation(
             x=results_df['timestamp'].iloc[-1],
             y=size_kva,
-            text=f"{size_kva:.1f} kVA",
+            text=f"{size_kva:.2f} kVA",
             showarrow=False,
             yshift=10,
             xshift=5,
@@ -340,7 +336,7 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         logger.info("Not in transformer view or no size_kva column")
         y_max = max(results_df['power_kw']) * 1.35
 
-    # Update layout
+    # Update layout with simpler time formatting
     fig.update_layout(
         showlegend=True,
         yaxis=dict(
@@ -350,9 +346,9 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
             gridcolor='#E1E1E1'
         ),
         xaxis=dict(
-            gridcolor='#E1E1E1',
             title='Time',
-            tickformat='%Y-%m-%d %H:%M'
+            gridcolor='#E1E1E1',
+            type='date'
         ),
         plot_bgcolor='white',
         legend=dict(
@@ -603,75 +599,59 @@ def display_voltage_over_time(results_df: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
-    """Display loading status visualization."""
+    """Display loading status visualization"""
     if results_df is None or results_df.empty:
-        st.warning("No data available for loading status visualization. Please check your database connection and try again.")
+        st.warning("No data available for loading status visualization.")
         return
 
-    # Calculate loading percentage
-    results_df['loading_pct'] = (results_df['power_kw'] / 75.0) * 100
-
-    # Replace deprecated 'T' with 'min'
-    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
-    daily_min = results_df.groupby(results_df['timestamp'].dt.date)['loading_percentage'].min()
-    daily_max = results_df.groupby(results_df['timestamp'].dt.date)['loading_percentage'].max()
-
     # Create figure
-    fig = go.Figure()
+    fig = create_base_figure(None, None, "Loading (%)")
     
-    # Add loading percentage trace
-    fig.add_trace(go.Scatter(
-        x=results_df['timestamp'],
-        y=results_df['loading_pct'],
-        mode='lines',
-        name='Loading %',
-        line=dict(color='#2196f3', width=1.5)
-    ))
+    # Create traces for each status with simpler formatting
+    for status, color in STATUS_COLORS.items():
+        mask = results_df['load_range'] == status
+        if not any(mask):
+            continue
+            
+        status_df = results_df[mask]
+        
+        fig.add_trace(
+            go.Scatter(
+                x=status_df['timestamp'],
+                y=status_df['loading_percentage'],
+                mode='lines+markers',
+                name=status,
+                line=dict(color=color),
+                marker=dict(
+                    color=color,
+                    size=8
+                ),
+                hovertemplate='Time: %{x}<br>Loading: %{y:.2f}%<br>Status: ' + status + '<extra></extra>'
+            )
+        )
 
-    # Add 100% threshold line
-    fig.add_hline(
-        y=100,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="100% Loading",
-        annotation_position="right"
-    )
-
-    # Calculate y-axis range
-    y_max = max(100, results_df['loading_pct'].max() * 1.1)
-    y_min = 0
-
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        add_hour_indicator(fig, selected_hour, y_range=(y_min, y_max))
-
-    # Update layout
+    # Update layout with simpler time formatting
     fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=250,
+        showlegend=True,
         yaxis=dict(
-            title=dict(
-                text="Loading (%)",
-                font=dict(size=12),
-                standoff=25
-            ),
-            range=[y_min, y_max],
-            automargin=True,
-            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
-            gridwidth=1,
-            showgrid=True
+            title="Loading (%)",
+            range=[0, 100],
+            gridcolor='#E1E1E1'
         ),
         xaxis=dict(
-            title=None,
-            gridcolor='#E1E1E1',  # Darker grey for x-axis grid
-            gridwidth=1,
-            showgrid=True
+            title='Time',
+            gridcolor='#E1E1E1',
+            type='date'
         ),
-        showlegend=False,
-        plot_bgcolor='white'  # White background to make grid more visible
+        plot_bgcolor='white',
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01
+        )
     )
 
-    # Display the figure
     st.plotly_chart(fig, use_container_width=True)
 
 def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: int = None):

@@ -28,6 +28,7 @@ from app.models.data_models import (
     CustomerData,
     AggregatedCustomerData
 )
+from app.utils.data_validation import validate_transformer_data, analyze_trends
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -163,9 +164,31 @@ class CloudDataService:
                 logger.warning(f"No data found for transformer {transformer_id} in date range")
                 return None
             
-            # Convert to DataFrame
+            # Convert to DataFrame and ensure proper timestamp sorting
             df = pd.DataFrame(results)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            # Sort by timestamp to ensure proper ordering
+            df = df.sort_values('timestamp')
+            
+            # Validate data
+            validations = validate_transformer_data(df)
+            if validations:
+                if validations.get('monotonic_increase'):
+                    logger.warning("⚠️ Data shows consistent increasing trend - this may indicate an issue")
+                if validations.get('has_time_gaps'):
+                    logger.warning("⚠️ Found gaps in time series data")
+                if validations.get('unusual_power_range') or validations.get('unusual_loading_range'):
+                    logger.warning("⚠️ Detected unusual value ranges in data")
+            
+            # Analyze trends
+            trends = analyze_trends(df)
+            if trends:
+                if abs(trends.get('power_time_correlation', 0)) > 0.9:
+                    logger.warning("⚠️ Strong correlation between time and power values detected")
+                if abs(trends.get('loading_time_correlation', 0)) > 0.9:
+                    logger.warning("⚠️ Strong correlation between time and loading values detected")
+            
             logger.info(f"Data timestamp range: {df['timestamp'].min()} to {df['timestamp'].max()}")
             logger.info(f"Retrieved {len(df)} records")
             
