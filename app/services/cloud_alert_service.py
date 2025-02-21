@@ -5,7 +5,7 @@ import logging
 import streamlit as st
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pandas as pd
 import numpy as np
 from typing import Optional, List, Dict, Tuple
@@ -39,7 +39,7 @@ def get_status_emoji(status: str) -> str:
 class CloudAlertService:
     def __init__(self):
         """Initialize the alert service"""
-        self.app_url = st.secrets.get("APP_URL", "https://modularized-app4.streamlit.app")
+        self.app_url = st.secrets.get("APP_URL", "https://transformer-dashboard.streamlit.app")
         self.email = st.secrets.get("DEFAULT_EMAIL", "jhnapo2213@gmail.com")
         self.app_password = st.secrets.get("GMAIL_APP_PASSWORD")
         self.email_enabled = self.app_password is not None
@@ -92,13 +92,21 @@ class CloudAlertService:
 
     def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
         """Create deep link back to app with context"""
+        # Calculate end_date as 7 days after start_date
+        end_date = start_date + timedelta(days=7)
+        
         params = {
             'view': 'alert',
             'id': transformer_id,
-            'start': start_date.isoformat() if start_date else None,
-            'alert_time': alert_time.isoformat() if alert_time else None
+            'feeder': 'Feeder 1',
+            'start': start_date.isoformat(),
+            'end': end_date.isoformat(),
+            'alert_time': alert_time.isoformat(),
+            'loading': 'true',  # Flag to auto-trigger loading
+            'auto_search': 'true'  # Flag to auto-trigger search
         }
-        # Remove None values
+        
+        # Remove None values and create query string
         params = {k: v for k, v in params.items() if v is not None}
         query_string = '&'.join(f"{k}={v}" for k, v in params.items())
         return f"{self.app_url}?{query_string}"

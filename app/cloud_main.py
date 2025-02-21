@@ -31,11 +31,31 @@ def main():
         if 'alert_state' not in st.session_state:
             st.session_state.alert_state = {
                 'pending': False,
-                'last_alert': None,
                 'transformer_id': None,
                 'loading': None,
                 'timestamp': None
             }
+        
+        # Handle deep link parameters
+        params = st.experimental_get_query_params()
+        
+        # If coming from alert link, pre-populate selections
+        if 'view' in params and params['view'][0] == 'alert':
+            transformer_id = params.get('id', [None])[0]
+            feeder = params.get('feeder', ['Feeder 1'])[0]
+            start_date = datetime.fromisoformat(params.get('start', [None])[0]).date() if 'start' in params else None
+            end_date = datetime.fromisoformat(params.get('end', [None])[0]).date() if 'end' in params else None
+            auto_search = params.get('auto_search', ['false'])[0].lower() == 'true'
+            
+            # Store in session state
+            if 'selections' not in st.session_state:
+                st.session_state.selections = {
+                    'transformer_id': transformer_id,
+                    'feeder': feeder,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'auto_search': auto_search
+                }
         
         # Track session start
         logger.info("=== Starting new analysis session ===")
@@ -61,38 +81,82 @@ def main():
         st.sidebar.header("Analysis Parameters")
         
         # Date range selection with default range
-        dates = st.sidebar.date_input(
-            "Select Date Range",
-            value=[min_date, min_date],  # Pass as list for range selection
-            min_value=min_date,
-            max_value=max_date,
-            key="date_range"
-        )
+        feeder_options = data_service.get_feeder_options()
         
-        # Ensure we have a start and end date
-        if isinstance(dates, (datetime, date)):
-            start_date = end_date = dates
+        # Use stored selections if available
+        if 'selections' in st.session_state:
+            selected_feeder = st.sidebar.selectbox(
+                "Select Feeder",
+                feeder_options,
+                index=feeder_options.index(st.session_state.selections['feeder']) if st.session_state.selections['feeder'] in feeder_options else 0
+            )
+            
+            transformer_options = data_service.get_transformer_ids(selected_feeder)
+            selected_transformer = st.sidebar.selectbox(
+                "Select Transformer",
+                transformer_options,
+                index=transformer_options.index(st.session_state.selections['transformer_id']) if st.session_state.selections['transformer_id'] in transformer_options else 0
+            )
+            
+            start_date = st.sidebar.date_input(
+                "Start Date",
+                value=st.session_state.selections['start_date'] or min_date,
+                min_value=min_date,
+                max_value=max_date
+            )
+            
+            end_date = st.sidebar.date_input(
+                "End Date",
+                value=st.session_state.selections['end_date'] or max_date,
+                min_value=min_date,
+                max_value=max_date
+            )
+            
+            # Auto-trigger search if coming from alert link
+            if st.session_state.selections.get('auto_search'):
+                search_clicked = True
+                # Clear auto_search to prevent loop
+                st.session_state.selections['auto_search'] = False
         else:
-            start_date, end_date = dates[0], dates[-1]  # Handle both list and tuple cases
-        
-        # Feeder and transformer selection
-        feeder = st.sidebar.selectbox("Select Feeder", data_service.get_feeder_options())
-        transformer_id = st.sidebar.selectbox(
-            "Select Transformer",
-            data_service.get_load_options(feeder)
-        )
+            selected_feeder = st.sidebar.selectbox("Select Feeder", feeder_options)
+            transformer_options = data_service.get_transformer_ids(selected_feeder)
+            selected_transformer = st.sidebar.selectbox(
+                "Select Transformer",
+                transformer_options
+            )
+            
+            dates = st.sidebar.date_input(
+                "Select Date Range",
+                value=[min_date, min_date],  # Pass as list for range selection
+                min_value=min_date,
+                max_value=max_date,
+                key="date_range"
+            )
+            
+            # Ensure we have a start and end date
+            if isinstance(dates, (datetime, date)):
+                start_date = end_date = dates
+            else:
+                start_date, end_date = dates[0], dates[-1]  # Handle both list and tuple cases
         
         # Search button
-        search_clicked = st.sidebar.button("Search & Analyze")
-        logger.info(f"Search button clicked: {search_clicked}")
+        if 'selections' not in st.session_state or not st.session_state.selections.get('auto_search'):
+            search_clicked = st.button(
+                "🔍 Search & Analyze" + (" 🔔" if st.session_state.alert_state.get('pending', False) else ""),
+                type="primary",
+                key="search_button"
+            )
+            logger.info(f"Search button clicked: {search_clicked}")
+        else:
+            search_clicked = True
         
         # Main content area for visualization
         main_container = st.container()
         with main_container:
             if search_clicked:
-                logger.info(f"Processing search with parameters: date_range={start_date} to {end_date}, feeder={feeder}, transformer={transformer_id}")
+                logger.info(f"Processing search with parameters: date_range={start_date} to {end_date}, feeder={selected_feeder}, transformer={selected_transformer}")
                 
-                if not all([start_date, end_date, feeder, transformer_id]):
+                if not all([start_date, end_date, selected_feeder, selected_transformer]):
                     st.error("Please select all required parameters")
                 else:
                     logger.info(f"Fetching data for date range: {start_date} to {end_date}")
@@ -101,15 +165,15 @@ def main():
                     transformer_data = data_service.get_transformer_data_range(
                         start_date,
                         end_date,
-                        feeder,
-                        transformer_id
+                        selected_feeder,
+                        selected_transformer
                     )
                     if transformer_data is not None:
                         logger.info(f"Transformer data timestamp range: {transformer_data['timestamp'].min()} to {transformer_data['timestamp'].max()}")
                     
                     # Get customer data
                     customer_data = data_service.get_customer_data(
-                        transformer_id,
+                        selected_transformer,
                         start_date,
                         end_date
                     )
@@ -125,7 +189,7 @@ def main():
                             
                             # Only trigger if no pending alert or different transformer
                             if (not st.session_state.alert_state['pending'] or 
-                                st.session_state.alert_state['transformer_id'] != transformer_id):
+                                st.session_state.alert_state['transformer_id'] != selected_transformer):
                                 
                                 logger.info("High loading detected - checking alerts automatically")
                                 alert_service = CloudAlertService()
@@ -139,11 +203,11 @@ def main():
                                     max_loading = transformer_data['loading_percentage'].max()
                                     st.session_state.alert_state.update({
                                         'pending': True,
-                                        'transformer_id': transformer_id,
+                                        'transformer_id': selected_transformer,
                                         'loading': max_loading,
                                         'timestamp': current_time
                                     })
-                                    logger.info(f"Alert state updated for transformer {transformer_id}")
+                                    logger.info(f"Alert state updated for transformer {selected_transformer}")
                         
                         # Display alert acknowledgment if pending
                         if st.session_state.alert_state['pending']:
@@ -158,55 +222,17 @@ def main():
                                         st.session_state.alert_state['pending'] = False
                                         logger.info("Alert acknowledged by user")
                         
-                        # Keep manual alert button for user control
-                        alert_col1, alert_col2 = st.columns([3, 1])
-                        with alert_col2:
-                            if st.button("🔔 Check Alerts", key="check_alerts"):
-                                alert_service = CloudAlertService()
-                                alert_service.check_and_send_alerts(
-                                    transformer_data,
-                                    start_date=start_date,
-                                    alert_time=datetime.now()
-                                )
-                        
                         # Create tabs for transformer and customer data
-                        tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
+                        transformer_tab, customer_tab = st.tabs(["📊 Transformer Data", "👥 Customer Data"])
                         
-                        with tab1:
-                            # Get unique customer count
-                            customer_count = len(customer_data['customer_id'].unique()) if customer_data is not None else 0
-                            
-                            # Display transformer details
-                            create_section_header("Transformer Details")
-                            col1, col2, col3, col4 = st.columns(4)
-                            with col1:
-                                create_tile("Transformer ID", transformer_id)
-                            with col2:
-                                create_tile("Customers", str(customer_count))
-                            with col3:
-                                create_tile("Latitude", "45.5123")  # Actual coordinate format
-                            with col4:
-                                create_tile("Longitude", "-79.3892")  # Actual coordinate format
-
-                            # Display power consumption chart
-                            create_section_header("Power Consumption Over Time")
-                            display_power_time_series(
-                                transformer_data,
-                                size_kva=transformer_data['size_kva'].iloc[0] if 'size_kva' in transformer_data.columns else None
-                            )
-
-                            # Display current and voltage charts side by side
-                            current_col, voltage_col = create_two_column_charts()
-                            
-                            with current_col:
-                                create_section_header("Current Over Time")
-                                display_current_time_series(transformer_data)
-                                
-                            with voltage_col:
-                                create_section_header("Voltage Over Time")
-                                display_voltage_time_series(transformer_data)
+                        with transformer_tab:
+                            # Display transformer data
+                            if transformer_data is not None and not transformer_data.empty:
+                                display_transformer_dashboard(transformer_data)
+                            else:
+                                st.warning("No transformer data available for the selected period")
                         
-                        with tab2:
+                        with customer_tab:
                             if customer_data is not None and not customer_data.empty:
                                 display_customer_tab(customer_data)
                             else:
