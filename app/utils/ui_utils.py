@@ -191,6 +191,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
     
     Args:
         results: DataFrame with transformer data
+        marker_hour: Optional hour to mark in the visualizations
     """
     try:
         if results is None or results.empty:
@@ -202,52 +203,70 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
         
         # Create metric tiles
         create_metric_tiles(
-            current_data['transformer_id'],
-            "Feeder 1",  # Hardcoded for now
-            current_data['size_kva'],
-            current_data['loading_percentage']
+            transformer_id=current_data['transformer_id'],
+            feeder=current_data['transformer_id'][:3],  # Extract feeder from transformer ID
+            size_kva=current_data['size_kva'],
+            loading_pct=current_data['loading_percentage']
         )
         
-        # Create tabs for different visualizations
-        tab1, tab2, tab3 = st.tabs(["Loading Status", "Power Analysis", "Voltage & Current"])
-        
-        with tab1:
-            st.plotly_chart(create_loading_chart(results), use_container_width=True)
-            
-            # Show current status
-            status, color = get_alert_status(current_data['loading_percentage'])
-            st.markdown(
-                f"""
-                <div style='padding: 1rem; border-radius: 0.5rem; background-color: {color}25; border: 1px solid {color}'>
-                    <h3 style='margin: 0; color: {color}'>Current Status: {status}</h3>
-                    <p style='margin: 0; margin-top: 0.5rem;'>Loading: {current_data['loading_percentage']:.1f}%</p>
-                </div>
-                """,
-                unsafe_allow_html=True
+        # Create loading chart
+        st.markdown("### Loading Status")
+        loading_fig = create_loading_chart(results)
+        if marker_hour is not None:
+            # Add vertical line for selected hour
+            loading_fig.add_vline(
+                x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]).replace(hour=marker_hour),
+                line_dash="dash",
+                line_color="gray",
+                annotation_text=f"{marker_hour:02d}:00"
             )
+        st.plotly_chart(loading_fig, use_container_width=True)
         
-        with tab2:
-            st.plotly_chart(create_power_chart(results), use_container_width=True)
+        # Create power chart
+        st.markdown("### Power Consumption")
+        power_fig = create_power_chart(results)
+        if marker_hour is not None:
+            # Add vertical line for selected hour
+            power_fig.add_vline(
+                x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]).replace(hour=marker_hour),
+                line_dash="dash",
+                line_color="gray",
+                annotation_text=f"{marker_hour:02d}:00"
+            )
+        st.plotly_chart(power_fig, use_container_width=True)
+        
+        # Create current and voltage charts side by side
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### Current")
+            current_fig = create_current_chart(results)
+            if marker_hour is not None:
+                # Add vertical line for selected hour
+                current_fig.add_vline(
+                    x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]).replace(hour=marker_hour),
+                    line_dash="dash",
+                    line_color="gray",
+                    annotation_text=f"{marker_hour:02d}:00"
+                )
+            st.plotly_chart(current_fig, use_container_width=True)
             
-            # Power metrics
-            cols = st.columns(3)
-            with cols[0]:
-                st.metric("Power (kW)", f"{current_data['power_kw']:.1f}")
-            with cols[1]:
-                st.metric("Power (kVA)", f"{current_data['power_kva']:.1f}")
-            with cols[2]:
-                st.metric("Power Factor", f"{current_data['power_factor']:.2f}")
-        
-        with tab3:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.plotly_chart(create_voltage_chart(results), use_container_width=True)
-            with col2:
-                st.plotly_chart(create_current_chart(results), use_container_width=True)
-    
+        with col2:
+            st.markdown("### Voltage")
+            voltage_fig = create_voltage_chart(results)
+            if marker_hour is not None:
+                # Add vertical line for selected hour
+                voltage_fig.add_vline(
+                    x=pd.Timestamp(results['timestamp'].dt.date.iloc[0]).replace(hour=marker_hour),
+                    line_dash="dash",
+                    line_color="gray",
+                    annotation_text=f"{marker_hour:02d}:00"
+                )
+            st.plotly_chart(voltage_fig, use_container_width=True)
+            
     except Exception as e:
-        logger.error(f"Error displaying dashboard: {str(e)}")
-        st.error("Failed to display dashboard")
+        logger.error(f"Error displaying transformer dashboard: {str(e)}")
+        st.error("An error occurred while displaying the dashboard")
 
 def get_alert_status(loading_percentage: float) -> tuple:
     """
