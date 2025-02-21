@@ -222,7 +222,14 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
         return
     
     logger.info(f"DataFrame columns: {results_df.columns.tolist()}")
-    if 'size_kva' in results_df.columns:
+    
+    # Handle size_kva based on view type
+    if not is_transformer_view:
+        # For customer view, ensure size_kva is 0
+        if 'size_kva' in results_df.columns:
+            results_df['size_kva'] = 0
+    elif 'size_kva' in results_df.columns:
+        # For transformer view, log the value
         logger.info(f"size_kva value in visualization: {results_df['size_kva'].iloc[0]}")
 
     # Ensure timestamp is in datetime format and reset index if it's the index
@@ -278,8 +285,8 @@ def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = Non
     )
     logger.info("Added power consumption trace")
     
-    # Add transformer size line if in transformer view
-    if is_transformer_view and 'size_kva' in results_df.columns:
+    # Add transformer size line if in transformer view and size_kva exists
+    if is_transformer_view and 'size_kva' in results_df.columns and not pd.isna(results_df['size_kva'].iloc[0]):
         logger.info("Adding transformer size line")
         size_kva = float(results_df['size_kva'].iloc[0])
         logger.info(f"Using size_kva value: {size_kva}")
