@@ -91,7 +91,7 @@ def main():
                 index=feeder_options.index(st.session_state.selections['feeder']) if st.session_state.selections['feeder'] in feeder_options else 0
             )
             
-            transformer_options = data_service.get_transformer_ids(selected_feeder)
+            transformer_options = data_service.get_load_options(selected_feeder)
             selected_transformer = st.sidebar.selectbox(
                 "Select Transformer",
                 transformer_options,
@@ -119,7 +119,7 @@ def main():
                 st.session_state.selections['auto_search'] = False
         else:
             selected_feeder = st.sidebar.selectbox("Select Feeder", feeder_options)
-            transformer_options = data_service.get_transformer_ids(selected_feeder)
+            transformer_options = data_service.get_load_options(selected_feeder)
             selected_transformer = st.sidebar.selectbox(
                 "Select Transformer",
                 transformer_options
