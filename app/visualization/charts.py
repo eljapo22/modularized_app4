@@ -73,6 +73,16 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
             st.warning("No valid power data available for the selected time range")
             return
 
+        # Find peak loading timestamp
+        if 'loading_percentage' in results_df.columns:
+            peak_time = results_df.loc[results_df['loading_percentage'].idxmax(), 'timestamp']
+            peak_loading = results_df['loading_percentage'].max()
+            peak_power = results_df.loc[results_df['loading_percentage'].idxmax(), 'power_kw']
+        else:
+            peak_time = results_df.loc[results_df['power_kw'].idxmax(), 'timestamp']
+            peak_power = results_df['power_kw'].max()
+            peak_loading = (peak_power / (size_kva * 0.9)) * 100 if size_kva else None
+
         # Create base power chart
         base = alt.Chart(results_df).encode(
             x=alt.X('timestamp:T', title='Time'),
@@ -81,6 +91,33 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
         
         # Add the power consumption line
         power_line = base.mark_line(color='blue')
+
+        # Create peak loading line
+        peak_df = pd.DataFrame({
+            'timestamp': [peak_time],
+            'power': [peak_power],
+            'text': [f'Peak: {peak_loading:.1f}%\n{peak_time.strftime("%Y-%m-%d %H:%M")}']
+        })
+        
+        peak_line = alt.Chart(peak_df).mark_rule(
+            color='red',
+            strokeDash=[4, 4]
+        ).encode(
+            x='timestamp:T'
+        )
+        
+        peak_text = alt.Chart(peak_df).mark_text(
+            color='red',
+            align='left',
+            baseline='top',
+            dx=5,
+            fontSize=11,
+            fontWeight='bold'
+        ).encode(
+            x='timestamp:T',
+            y=alt.value(20),  # Position text near top of chart
+            text='text:N'
+        )
 
         # Add transformer size reference if provided
         if size_kva is not None:
@@ -114,7 +151,9 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
             chart = alt.layer(
                 power_line,
                 transformer_line,
-                transformer_text
+                transformer_text,
+                peak_line,
+                peak_text
             ).properties(
                 width='container',
                 height=250
@@ -122,7 +161,11 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
                 grid=True
             )
         else:
-            chart = power_line.properties(
+            chart = alt.layer(
+                power_line,
+                peak_line,
+                peak_text
+            ).properties(
                 width='container',
                 height=250
             ).configure_axis(
