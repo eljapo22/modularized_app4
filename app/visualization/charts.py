@@ -9,6 +9,7 @@ from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile
 from app.config.constants import STATUS_COLORS
 import altair as alt
+import numpy as np
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -72,30 +73,31 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
             st.warning("No valid power data available for the selected time range")
             return
 
-        # Create the line chart using native Streamlit
-        chart_data = results_df.set_index('timestamp')['power_kw']
+        # Create container for chart and reference line
+        chart_container = st.container()
         
-        # Plot the power consumption
-        st.line_chart(
-            chart_data,
-            use_container_width=True,
-            height=250
-        )
-        
-        # Add transformer size reference if provided
-        if size_kva is not None:
-            # Add a horizontal line for transformer size using Streamlit markdown
-            st.markdown(
-                f'<div style="text-align: right; color: red; margin-top: -40px; margin-right: 10px; font-size: 11px; font-weight: bold;">'
-                f'Transformer Size: {size_kva:.0f} kVA</div>',
-                unsafe_allow_html=True
+        with chart_container:
+            # Plot the power consumption
+            st.line_chart(
+                results_df.set_index('timestamp')['power_kw'],
+                use_container_width=True,
+                height=250
             )
             
-            # Add the line itself using Streamlit markdown
-            st.markdown(
-                f'<hr style="border: 1px dashed red; margin-top: -20px; opacity: 0.5;">',
-                unsafe_allow_html=True
-            )
+            # Add transformer size reference if provided
+            if size_kva is not None:
+                col1, col2 = st.columns([11, 1])
+                with col2:
+                    st.markdown(
+                        f'<div style="color: red; font-size: 11px; font-weight: bold; margin-top: -240px; white-space: nowrap;">'
+                        f'Transformer Size: {size_kva:.0f} kVA</div>',
+                        unsafe_allow_html=True
+                    )
+                with col1:
+                    st.markdown(
+                        f'<hr style="border: 1px dashed red; margin-top: -125px; opacity: 0.5;">',
+                        unsafe_allow_html=True
+                    )
 
     except Exception as e:
         logger.error(f"Error displaying power time series: {str(e)}")
@@ -165,77 +167,50 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                 delta_color="inverse"
             )
         
-        # Create mock data with phases moving together
+        # Create mock data with phases moving together but with individual variations
         timestamps = results_df['timestamp']
         n_points = len(timestamps)
         
-        # Create a base voltage variation that all phases will follow
-        # Using a smoother variation pattern between 370V and 415V
-        base_variation = np.cumsum(np.random.uniform(-0.1, 0.1, n_points))  # Create smooth random walk
-        base_variation = base_variation - np.mean(base_variation)  # Center around zero
-        base_variation = base_variation * (22.5 / np.max(np.abs(base_variation)))  # Scale to ±22.5V (half of 370V to 415V range)
-        base_voltage = nominal_voltage + base_variation
+        # Base variation pattern (slower changes)
+        t = np.linspace(0, 4*np.pi, n_points)  # Slower oscillation
+        base_variation = np.sin(t) * 2  # Base variation of ±2V
         
-        # Fixed phase offsets (small variations between phases)
-        phase_offsets = {
-            'Phase R': 0.5,    # +0.5V from base
-            'Phase Y': -0.3,   # -0.3V from base
-            'Phase B': 0.2     # +0.2V from base
-        }
+        # Add some random walk component for more realism
+        random_walk = np.cumsum(np.random.normal(0, 0.05, n_points))
+        random_walk = random_walk - np.mean(random_walk)  # Center around zero
+        random_walk = random_walk * (1 / np.max(np.abs(random_walk)))  # Scale to ±1V
         
-        # Generate data for each phase with fixed offsets
+        # Combine base variation with random walk
+        base_voltage = nominal_voltage + base_variation + random_walk
+        
+        # Generate individual phase variations with fixed offsets and small individual noise
         df_phases = pd.DataFrame({
             'timestamp': timestamps,
-            'Phase R': base_voltage + phase_offsets['Phase R'],
-            'Phase Y': base_voltage + phase_offsets['Phase Y'],
-            'Phase B': base_voltage + phase_offsets['Phase B']
+            'Phase R': base_voltage + 0.5 + np.random.normal(0, 0.1, n_points),
+            'Phase Y': base_voltage - 0.3 + np.random.normal(0, 0.1, n_points),
+            'Phase B': base_voltage + 0.2 + np.random.normal(0, 0.1, n_points)
         })
         
-        # Melt the dataframe for Altair
-        df_melted = df_phases.melt(
-            id_vars=['timestamp'],
-            var_name='Phase',
-            value_name='Voltage'
-        )
-        
-        # Create base chart for voltage phases
-        voltage_chart = alt.Chart(df_melted).mark_line().encode(
-            x=alt.X('timestamp:T', title='Time'),
-            y=alt.Y('Voltage:Q', 
-                   scale=alt.Scale(domain=[360, 440]),  # Fixed range for better visibility
-                   title='Voltage (V)'),
-            color=alt.Color('Phase:N')
-        )
-        
-        # Add reference lines for nominal and limits
-        nominal_rule = alt.Chart(pd.DataFrame({'y': [nominal_voltage]})).mark_rule(
-            strokeDash=[2, 2],
-            color='gray',
-            opacity=0.5
-        ).encode(y='y:Q')
-        
-        upper_rule = alt.Chart(pd.DataFrame({'y': [upper_limit]})).mark_rule(
-            strokeDash=[2, 2],
-            color='red',
-            opacity=0.5
-        ).encode(y='y:Q')
-        
-        lower_rule = alt.Chart(pd.DataFrame({'y': [lower_limit]})).mark_rule(
-            strokeDash=[2, 2],
-            color='red',
-            opacity=0.5
-        ).encode(y='y:Q')
-        
-        # Combine all charts
-        chart = alt.layer(
-            voltage_chart, nominal_rule, upper_rule, lower_rule
-        ).properties(
-            width='container',
+        # Display the chart using native Streamlit
+        st.line_chart(
+            df_phases.set_index('timestamp')[['Phase R', 'Phase Y', 'Phase B']],
+            use_container_width=True,
             height=250
         )
         
-        # Display the chart
-        st.altair_chart(chart, use_container_width=True)
+        # Add reference lines using markdown
+        st.markdown(
+            f'<hr style="border: 1px dashed red; margin-top: -125px; opacity: 0.5;">', # Upper limit
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            f'<hr style="border: 1px dashed gray; margin-top: -125px; opacity: 0.5;">', # Nominal
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            f'<hr style="border: 1px dashed red; margin-top: -125px; opacity: 0.5;">', # Lower limit
+            unsafe_allow_html=True
+        )
         
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
