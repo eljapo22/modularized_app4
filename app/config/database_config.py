@@ -30,52 +30,39 @@ ORDER BY hours.hour
 """
 
 TRANSFORMER_DATA_RANGE_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    hours.hour as "timestamp",
-    COALESCE(t."voltage_v", LAG(t."voltage_v") OVER (ORDER BY hours.hour)) as "voltage_v",
+    t."timestamp",
+    t."voltage_v",
     t."size_kva",
-    CAST(COALESCE(t."loading_percentage", LAG(t."loading_percentage") OVER (ORDER BY hours.hour)) AS DECIMAL(3,0)) as "loading_percentage",
-    CAST(COALESCE(t."current_a", LAG(t."current_a") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
-    CAST(COALESCE(t."power_kw", LAG(t."power_kw") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
-    CAST(COALESCE(t."power_kva", LAG(t."power_kva") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kva",
-    CAST(COALESCE(t."power_factor", LAG(t."power_factor") OVER (ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
+    CAST(t."loading_percentage" AS DECIMAL(3,0)) as "loading_percentage",
+    CAST(t."current_a" AS DECIMAL(5,2)) as "current_a",
+    CAST(t."power_kw" AS DECIMAL(5,2)) as "power_kw",
+    CAST(t."power_kva" AS DECIMAL(5,2)) as "power_kva",
+    CAST(t."power_factor" AS DECIMAL(4,3)) as "power_factor",
     t."transformer_id",
     t."load_range"
-FROM hours
-LEFT JOIN {table_name} t ON t."timestamp" = hours.hour AND t."transformer_id" = ?
-ORDER BY hours.hour
+FROM {table_name} t 
+WHERE t."transformer_id" = ?
+    AND t."timestamp" BETWEEN ?::timestamp AND ?::timestamp
+ORDER BY t."timestamp"
 """
 
 CUSTOMER_DATA_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    CAST(COALESCE(c."current_a", LAG(c."current_a") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
+    CAST(c."current_a" AS DECIMAL(5,2)) as "current_a",
     c."customer_id",
-    EXTRACT(HOUR FROM hours.hour) as "hour",
-    CAST(COALESCE(c."power_factor", LAG(c."power_factor") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
-    CAST(COALESCE(c."power_kva", LAG(c."power_kva") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kva",
-    CAST(COALESCE(c."power_kw", LAG(c."power_kw") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
+    EXTRACT(HOUR FROM c."timestamp") as "hour",
+    CAST(c."power_factor" AS DECIMAL(4,3)) as "power_factor",
+    CAST(c."power_kva" AS DECIMAL(5,2)) as "power_kva",
+    CAST(c."power_kw" AS DECIMAL(5,2)) as "power_kw",
     c."size_kva",
-    hours.hour as "timestamp",
+    c."timestamp",
     c."transformer_id",
-    COALESCE(c."voltage_v", LAG(c."voltage_v") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) as "voltage_v"
-FROM hours
-LEFT JOIN {table_name} c ON c."timestamp" = hours.hour AND c."transformer_id" = ?
-WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
-ORDER BY hours.hour, c."customer_id"
+    c."voltage_v"
+FROM {table_name} c 
+WHERE c."transformer_id" = ?
+    AND c."timestamp"::DATE BETWEEN ?::DATE AND ?::DATE
+ORDER BY c."timestamp", c."customer_id"
 """
 
 TRANSFORMER_LIST_QUERY = """
