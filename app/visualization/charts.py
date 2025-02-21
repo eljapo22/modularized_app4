@@ -10,6 +10,8 @@ from app.utils.ui_components import create_tile
 from app.config.constants import STATUS_COLORS
 import altair as alt
 import numpy as np
+from typing import Optional
+import plotly.graph_objects as go
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -606,6 +608,63 @@ def display_voltage_over_time(results_df: pd.DataFrame):
         use_container_width=True,
         height=250
     )
+
+def display_loading_status(df: pd.DataFrame, size_kva: Optional[float] = None):
+    """Display loading condition status chart with thresholds.
+    
+    Args:
+        df: DataFrame containing transformer data with loading_percentage and load_range
+        size_kva: Transformer size in kVA
+    """
+    try:
+        # Normalize data
+        df = normalize_timestamps(df)
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add loading percentage line
+        fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['loading_percentage'],
+            name='Loading %',
+            line=dict(color='blue', width=2),
+            hovertemplate='%{y:.1f}%<extra></extra>'
+        ))
+        
+        # Add threshold lines
+        thresholds = [
+            (120, 'Critical', 'red'),
+            (100, 'Overloaded', 'orange'),
+            (80, 'Warning', 'yellow'),
+            (50, 'Pre-Warning', 'green')
+        ]
+        
+        for threshold, label, color in thresholds:
+            fig.add_hline(
+                y=threshold,
+                line_dash="dash",
+                line_color=color,
+                annotation_text=f"{label} ({threshold}%)",
+                annotation_position="right"
+            )
+        
+        # Update layout
+        fig.update_layout(
+            title="Transformer Loading Status",
+            xaxis_title="Time",
+            yaxis_title="Loading Percentage",
+            showlegend=True,
+            hovermode='x unified',
+            margin=dict(l=50, r=150, t=50, b=50)  # Increased right margin for threshold labels
+        )
+        
+        return fig
+        
+    except Exception as e:
+        logger.error(f"Error in display_loading_status: {str(e)}")
+        st.error("Failed to display loading status chart")
+        return None
 
 def parse_load_range(range_str: str) -> tuple:
     """Parse load range string (e.g. '50%-80%') into tuple of floats."""

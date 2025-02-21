@@ -1,31 +1,36 @@
 import duckdb
+import streamlit as st
 
 def test_connection():
-    """Just test connecting to the existing database"""
-    token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImpobmFwbzIyMTNAZ21haWwuY29tIiwic2Vzc2lvbiI6ImpobmFwbzIyMTMuZ21haWwuY29tIiwicGF0IjoibDY1Y0Q4cmJ3dVNHdjBGdkowQV9PTjFYNTVyVXZxeS0tMGU5bndvRGtEbyIsInVzZXJJZCI6IjI4Mzg5MGMwLTZhYmEtNDIyZi04OTI1LWQyNTg0YjJiZmU1NiIsImlzcyI6Im1kX3BhdCIsInJlYWRPbmx5IjpmYWxzZSwidG9rZW5UeXBlIjoicmVhZF93cml0ZSIsImlhdCI6MTczOTk0NTk4NywiZXhwIjoxNzQxODQ2Nzg3fQ.ypdFwGl-VbN50KskPqEabxnmekGQbAi5xufUge6C9nU'
-    
+    """Test connecting to MotherDuck and querying our table"""
     try:
-        # Connect to DuckDB
+        # Connect to DuckDB with MotherDuck token from Streamlit secrets
         print("1. Connecting to DuckDB...")
-        con = duckdb.connect()
+        motherduck_token = st.secrets["MOTHERDUCK_TOKEN"]
+        con = duckdb.connect(f'md:?motherduck_token={motherduck_token}')
         
-        # Install and load MotherDuck extension
-        print("2. Installing MotherDuck extension...")
-        con.execute("INSTALL motherduck")
-        print("3. Loading MotherDuck extension...")
-        con.execute("LOAD motherduck")
+        # Test querying our table
+        print("\n2. Testing query on Transformer Feeder 1:")
+        result = con.execute("""
+            SELECT 
+                DATE_TRUNC('hour', timestamp) as hour,
+                transformer_id,
+                loading_percentage,
+                load_range
+            FROM "Transformer Feeder 1"
+            ORDER BY timestamp
+        """).fetchdf()
         
-        # Set token
-        print("4. Setting token...")
-        con.execute(f"SET motherduck_token='{token}'")
+        print("\nResults:")
+        print(result)
         
-        # List databases to see what we have access to
-        print("\n5. Listing databases:")
-        dbs = con.execute("SHOW DATABASES").fetchdf()
-        print(dbs)
+        print("\nConnection test successful!")
         
     except Exception as e:
         print(f"Error: {str(e)}")
+    finally:
+        if 'con' in locals():
+            con.close()
 
 if __name__ == "__main__":
     test_connection()

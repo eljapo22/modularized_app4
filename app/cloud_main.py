@@ -60,90 +60,47 @@ def main():
         # Track session start
         logger.info("=== Starting new analysis session ===")
         
-        # Initialize data service
+        # Initialize services
         data_service = CloudDataService()
-        logger.info("Services initialized successfully")
-
-        # Get available date range
-        min_date, max_date = data_service.get_available_dates()
-        logger.info(f"Got date range: {min_date} to {max_date}")
+        
+        # Sidebar
+        st.sidebar.title("Transformer Selection")
+        
+        # Get available transformer IDs
+        transformer_ids = data_service.get_transformer_ids()
+        transformer_id = st.sidebar.selectbox("Select Transformer", transformer_ids)
+        
+        # Add toggle for chart type
+        chart_type = st.sidebar.radio(
+            "Select Chart Type",
+            ["Power Consumption Over Time", "Loading Condition Status"]
+        )
+        
+        if transformer_id:
+            # Get data
+            df = data_service.get_transformer_data(transformer_id)
             
-        # Set page config
-        st.set_page_config(
-            page_title="Transformer Loading Analysis",
-            page_icon="⚡",
-            layout="wide"
-        )
-        
-        create_banner("Transformer Loading Analysis")
-        
-        # Analysis Parameters in sidebar
-        st.sidebar.header("Analysis Parameters")
-        
-        # Date range selection with default range
-        dates = st.sidebar.date_input(
-            "Select Date Range",
-            value=[min_date, min_date],  # Pass as list for range selection
-            min_value=min_date,
-            max_value=max_date,
-            key="date_range"
-        )
-        
-        # Ensure we have a start and end date
-        if isinstance(dates, (datetime, date)):
-            start_date = end_date = dates
-        else:
-            start_date, end_date = dates[0], dates[-1]  # Handle both list and tuple cases
-        
-        # Feeder and transformer selection
-        feeder_options = data_service.get_feeder_options()
-        selected_feeder = st.sidebar.selectbox("Select Feeder", feeder_options)
-        transformer_options = data_service.get_load_options(selected_feeder)
-        selected_transformer = st.sidebar.selectbox(
-            "Select Transformer",
-            transformer_options
-        )
-        
-        # Search button with icon
-        search_clicked = st.sidebar.button(
-            "🔍 Search" + (" 🔔" if st.session_state.alert_state.get('pending', False) else ""),
-            type="primary",
-            key="search_button"
-        )
-        logger.info(f"Search button clicked: {search_clicked}")
-        
-        # Main content area for visualization
-        main_container = st.container()
-        with main_container:
-            if search_clicked:
-                logger.info(f"Processing search with parameters: date_range={start_date} to {end_date}, feeder={selected_feeder}, transformer={selected_transformer}")
+            if not df.empty:
+                st.title(f"Transformer Analysis: {transformer_id}")
                 
-                if not all([start_date, end_date, selected_feeder, selected_transformer]):
-                    st.error("Please select all required parameters")
+                # Display appropriate chart based on selection
+                if chart_type == "Power Consumption Over Time":
+                    display_power_time_series(df)
                 else:
                     logger.info(f"Fetching data for date range: {start_date} to {end_date}")
                     
                     # Get transformer data
                     transformer_data = data_service.get_transformer_data_range(
-                        start_date,
-                        end_date,
-                        selected_feeder,
-                        selected_transformer
-                    )
-                    if transformer_data is not None:
-                        logger.info(f"Transformer data timestamp range: {transformer_data['timestamp'].min()} to {transformer_data['timestamp'].max()}")
-                    
-                    # Get customer data
-                    customer_data = data_service.get_customer_data(
-                        selected_transformer,
+                        transformer_id,
                         start_date,
                         end_date
                     )
-                    if customer_data is not None:
-                        logger.info(f"Customer data timestamp range: {customer_data['timestamp'].min()} to {customer_data['timestamp'].max()}")
                     
                     if transformer_data is not None and not transformer_data.empty:
                         logger.info(f"Transformer data loaded successfully: {len(transformer_data)} records")
+                        
+                        # Display loading status and check alerts if needed
+                        display_loading_status(transformer_data)
                         
                         # Automatically check alerts if unusual values detected
                         if any(transformer_data['loading_percentage'] >= 80):  # Alert threshold
@@ -151,7 +108,7 @@ def main():
                             
                             # Only trigger if no pending alert or different transformer
                             if (not st.session_state.alert_state['pending'] or 
-                                st.session_state.alert_state['transformer_id'] != selected_transformer):
+                                st.session_state.alert_state['transformer_id'] != transformer_id):
                                 
                                 logger.info("High loading detected - checking alerts automatically")
                                 alert_service = CloudAlertService()
@@ -165,11 +122,11 @@ def main():
                                     max_loading = transformer_data['loading_percentage'].max()
                                     st.session_state.alert_state.update({
                                         'pending': True,
-                                        'transformer_id': selected_transformer,
+                                        'transformer_id': transformer_id,
                                         'loading': max_loading,
                                         'timestamp': current_time
                                     })
-                                    logger.info(f"Alert state updated for transformer {selected_transformer}")
+                                    logger.info(f"Alert state updated for transformer {transformer_id}")
                         
                         # Display alert acknowledgment if pending
                         if st.session_state.alert_state['pending']:
@@ -192,9 +149,9 @@ def main():
                             create_section_header("Transformer Details")
                             col1, col2, col3, col4 = st.columns(4)
                             with col1:
-                                create_tile("Transformer ID", selected_transformer)
+                                create_tile("Transformer ID", transformer_id)
                             with col2:
-                                create_tile("Customers", str(len(customer_data['customer_id'].unique()) if customer_data is not None else 0))
+                                create_tile("Customers", "0")
                             with col3:
                                 create_tile("Latitude", "45.5123")
                             with col4:
@@ -219,12 +176,11 @@ def main():
                                 display_voltage_time_series(transformer_data)
                         
                         with customer_tab:
-                            if customer_data is not None and not customer_data.empty:
-                                display_customer_tab(customer_data)
-                            else:
-                                st.warning("No customer data available for the selected period")
+                            st.warning("No customer data available for the selected period")
                     else:
                         st.warning("No transformer data available for the selected criteria.")
+            else:
+                st.warning("No data available for selected transformer.")
     
     except Exception as e:
         logger.error(f"Application error: {str(e)}\nTraceback: {traceback.format_exc()}")
