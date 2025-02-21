@@ -648,7 +648,7 @@ def display_loading_status(df: pd.DataFrame, size_kva: Optional[float] = None) -
             line=dict(color=color, width=1, dash='dash'),
             annotation=dict(
                 text=label,
-                xref='paper',
+                xref='x',  # Changed from 'paper' to 'x'
                 x=1.02,
                 y=threshold,
                 showarrow=False,
