@@ -73,31 +73,55 @@ def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
             st.warning("No valid power data available for the selected time range")
             return
 
-        # Create container for chart and reference line
-        chart_container = st.container()
+        # Create base power chart
+        base = alt.Chart(results_df).encode(
+            x=alt.X('timestamp:T', title='Time'),
+            y=alt.Y('power_kw:Q', title='Power (kW)')
+        )
         
-        with chart_container:
-            # Plot the power consumption
-            st.line_chart(
-                results_df.set_index('timestamp')['power_kw'],
-                use_container_width=True,
+        # Add the power consumption line
+        power_line = base.mark_line(color='blue')
+
+        # Add transformer size reference if provided
+        if size_kva is not None:
+            # Create a DataFrame for the transformer size
+            transformer_df = pd.DataFrame({'y': [size_kva]})
+            
+            # Add the transformer size line
+            transformer_line = alt.Chart(transformer_df).mark_rule(
+                color='red',
+                strokeDash=[4, 4]
+            ).encode(y='y:Q')
+
+            # Add text annotation for transformer size
+            transformer_text = alt.Chart(transformer_df).mark_text(
+                color='red',
+                align='right',
+                dx=-5,
+                fontSize=11,
+                fontWeight='bold'
+            ).encode(
+                y='y:Q',
+                text=alt.value(f'Transformer Size: {size_kva:.0f} kVA')
+            )
+
+            # Combine all layers
+            chart = alt.layer(
+                power_line,
+                transformer_line,
+                transformer_text
+            ).properties(
+                width='container',
                 height=250
             )
-            
-            # Add transformer size reference if provided
-            if size_kva is not None:
-                col1, col2 = st.columns([11, 1])
-                with col2:
-                    st.markdown(
-                        f'<div style="color: red; font-size: 11px; font-weight: bold; margin-top: -240px; white-space: nowrap;">'
-                        f'Transformer Size: {size_kva:.0f} kVA</div>',
-                        unsafe_allow_html=True
-                    )
-                with col1:
-                    st.markdown(
-                        f'<hr style="border: 1px dashed red; margin-top: -125px; opacity: 0.5;">',
-                        unsafe_allow_html=True
-                    )
+        else:
+            chart = power_line.properties(
+                width='container',
+                height=250
+            )
+
+        # Display the chart
+        st.altair_chart(chart, use_container_width=True)
 
     except Exception as e:
         logger.error(f"Error displaying power time series: {str(e)}")
