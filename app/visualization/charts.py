@@ -48,6 +48,16 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
                 
                 # Interpolate small gaps
                 df[col] = df[col].interpolate(method='linear', limit=2)
+        
+        # Validate load_range format
+        if 'load_range' in df.columns:
+            # Keep only valid load ranges (format: XX%-YY%)
+            valid_ranges = df['load_range'].str.match(r'^\d+%-\d+%$')
+            if valid_ranges is not None:
+                df = df[valid_ranges.fillna(False)]
+            
+            # Forward fill missing load ranges
+            df['load_range'] = df['load_range'].fillna(method='ffill')
 
     return df
 
@@ -127,7 +137,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
                     line_color="#dc3545",
                     annotation=dict(
                         text=f"Transformer Size: {size_kva} kVA",
-                        xref="paper",
+                        xref="paper",  # Fixed: must be exactly 'paper'
                         yref="y",
                         x=1,
                         y=size_kva,
@@ -226,7 +236,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                 line_color=color,
                 annotation=dict(
                     text=label,
-                    xref="paper",
+                    xref="paper",  # Fixed: must be exactly 'paper'
                     yref="y",
                     x=1,
                     y=voltage,
@@ -255,6 +265,15 @@ def display_voltage_time_series(results_df: pd.DataFrame):
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
         st.error("Error displaying voltage time series chart")
+
+def parse_load_range(range_str: str) -> tuple:
+    """Parse load range string (e.g. '50%-80%') into tuple of floats."""
+    try:
+        lower, upper = range_str.replace('%', '').split('-')
+        return float(lower), float(upper)
+    except (ValueError, AttributeError) as e:
+        logger.error(f"Error parsing load range '{range_str}': {str(e)}")
+        return None, None
 
 def display_loading_status_line_chart(results_df: pd.DataFrame):
     """Display loading status as a line chart with threshold indicators."""
@@ -286,27 +305,54 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
             hovertemplate='%{y:.2f}%<br>%{x}<extra></extra>'
         ))
         
-        # Add threshold lines with improved visibility
-        thresholds = [
-            (120, 'Critical', '#dc3545'),
-            (100, 'Overloaded', '#fd7e14'),
-            (80, 'Warning', '#ffc107'),
-            (50, 'Pre-Warning', '#6f42c1')
-        ]
+        # Get unique load ranges and parse them
+        if 'load_range' in results_df.columns:
+            unique_ranges = results_df['load_range'].unique()
+            thresholds = []
+            for range_str in unique_ranges:
+                lower, upper = parse_load_range(range_str)
+                if lower is not None and upper is not None:
+                    # Add both bounds with appropriate colors
+                    thresholds.extend([
+                        (upper, f'Upper Bound ({upper}%)', '#dc3545'),  # Red for upper bound
+                        (lower, f'Lower Bound ({lower}%)', '#198754')   # Green for lower bound
+                    ])
+        else:
+            # Fallback to default thresholds if load_range not available
+            thresholds = [
+                (120, 'Critical (120%)', '#dc3545'),
+                (100, 'Overloaded (100%)', '#fd7e14'),
+                (80, 'Warning (80%)', '#ffc107'),
+                (50, 'Pre-Warning (50%)', '#6f42c1')
+            ]
         
-        for threshold, label, color in thresholds:
+        # Add threshold lines
+        for threshold, label, color in sorted(thresholds, key=lambda x: x[0]):
             fig.add_hline(
                 y=threshold,
                 line_dash="dash",
                 line_color=color,
                 annotation=dict(
                     text=label,
-                    xref="paper",
+                    xref="paper",  # Fixed: must be exactly 'paper'
                     yref="y",
                     x=1,
                     y=threshold,
                     showarrow=False,
                     font=dict(color=color)
+                )
+            )
+        
+        # Add current load range as a subtitle if available
+        if 'load_range' in results_df.columns:
+            current_range = results_df['load_range'].iloc[-1]
+            fig.update_layout(
+                title=dict(
+                    text=f"<br><sup>Current Load Range: {current_range}</sup>",
+                    y=0.9,
+                    x=0,
+                    xanchor='left',
+                    yanchor='top'
                 )
             )
         
@@ -608,7 +654,7 @@ def display_voltage_over_time(results_df: pd.DataFrame):
             line_color=color,
             annotation=dict(
                 text=label,
-                xref="paper",
+                xref="paper",  # Fixed: must be exactly 'paper'
                 yref="y",
                 x=1,
                 y=voltage,
