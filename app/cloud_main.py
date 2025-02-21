@@ -97,7 +97,7 @@ def main():
             value=[default_start, default_end],
             min_value=min_date,
             max_value=max_date,
-            format="DD/MM/YYYY"  
+            format="DD/MM/YYYY"
         )
         
         # Ensure we have a start and end date
