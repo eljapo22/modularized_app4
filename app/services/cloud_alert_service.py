@@ -152,6 +152,9 @@ class CloudAlertService:
             # Only alert if loading is high enough
             if max_loading['loading_percentage'] >= 80:
                 logger.info(f"Alert threshold met: {max_loading['loading_percentage']:.1f}% >= 80%")
+                # Convert index to datetime if it's an integer
+                if isinstance(max_loading.name, (int, np.integer)):
+                    max_loading.name = results_df.index[max_loading.name]
                 return max_loading
             else:
                 logger.info(f"Below alert threshold: {max_loading['loading_percentage']:.1f}% < 80%")
