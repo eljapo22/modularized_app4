@@ -22,7 +22,6 @@ class TransformerData:
 @dataclass
 class CustomerData:
     """Data model for customer measurements"""
-    index_level_0: List[int]
     current_a: List[float]      # Rounded to x.xx
     customer_id: List[str]
     hour: List[str]

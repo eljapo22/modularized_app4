@@ -262,7 +262,6 @@ class CloudDataService:
             logger.debug(f"First record timestamp: {results[0]['timestamp']}")
             
             return CustomerData(
-                index_level_0=[r['index_level_0'] for r in results],
                 current_a=[r['current_a'] for r in results],
                 customer_id=[r['customer_id'] for r in results],
                 hour=[r['hour'] for r in results],
