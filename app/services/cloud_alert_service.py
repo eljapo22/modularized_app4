@@ -1,248 +1,167 @@
 """
-Cloud-specific alert service for the Transformer Loading Analysis Application
+Cloud-specific alert service implementation using Streamlit secrets and Gmail API
 """
-import logging
+
+import os
+import json
 import streamlit as st
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, date
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+import base64
+from typing import Optional, List, Dict, Any
 import pandas as pd
-from typing import Optional, List, Dict, Tuple
-import smtplib
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
+from app.services.alert_service import (
+    AlertService, 
+    extract_feeder,
+    generate_dashboard_link,
+    check_alert_condition
+)
+from app.config.cloud_config import GmailConfig, SCOPES
 
-def get_alert_status(loading_pct: float) -> tuple[str, str]:
-    """Get alert status and color based on loading percentage"""
-    if loading_pct >= 120:
-        return 'Critical', '#dc3545'
-    elif loading_pct >= 100:
-        return 'Overloaded', '#fd7e14'
-    elif loading_pct >= 80:
-        return 'Warning', '#ffc107'
-    elif loading_pct >= 50:
-        return 'Pre-Warning', '#6f42c1'
-    else:
-        return 'Normal', '#198754'
-
-def get_status_emoji(status: str) -> str:
-    """Get emoji for status"""
-    return {
-        'Critical': '🔴',
-        'Overloaded': '🟠',
-        'Warning': '🟡',
-        'Pre-Warning': '🟣',
-        'Normal': '🟢'
-    }.get(status, '⚪')
-
-class CloudAlertService:
-    def __init__(self):
-        """Initialize the alert service"""
-        self.app_url = st.secrets.get("APP_URL", "https://modularized-app4.streamlit.app")
-        self.email = st.secrets.get("DEFAULT_EMAIL", "jhnapo2213@gmail.com")
-        self.app_password = st.secrets.get("GMAIL_APP_PASSWORD")
-        self.email_enabled = self.app_password is not None
-        
-        if not self.email_enabled:
-            logger.warning("Email alerts disabled: Gmail app password not found in secrets")
-        else:
-            logger.info("Email alerts enabled")
-
-    def _get_status_color(self, loading_pct: float) -> tuple:
-        """Get status and color based on loading percentage"""
-        if loading_pct >= 120:
-            return "CRITICAL", "#dc3545", "🚨"
-        elif loading_pct >= 100:
-            return "OVERLOADED", "#fd7e14", "⚠️"
-        elif loading_pct >= 80:
-            return "WARNING", "#ffc107", "⚡"
-        elif loading_pct >= 50:
-            return "PRE-WARNING", "#6f42c1", "📊"
-        else:
-            return "NORMAL", "#198754", "✅"
-
-    def _select_alert_point(self, results_df: pd.DataFrame) -> Optional[pd.Series]:
-        """Select the point to alert on"""
-        try:
-            # Find the highest loading percentage
-            max_loading_idx = results_df['loading_percentage'].idxmax()
-            max_loading = results_df.loc[max_loading_idx]
-            
-            # Log the max loading found
-            logger.info(f"Found max loading: {max_loading['loading_percentage']:.1f}% at {max_loading.name}")
-            
-            # Only alert if loading is high enough
-            if max_loading['loading_percentage'] >= 80:
-                return max_loading
-            else:
-                logger.info(f"Max loading {max_loading['loading_percentage']:.1f}% below alert threshold (80%)")
-                st.info(f"🔍 Maximum loading ({max_loading['loading_percentage']:.1f}%) is below alert threshold (80%)")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error selecting alert point: {str(e)}")
-            return None
-
-    def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
-        """Create deep link back to app with context"""
-        params = {
-            'view': 'alert',
-            'id': transformer_id,
-            'start': start_date.isoformat() if start_date else None,
-            'alert_time': alert_time.isoformat() if alert_time else None
-        }
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
-        query_string = '&'.join(f"{k}={v}" for k, v in params.items())
-        return f"{self.app_url}?{query_string}"
-
-    def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
-        """
-        Create HTML content for alert email with context
-        
-        Args:
-            data: Series with transformer data at alert point
-            status: Status of the alert
-            color: Color of the alert
-            deep_link: Deep link back to app
-            
-        Returns:
-            str: HTML content of the email
-        """
-        transformer_id = data['transformer_id']
-        loading_pct = data['loading_percentage']
-        
-        html = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2f4f4f;">Transformer Loading Alert {get_status_emoji(status)}</h2>
-            
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: {color};">Status: {status}</h3>
-                <p><strong>Transformer:</strong> {transformer_id}</p>
-                <p><strong>Loading:</strong> {loading_pct:.1f}%</p>
-                <p><strong>Alert Time:</strong> {data.name.strftime('%Y-%m-%d %H:%M')}</p>
-            </div>
-            
-            <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h4>Detailed Readings:</h4>
-                <ul>
-                    <li>Power: {data['power_kw']:.1f} kW</li>
-                    <li>Current: {data['current_a']:.1f} A</li>
-                    <li>Voltage: {data['voltage_v']:.1f} V</li>
-                    <li>Power Factor: {data['power_factor']:.2f}</li>
-                </ul>
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                    View Loading History
-                </a>
-            </div>
-            
-            <p style="color: #6c757d; font-size: 12px; text-align: center;">
-                This is an automated alert from your Transformer Loading Analysis System.<br>
-                Click the button above to view the loading history leading up to this alert.
-            </p>
-        </div>
-        """
-        return html
+class CloudAlertService(AlertService):
+    """Cloud implementation of alert service using Streamlit secrets"""
     
-    def _send_email(self, msg: MIMEMultipart) -> bool:
-        """Send email using Gmail SMTP with app password"""
+    def __init__(self, data_service):
+        """Initialize cloud alert service with Streamlit secrets and data service"""
+        self.data_service = data_service
         try:
-            logger.info(f"Attempting to send email to {msg['To']}")
-            
-            # Connect to Gmail's SMTP server
-            server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-            server.login(self.email, self.app_password)
-            
-            # Send email
-            server.send_message(msg)
-            server.quit()
-            
-            logger.info("Email sent successfully")
-            return True
-            
+            self.token_info = GmailConfig.get_token()
+            self.default_recipient = GmailConfig.get_recipient()
+            if not self.token_info or not self.default_recipient:
+                raise ValueError("Failed to initialize Gmail configuration")
         except Exception as e:
-            logger.error(f"Failed to send email: {str(e)}")
-            if "Invalid login" in str(e):
-                st.error("❌ Failed to login to Gmail. Please check your app password in secrets.toml")
-            return False
-
-    def check_and_send_alerts(
-        self,
-        results_df: pd.DataFrame,
-        start_date: Optional[date] = None,
-        alert_time: Optional[datetime] = None,
-        recipient: str = None
-    ) -> bool:
-        """Check loading conditions and send alert if needed"""
-        logger.info("Starting alert check process...")
+            st.error(f"Failed to initialize cloud alert service: {str(e)}")
+            self.token_info = None
+            self.default_recipient = None
         
-        if not self.email_enabled:
-            msg = "Email alerts disabled - Gmail app password not found in secrets.toml"
-            logger.warning(msg)
-            st.warning(f"📧 {msg}")
-            return False
-
+    def _get_gmail_service(self):
+        """Initialize Gmail API service using cloud token"""
         try:
-            # Log the data we're checking
-            logger.info(f"Checking {len(results_df)} data points from {results_df.index[0]} to {results_df.index[-1]}")
-            logger.info(f"Current email settings - From: {self.email}, App password configured: {bool(self.app_password)}")
-            
-            # Create an expander for detailed alert info
-            with st.expander("📋 Alert Check Details", expanded=True):
-                st.write("**Checking Alert Conditions**")
-                st.write(f"Analyzing {len(results_df)} data points...")
-                
-                # Select the alert point
-                alert_point = self._select_alert_point(results_df)
-                
-                if alert_point is None:
-                    logger.info("No alert point selected - conditions not met")
-                    return False
-                
-                # Get alert status and color
-                status, color = get_alert_status(alert_point['loading_percentage'])
-                logger.info(f"Alert status: {status} ({alert_point['loading_percentage']:.1f}%)")
-                st.write(f"**Alert Status:** {status}")
-                st.write(f"**Loading:** {alert_point['loading_percentage']:.1f}%")
-                st.write(f"**Time:** {alert_point.name}")
-                
-                # Create deep link
-                deep_link = self._create_deep_link(
-                    start_date,
-                    alert_time or alert_point.name,
-                    alert_point['transformer_id']
-                )
-                logger.info(f"Created deep link: {deep_link}")
-                
-                # Create and send email
-                msg = MIMEMultipart('alternative')
-                msg['Subject'] = f"Transformer Loading Alert - {alert_point['loading_percentage']:.1f}% Loading"
-                msg['From'] = self.email
-                msg['To'] = recipient or self.email
-                
-                logger.info(f"Preparing email to: {msg['To']}")
-                st.write("**Sending Email Alert**")
-                st.write(f"To: {msg['To']}")
-                
-                # Create HTML content
-                html_content = self._create_email_content(
-                    alert_point, status, color, deep_link
-                )
-                msg.attach(MIMEText(html_content, 'html'))
-                
-                # Send the email
-                if self._send_email(msg):
-                    st.success(f"✉️ Alert email sent successfully")
-                    return True
-                else:
-                    st.error(f"❌ Failed to send alert email")
-                    return False
-                
+            creds = Credentials.from_authorized_user_info(self.token_info, SCOPES)
+            return build('gmail', 'v1', credentials=creds)
         except Exception as e:
-            error_msg = f"Error in check_and_send_alerts: {str(e)}"
-            logger.error(error_msg)
-            st.error(f"❌ {error_msg}")
+            st.error(f"Failed to initialize Gmail service: {str(e)}")
+            return None
+            
+    def _get_status_color(self, status: str) -> str:
+        """Get color for status."""
+        colors = {
+            'Critical': '#dc3545',
+            'Overloaded': '#fd7e14',
+            'Warning': '#ffc107',
+            'Pre-Warning': '#6f42c1',
+            'Normal': '#198754'
+        }
+        return colors.get(status, '#6c757d')
+
+    def _get_status_emoji(self, status: str) -> str:
+        """Get emoji for status."""
+        emojis = {
+            'Critical': '🔴',
+            'Overloaded': '🟠',
+            'Warning': '🟡',
+            'Pre-Warning': '🟣',
+            'Normal': '🟢'
+        }
+        return emojis.get(status, '⚪')
+
+    def _create_email_content(self, alert_data: pd.DataFrame, date: datetime, hour: int) -> str:
+        """Create HTML content for alert email"""
+        html = ""
+        
+        for _, row in alert_data.iterrows():
+            transformer_id = row['transformer_id']
+            feeder = extract_feeder(transformer_id)
+            status = row['load_range']
+            loading = row['loading_percentage']
+            color = self._get_status_color(status)
+            emoji = self._get_status_emoji(status)
+            dashboard_url = generate_dashboard_link(transformer_id, feeder, date, hour)
+            
+            html += f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2 style="color: #2f4f4f;">Transformer Loading Alert</h2>
+                <p>Alert detected for transformer <strong>{transformer_id}</strong></p>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
+                    <p style="color: {color};">
+                        {emoji} Status: {status}<br>
+                        Loading: {loading:.1f}%
+                    </p>
+                    
+                    <h3>Readings:</h3>
+                    <ul>
+                        <li>Power: {row.get('power_kw', 'N/A'):.1f} kW</li>
+                        <li>Current: {row.get('current_a', 'N/A'):.1f} A</li>
+                        <li>Voltage: {row.get('voltage_v', 'N/A'):.1f} V</li>
+                        <li>Power Factor: {row.get('power_factor', 'N/A'):.2f}</li>
+                    </ul>
+                    
+                    <p>Time: {date.strftime('%Y-%m-%d')} {hour:02d}:00</p>
+                </div>
+                
+                <p>
+                    <a href="{dashboard_url}" 
+                       style="background-color: #0d6efd; color: white; padding: 10px 20px; 
+                              text-decoration: none; border-radius: 5px;">
+                        View in Dashboard
+                    </a>
+                </p>
+            </body>
+            </html>
+            """
+        
+        return html
+        
+    def send_alert(self, alert_data: pd.DataFrame, date: datetime, hour: int, recipients: Optional[List[str]] = None) -> bool:
+        """Send alert email using Gmail API"""
+        try:
+            service = self._get_gmail_service()
+            if not service:
+                return False
+                
+            if recipients is None:
+                recipients = [self.default_recipient]
+                
+            message = MIMEMultipart('alternative')
+            message['to'] = ', '.join(recipients)
+            
+            # Get the first transformer's status for the subject line
+            first_alert = alert_data.iloc[0]
+            message['subject'] = f"Transformer Alert: {first_alert['transformer_id']} - {first_alert['load_range']}"
+            
+            html_content = self._create_email_content(alert_data, date, hour)
+            message.attach(MIMEText(html_content, 'html'))
+            
+            raw = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+            service.users().messages().send(userId='me', body={'raw': raw}).execute()
+            
+            return True
+        except Exception as e:
+            st.error(f"Failed to send alert email: {str(e)}")
             return False
+            
+    def test_alert(self, transformer_id: str, date: datetime, hour: int, recipients: Optional[List[str]] = None) -> bool:
+        """Send test alert email"""
+        test_data = pd.DataFrame({
+            'transformer_id': [transformer_id],
+            'load_range': ['Warning'],
+            'loading_percentage': [99.9],
+            'power_kw': [75.5],
+            'current_a': [150.2],
+            'voltage_v': [240.1],
+            'power_factor': [0.95]
+        })
+        return self.send_alert(test_data, date, hour, recipients)
+        
+    def process_alerts(self, results_df: pd.DataFrame, selected_date: datetime, selected_hour: int, recipients: Optional[List[str]] = None) -> bool:
+        """Process alerts and send if conditions are met"""
+        alerts = check_alert_condition(results_df, selected_hour)
+        if alerts is not None:
+            return self.send_alert(alerts, selected_date, selected_hour, recipients)
+        return True  # No alerts needed to be sent

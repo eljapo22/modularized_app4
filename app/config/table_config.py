@@ -1,38 +1,32 @@
 """
-Table configuration for MotherDuck database
+Database table configuration
 """
 
-# Table names - with proper quoting for SQL
-TRANSFORMER_TABLE_TEMPLATE = '"Transformer Feeder {}"'  # Already includes quotes for SQL
-CUSTOMER_TABLE_TEMPLATE = '"Customer Feeder {}"'        # Already includes quotes for SQL
+# Table names
+TRANSFORMER_TABLE_TEMPLATE = "TransformerFeeder_{}"  # 1-4
+CUSTOMER_TABLE_TEMPLATE = "CustomerFeeder_{}"        # 1-4
 
 # List of available feeder numbers
-FEEDER_NUMBERS = [1]  # Start with just feeder 1 for now
+FEEDER_NUMBERS = [1, 2, 3, 4]
 
-# Transformer table columns with their exact types from MotherDuck
-TRANSFORMER_COLUMNS = {
-    'timestamp': 'TIMESTAMP_NS',
-    'voltage_v': 'DOUBLE',
-    'size_kva': 'DOUBLE',
-    'loading_percentage': 'DOUBLE',  # Will be rounded to xx.xx in queries
-    'current_a': 'DOUBLE',          # Will be rounded to xx.xx in queries
-    'power_kw': 'DOUBLE',          # Will be rounded to xx.xx in queries
-    'power_kva': 'DOUBLE',
-    'power_factor': 'DOUBLE',
-    'transformer_id': 'VARCHAR',
-    'load_range': 'VARCHAR'
+# Column names - must match database schema exactly
+COMMON_COLUMNS = {
+    'TIMESTAMP': 'timestamp',
+    'POWER_KW': 'power_kw',
+    'POWER_FACTOR': 'power_factor',
+    'POWER_KVA': 'power_kva',
+    'VOLTAGE_V': 'voltage_v',
+    'CURRENT_A': 'current_a',
+    'INDEX': 'index_level_0_'
 }
 
-# Customer table columns with their exact types from MotherDuck
+TRANSFORMER_COLUMNS = {
+    **COMMON_COLUMNS,
+    'TRANSFORMER_ID': 'transformer_id'
+}
+
 CUSTOMER_COLUMNS = {
-    'current_a': 'DOUBLE',         # Will be rounded to x.xx in queries
-    'customer_id': 'VARCHAR',
-    'hour': 'VARCHAR',
-    'power_factor': 'DOUBLE',
-    'power_kva': 'DOUBLE',        # Will be rounded to x.xx in queries
-    'power_kw': 'DOUBLE',         # Will be rounded to x.xx in queries
-    'size_kva': 'DOUBLE',
-    'timestamp': 'TIMESTAMP_NS',
-    'transformer_id': 'VARCHAR',
-    'voltage_v': 'INTEGER'
+    **COMMON_COLUMNS,
+    'CUSTOMER_ID': 'customer_id',
+    'TRANSFORMER_ID': 'transformer_id'  # Foreign key to transformer
 }
