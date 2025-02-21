@@ -73,18 +73,26 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             st.warning("No valid power data available for the selected time range")
             return
             
-        # Create DataFrame for display
-        df_power = pd.DataFrame({
-            'timestamp': results_df['timestamp'],
-            'Power Consumption (kW)': results_df['power_kw']
-        }).set_index('timestamp')
-        
-        # Display transformer size if available
+        # Get transformer size if available
+        size_kva = None
         if is_transformer_view and 'size_kva' in results_df.columns:
             size_kva = results_df['size_kva'].iloc[0]
             if size_kva > 0:
                 st.metric("Transformer Size", f"{size_kva:.0f} kVA")
-                
+        
+        # Create DataFrame for display with transformer size reference
+        df_power = pd.DataFrame({
+            'timestamp': results_df['timestamp'],
+            'Power Consumption (kW)': results_df['power_kw']
+        })
+        
+        if size_kva is not None and size_kva > 0:
+            # Add transformer size as a constant line
+            df_power['Transformer Size (kVA)'] = size_kva
+            
+        # Set index for plotting
+        df_power = df_power.set_index('timestamp')
+        
         # Display the line chart
         st.line_chart(
             df_power,
