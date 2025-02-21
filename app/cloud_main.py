@@ -12,7 +12,7 @@ from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService  # Import for alert functionality
 from app.utils.ui_utils import create_banner, display_transformer_dashboard
 from app.utils.ui_components import create_section_header, create_tile, create_two_column_charts
-from app.visualization.charts import display_customer_tab, display_power_time_series, display_current_time_series, display_voltage_time_series
+from app.visualization.charts import display_customer_tab, display_power_time_series, display_current_time_series, display_voltage_time_series, display_loading_status
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -200,12 +200,31 @@ def main():
                             with col4:
                                 create_tile("Longitude", "-79.3892")
 
-                            # Display power consumption chart
-                            create_section_header("Power Consumption Over Time")
-                            display_power_time_series(
-                                transformer_data,
-                                size_kva=transformer_data['size_kva'].iloc[0] if 'size_kva' in transformer_data.columns else None
-                            )
+                            # Initialize session state for view toggle if not exists
+                            if 'show_power' not in st.session_state:
+                                st.session_state.show_power = True
+
+                            # Create columns for header and toggle
+                            header_col, toggle_col = st.columns([0.9, 0.1])
+                            
+                            with header_col:
+                                create_section_header("Power Consumption Over Time" if st.session_state.show_power else "Loading Condition Status")
+                            
+                            with toggle_col:
+                                if st.button("↔"):
+                                    st.session_state.show_power = not st.session_state.show_power
+
+                            # Display appropriate chart based on toggle state
+                            if st.session_state.show_power:
+                                display_power_time_series(
+                                    transformer_data,
+                                    size_kva=transformer_data['size_kva'].iloc[0] if 'size_kva' in transformer_data.columns else None
+                                )
+                            else:
+                                display_loading_status(
+                                    transformer_data,
+                                    size_kva=transformer_data['size_kva'].iloc[0] if 'size_kva' in transformer_data.columns else None
+                                )
 
                             # Display current and voltage charts side by side
                             current_col, voltage_col = create_two_column_charts()

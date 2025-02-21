@@ -10,6 +10,8 @@ from app.utils.ui_components import create_tile
 from app.config.constants import STATUS_COLORS
 import altair as alt
 import numpy as np
+import plotly.graph_objects as go
+from typing import Optional
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -606,6 +608,70 @@ def display_voltage_over_time(results_df: pd.DataFrame):
         use_container_width=True,
         height=250
     )
+
+def display_loading_status(df: pd.DataFrame, size_kva: Optional[float] = None) -> None:
+    """Display loading condition status chart with thresholds.
+    
+    Args:
+        df: DataFrame containing transformer data with loading_percentage and load_range
+        size_kva: Transformer size in kVA
+    """
+    if df is None or df.empty:
+        st.warning("No data available to display loading status")
+        return
+
+    # Create loading status figure
+    fig = go.Figure()
+
+    # Add loading percentage line
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['loading_percentage'],
+        name='Loading %',
+        mode='lines+markers',
+        line=dict(color='#2E86C1', width=2),
+        hovertemplate='%{y:.1f}%<br>Range: %{text}<extra></extra>',
+        text=df['load_range']  # Show load_range in hover
+    ))
+
+    # Add threshold lines with their ranges
+    thresholds = [
+        (120, 'Critical (>120%)', '#dc3545'),
+        (100, 'Overloaded (100%-120%)', '#fd7e14'),
+        (80, 'Warning (80%-100%)', '#ffc107'),
+        (50, 'Pre-Warning (50%-80%)', '#6f42c1')
+    ]
+
+    for threshold, label, color in thresholds:
+        fig.add_hline(
+            y=threshold,
+            line=dict(color=color, width=1, dash='dash'),
+            annotation=dict(
+                text=label,
+                xref='paper',
+                x=1.02,
+                y=threshold,
+                showarrow=False,
+                font=dict(size=10, color=color)
+            )
+        )
+
+    # Update layout
+    fig.update_layout(
+        height=400,
+        showlegend=True,
+        hovermode='x unified',
+        xaxis_title='Time',
+        yaxis_title='Loading (%)',
+        yaxis=dict(
+            range=[0, max(150, df['loading_percentage'].max() * 1.1)],
+            gridcolor='rgba(0,0,0,0.1)'
+        ),
+        plot_bgcolor='white',
+        margin=dict(l=0, r=0, t=20, b=0)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 
 def parse_load_range(range_str: str) -> tuple:
     """Parse load range string (e.g. '50%-80%') into tuple of floats."""
