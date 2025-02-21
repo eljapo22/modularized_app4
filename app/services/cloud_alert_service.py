@@ -7,6 +7,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, date
 import pandas as pd
+import numpy as np
 from typing import Optional, List, Dict, Tuple
 import smtplib
 
@@ -103,55 +104,34 @@ class CloudAlertService:
         return f"{self.app_url}?{query_string}"
 
     def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
-        """
-        Create HTML content for alert email with context
+        """Create HTML content for email"""
+        # Convert timestamp if it's a numpy int
+        alert_time = data.name
+        if isinstance(alert_time, (np.int64, np.integer)):
+            alert_time = pd.Timestamp(alert_time)
+            
+        return f"""
+        <html>
+        <body>
+        <h2>Transformer Loading Alert</h2>
+        <p>A transformer has exceeded normal loading conditions:</p>
         
-        Args:
-            data: Series with transformer data at alert point
-            status: Status of the alert
-            color: Color of the alert
-            deep_link: Deep link back to app
-            
-        Returns:
-            str: HTML content of the email
-        """
-        transformer_id = data['transformer_id']
-        loading_pct = data['loading_percentage']
-        
-        html = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2f4f4f;">Transformer Loading Alert {get_status_emoji(status)}</h2>
-            
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: {color};">Status: {status}</h3>
-                <p><strong>Transformer:</strong> {transformer_id}</p>
-                <p><strong>Loading:</strong> {loading_pct:.1f}%</p>
-                <p><strong>Alert Time:</strong> {data.name.strftime('%Y-%m-%d %H:%M')}</p>
-            </div>
-            
-            <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h4>Detailed Readings:</h4>
-                <ul>
-                    <li>Power: {data['power_kw']:.1f} kW</li>
-                    <li>Current: {data['current_a']:.1f} A</li>
-                    <li>Voltage: {data['voltage_v']:.1f} V</li>
-                    <li>Power Factor: {data['power_factor']:.2f}</li>
-                </ul>
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                    View Loading History
-                </a>
-            </div>
-            
-            <p style="color: #6c757d; font-size: 12px; text-align: center;">
-                This is an automated alert from your Transformer Loading Analysis System.<br>
-                Click the button above to view the loading history leading up to this alert.
-            </p>
+        <div style="margin: 20px 0; padding: 10px; border: 1px solid {color}; border-radius: 5px;">
+            <p><strong>Status:</strong> <span style="color: {color}">{status}</span></p>
+            <p><strong>Transformer:</strong> {data['transformer_id']}</p>
+            <p><strong>Loading:</strong> {data['loading_percentage']:.1f}%</p>
+            <p><strong>Power:</strong> {data['power_kw']:.2f} kW</p>
+            <p><strong>Alert Time:</strong> {alert_time.strftime('%Y-%m-%d %H:%M')}</p>
         </div>
+        
+        <p>View details in the application: <a href="{deep_link}">Click here</a></p>
+        
+        <p style="color: #666; font-size: 0.9em;">
+            This is an automated alert from the Transformer Monitoring System.
+        </p>
+        </body>
+        </html>
         """
-        return html
     
     def _send_email(self, msg: MIMEMultipart) -> bool:
         """Send email using Gmail SMTP with app password"""
