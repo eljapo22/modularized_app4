@@ -27,6 +27,16 @@ logger = logging.getLogger(__name__)
 
 def main():
     try:
+        # Initialize alert state
+        if 'alert_state' not in st.session_state:
+            st.session_state.alert_state = {
+                'pending': False,
+                'last_alert': None,
+                'transformer_id': None,
+                'loading': None,
+                'timestamp': None
+            }
+        
         # Track session start
         logger.info("=== Starting new analysis session ===")
         
@@ -111,13 +121,42 @@ def main():
                         
                         # Automatically check alerts if unusual values detected
                         if any(transformer_data['loading_percentage'] >= 80):  # Alert threshold
-                            logger.info("High loading detected - checking alerts automatically")
-                            alert_service = CloudAlertService()
-                            alert_service.check_and_send_alerts(
-                                transformer_data,
-                                start_date=start_date,
-                                alert_time=datetime.now()
-                            )
+                            current_time = datetime.now()
+                            
+                            # Only trigger if no pending alert or different transformer
+                            if (not st.session_state.alert_state['pending'] or 
+                                st.session_state.alert_state['transformer_id'] != transformer_id):
+                                
+                                logger.info("High loading detected - checking alerts automatically")
+                                alert_service = CloudAlertService()
+                                alert_result = alert_service.check_and_send_alerts(
+                                    transformer_data,
+                                    start_date=start_date,
+                                    alert_time=current_time
+                                )
+                                
+                                if alert_result:
+                                    max_loading = transformer_data['loading_percentage'].max()
+                                    st.session_state.alert_state.update({
+                                        'pending': True,
+                                        'transformer_id': transformer_id,
+                                        'loading': max_loading,
+                                        'timestamp': current_time
+                                    })
+                                    logger.info(f"Alert state updated for transformer {transformer_id}")
+                        
+                        # Display alert acknowledgment if pending
+                        if st.session_state.alert_state['pending']:
+                            with st.sidebar:
+                                with st.form("alert_acknowledgment"):
+                                    st.warning(f"🚨 Alert Active")
+                                    st.write(f"Transformer: {st.session_state.alert_state['transformer_id']}")
+                                    st.write(f"Loading: {st.session_state.alert_state['loading']:.1f}%")
+                                    st.write(f"Time: {st.session_state.alert_state['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}")
+                                    
+                                    if st.form_submit_button("Acknowledge Alert"):
+                                        st.session_state.alert_state['pending'] = False
+                                        logger.info("Alert acknowledged by user")
                         
                         # Keep manual alert button for user control
                         alert_col1, alert_col2 = st.columns([3, 1])
