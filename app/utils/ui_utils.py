@@ -75,10 +75,10 @@ def display_transformer_dashboard(results_df: pd.DataFrame):
         # Create metrics
         latest = results_df.iloc[-1]
         create_metric_tiles(
-            transformer_id=latest['transformer_id'],
-            feeder=latest['feeder'],
-            size_kva=latest['size_kva'],
-            loading_pct=latest['loading_percentage']
+            transformer_id=latest.get('transformer_id', 'N/A'),
+            feeder=latest.get('feeder', 'N/A'),  
+            size_kva=latest.get('size_kva', 0),
+            loading_pct=latest.get('loading_percentage', 0)
         )
 
         # Display charts

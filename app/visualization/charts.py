@@ -239,34 +239,40 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     st.plotly_chart(fig, use_container_width=True)
     logger.info("Displayed chart")
 
-def display_current_time_series(results_df: pd.DataFrame):
+def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = True):
     """Display current time series visualization."""
     try:
         # Normalize timestamps
         results_df = normalize_timestamps(results_df)
-
+        
         # Create figure
         fig = create_base_figure(
-            title=None,
+            title="Current Over Time",
             xaxis_title="Time",
             yaxis_title="Current (A)"
         )
-
+        
         # Add current trace
         fig.add_trace(go.Scatter(
             x=results_df['timestamp'],
             y=results_df['current_a'],
             mode='lines+markers',
-            name='Current',
+            name='Current (A)',
             line=dict(color='#0d6efd', width=2),
             marker=dict(size=6)
         ))
-
+        
+        # Update layout
+        fig.update_layout(
+            showlegend=False,
+            margin=dict(t=0, b=0, l=0, r=0)
+        )
+        
         st.plotly_chart(fig, use_container_width=True)
-
+        
     except Exception as e:
         logger.error(f"Error displaying current time series: {str(e)}")
-        st.error("Error displaying current time series visualization")
+        st.error("Error displaying current time series chart")
 
 def display_voltage_time_series(results_df: pd.DataFrame):
     """Display voltage time series visualization."""
