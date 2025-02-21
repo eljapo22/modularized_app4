@@ -58,7 +58,7 @@ def validate_transformer_data(df: pd.DataFrame) -> Dict[str, bool]:
             
         # Check for missing timestamps
         time_diffs = df['timestamp'].diff()
-        expected_diff = pd.Timedelta(minutes=15)  # Assuming 15-minute intervals
+        expected_diff = pd.Timedelta(hours=1)  # Data is in 1-hour intervals
         has_gaps = (time_diffs > expected_diff * 1.5).any()
         validations['has_time_gaps'] = has_gaps
         
