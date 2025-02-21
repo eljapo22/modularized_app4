@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 def main():
     try:
+        # Clear all Streamlit cache and state
+        st.cache_data.clear()
+        st.session_state.clear()
+        
         # Initialize services first to get date range
         try:
             data_service = CloudDataService()
