@@ -21,7 +21,7 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
-    # Create a base plotly figure with common settings
+    """Create a base plotly figure with common settings"""
     fig = go.Figure()
     
     # Update layout with common settings
@@ -50,8 +50,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
     """Display loading status as a line chart with threshold indicators."""
     try:
         # Ensure timestamp is in datetime format
-        results_df = results_df.copy()
-        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+        results_df = normalize_timestamps(results_df)
         
         # Create the line chart
         fig = create_base_figure(
@@ -557,138 +556,47 @@ def display_customer_tab(df: pd.DataFrame):
         use_container_width=True
     )
 
-def get_sample_voltage_data(df):
-    # Generate sample three-phase voltage data
-    if df is None or df.empty:
-        return pd.DataFrame()
-
-    # Create a 24-hour time range with hourly points
-    if isinstance(df.index[0], (int, float)):
-        # If index is numeric, create a 24-hour range from midnight
-        start_time = pd.Timestamp.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    else:
-        # If index is timestamp, use its date
-        start_time = pd.Timestamp(df.index[0]).replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    end_time = start_time + pd.Timedelta(days=1)
-    time_index = pd.date_range(start=start_time, end=end_time, freq='5T')  # 5-minute intervals
-    
-    # Generate sample voltage data
-    n_points = len(time_index)
-    t = np.linspace(0, 8*np.pi, n_points)  # Increase cycles for 24-hour period
-    
-    # Base voltage with some random fluctuation
-    base_voltage = 120
-    noise_level = 0.5
-    
-    # Generate three phases with 120-degree shifts and realistic fluctuation
-    # Add slow variation over 24 hours
-    daily_variation = 1 * np.sin(np.linspace(0, 2*np.pi, n_points))  # ±1V daily swing
-    
-    phase_a = base_voltage + daily_variation + 2*np.sin(t) + noise_level * np.random.randn(n_points)
-    phase_b = base_voltage + daily_variation + 2*np.sin(t + 2*np.pi/3) + noise_level * np.random.randn(n_points)
-    phase_c = base_voltage + daily_variation + 2*np.sin(t + 4*np.pi/3) + noise_level * np.random.randn(n_points)
-    
-    # Ensure voltages stay within realistic bounds
-    phase_a = np.clip(phase_a, 117, 123)
-    phase_b = np.clip(phase_b, 117, 123)
-    phase_c = np.clip(phase_c, 117, 123)
-    
-    return pd.DataFrame({
-        'Red Phase': phase_a,
-        'Yellow Phase': phase_b,
-        'Blue Phase': phase_c
-    }, index=time_index)
-
 def display_voltage_over_time(results_df: pd.DataFrame):
     # Display voltage over time chart
     if results_df is None or results_df.empty:
-        st.warning("No data available for voltage over time visualization. Please check your database connection and try again.")
+        st.warning("No data available for voltage over time visualization.")
         return
 
-    # Create sample voltage data
-    voltage_df = get_sample_voltage_data(results_df)
-    
     # Create figure
-    fig = go.Figure()
+    fig = create_base_figure(
+        title="Voltage Over Time",
+        xaxis_title="Time",
+        yaxis_title="Voltage (V)"
+    )
     
     # Add voltage traces
-    fig.add_trace(go.Scatter(
-        x=voltage_df.index,
-        y=voltage_df['Red Phase'],
-        name='Red Phase',
-        line=dict(color='red', width=1)
-    ))
+    for phase, color in [('Red Phase', 'red'), ('Yellow Phase', '#FFD700'), ('Blue Phase', 'blue')]:
+        fig.add_trace(go.Scatter(
+            x=results_df['timestamp'],
+            y=results_df['voltage_v'],
+            name=phase,
+            line=dict(color=color, width=1)
+        ))
     
-    fig.add_trace(go.Scatter(
-        x=voltage_df.index,
-        y=voltage_df['Yellow Phase'],
-        name='Yellow Phase',
-        line=dict(color='#FFD700', width=1)  # Dark yellow for better visibility
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=voltage_df.index,
-        y=voltage_df['Blue Phase'],
-        name='Blue Phase',
-        line=dict(color='blue', width=1)
-    ))
-    
-    # Add nominal voltage line
-    fig.add_hline(
-        y=120,
-        line_dash="dash",
-        line_color="gray",
-        annotation_text="Nominal (120V)",
-        annotation_position="right"
-    )
-    
-    # Add +5% limit line (126V)
-    fig.add_hline(
-        y=126,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="+5% (126V)",
-        annotation_position="right"
-    )
-    
-    # Add -5% limit line (114V)
-    fig.add_hline(
-        y=114,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="-5% (114V)",
-        annotation_position="right"
-    )
+    # Add nominal voltage line and limits
+    for voltage, label, color in [
+        (120, "Nominal (120V)", "gray"),
+        (126, "+5% (126V)", "red"),
+        (114, "-5% (114V)", "red")
+    ]:
+        fig.add_hline(
+            y=voltage,
+            line_dash="dash",
+            line_color=color,
+            annotation_text=label,
+            annotation_position="right"
+        )
     
     # Update layout
     fig.update_layout(
-        margin=dict(l=0, r=100, t=0, b=0),  # Add right margin for annotations
-        height=250,
-        yaxis=dict(
-            title=dict(
-                text="Voltage (V)",
-                font=dict(size=12),
-                standoff=25
-            ),
-            range=[110, 130],  # Expanded range to show limits clearly
-            automargin=True,
-            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
-            gridwidth=1,
-            showgrid=True,
-            tickformat='.1f'  # Match rounding precision
-        ),
-        xaxis=dict(
-            tickformat='%Y-%m-%d %H:%M',  # Show full datetime
-            dtick=3*3600000,  # Show tick every 3 hours (in milliseconds)
-            tickangle=0,
-            gridcolor='#E1E1E1',  # Darker grey for x-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
         showlegend=False,
-        plot_bgcolor='white'  # White background to make grid more visible
+        margin=dict(t=0, b=0, l=0, r=150),
+        yaxis_range=[110, 130]
     )
     
-    # Display the figure
     st.plotly_chart(fig, use_container_width=True)
