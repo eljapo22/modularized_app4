@@ -168,15 +168,15 @@ def display_current_time_series(results_df: pd.DataFrame):
         ).encode(
             x=alt.X('timestamp:T', 
                    title='Time',
-                   axis=alt.Axis(grid=True)),
+                   axis=alt.Axis(grid=True, labelFontSize=11, titleFontSize=12)),
             y=alt.Y('Current:Q', 
                    scale=alt.Scale(domain=[30, 70]),
                    title='Current (A)',
-                   axis=alt.Axis(grid=True))
+                   axis=alt.Axis(grid=True, labelFontSize=11, titleFontSize=12))
         ).properties(
             width='container',
-            height=250,
-            padding={"left": 50, "right": 20, "top": 20, "bottom": 30}  # Match voltage chart padding
+            height=200,  
+            padding={"left": 45, "right": 20, "top": 10, "bottom": 40}  
         )
         
         # Use container with fixed height to ensure consistent spacing
