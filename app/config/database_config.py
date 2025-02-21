@@ -60,8 +60,8 @@ SELECT
     c."transformer_id",
     c."voltage_v"
 FROM {table_name} c 
-WHERE c."timestamp" BETWEEN ?::timestamp AND ?::timestamp
-    AND c."transformer_id" = ?
+WHERE c."transformer_id" = ?
+    AND c."timestamp" BETWEEN ?::timestamp AND ?::timestamp
 ORDER BY c."timestamp", c."customer_id"
 """
 

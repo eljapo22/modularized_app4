@@ -271,15 +271,15 @@ class CloudDataService:
             logger.info(f"Fetching customer data for transformer {transformer_id}")
             logger.info(f"Date range: {start_date} to {end_date}")
             
-            # Get table name
-            table = CUSTOMER_TABLE_TEMPLATE.format(1)  # Only Feeder 1 for now
-            logger.info(f"Using table: {table}")
+            # Extract feeder number from transformer ID (format: S1F1ATF001)
+            feeder_num = int(transformer_id.split('F')[0].replace('S', ''))
+            table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Execute query
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
                 query,
-                params=(start_date, end_date, transformer_id)  # Remove duplicate date parameters
+                params=(transformer_id, start_date, end_date)
             )
             
             if not results:
