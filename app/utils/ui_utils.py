@@ -444,12 +444,6 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 first_timestamp.hour
             )
             
-            aggregated_data = data_service.get_customer_aggregation(
-                results['transformer_id'].iloc[0],
-                first_timestamp,
-                first_timestamp.hour
-            )
-            
             if customer_data is not None and not customer_data.empty:
                 # Display customer metrics
                 st.markdown("#### Customer Overview")
@@ -458,21 +452,23 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 with col1:
                     st.metric(
                         "Total Customers",
-                        f"{aggregated_data['customer_count']}",
+                        f"{len(customer_data)}",
                         help="Number of customers connected to this transformer"
                     )
                 
                 with col2:
+                    total_power = customer_data['power_kw'].sum()
                     st.metric(
                         "Total Power",
-                        f"{aggregated_data['total_power_kw']:.1f} kW",
+                        f"{total_power:.1f} kW",
                         help="Total power consumption across all customers"
                     )
                 
                 with col3:
+                    avg_pf = customer_data['power_factor'].mean()
                     st.metric(
                         "Average Power Factor",
-                        f"{aggregated_data['avg_power_factor']:.2f}",
+                        f"{avg_pf:.2f}",
                         help="Average power factor across all customers"
                     )
                 
