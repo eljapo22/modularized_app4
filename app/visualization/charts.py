@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile
 from app.config.constants import STATUS_COLORS
+import altair as alt
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -80,25 +81,35 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             if size_kva > 0:
                 st.metric("Transformer Size", f"{size_kva:.0f} kVA")
         
-        # Create DataFrame for display with transformer size reference
-        df_power = pd.DataFrame({
-            'timestamp': results_df['timestamp'],
-            'Power Consumption (kW)': results_df['power_kw']
-        })
-        
-        if size_kva is not None and size_kva > 0:
-            # Add transformer size as a constant line
-            df_power['Transformer Size (kVA)'] = size_kva
-            
-        # Set index for plotting
-        df_power = df_power.set_index('timestamp')
-        
-        # Display the line chart
-        st.line_chart(
-            df_power,
-            use_container_width=True,
-            height=250
+        # Create base chart for power consumption
+        power_chart = alt.Chart(results_df).mark_line().encode(
+            x=alt.X('timestamp:T', title='Time'),
+            y=alt.Y('power_kw:Q', title='Power (kW)'),
+            color=alt.value('blue')
         )
+        
+        # Add transformer size reference line if available
+        if size_kva is not None and size_kva > 0:
+            rule = alt.Chart(pd.DataFrame({'y': [size_kva]})).mark_rule(
+                strokeDash=[2, 2],
+                color='red'
+            ).encode(
+                y='y:Q'
+            )
+            
+            # Combine the charts
+            chart = alt.layer(power_chart, rule).properties(
+                width='container',
+                height=250
+            )
+        else:
+            chart = power_chart.properties(
+                width='container',
+                height=250
+            )
+            
+        # Display the chart
+        st.altair_chart(chart, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying power time series: {str(e)}")
