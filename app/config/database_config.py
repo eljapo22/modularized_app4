@@ -26,7 +26,6 @@ ORDER BY "timestamp"
 
 CUSTOMER_DATA_QUERY = """
 SELECT 
-    "index_level_0",
     ROUND("current_a", 1) as "current_a",
     "customer_id",
     "hour",

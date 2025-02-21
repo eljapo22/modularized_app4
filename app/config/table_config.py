@@ -25,7 +25,6 @@ TRANSFORMER_COLUMNS = {
 
 # Customer table columns with their exact types from MotherDuck
 CUSTOMER_COLUMNS = {
-    'index_level_0': 'BIGINT',
     'current_a': 'DOUBLE',         # Will be rounded to x.xx in queries
     'customer_id': 'VARCHAR',
     'hour': 'VARCHAR',
