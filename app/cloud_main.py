@@ -3,13 +3,13 @@ Cloud-specific entry point for the Transformer Loading Analysis Application
 Uses app.-prefixed imports required by Streamlit Cloud
 """
 import streamlit as st
-import traceback
-from datetime import datetime, date
 import logging
+from datetime import datetime, date, timedelta
 import pandas as pd
 
 from app.services.cloud_data_service import CloudDataService
-from app.utils.ui_utils import create_banner, display_transformer_dashboard, create_section_header, create_tile, create_two_column_charts
+from app.utils.ui_utils import create_banner, display_transformer_dashboard
+from app.utils.ui_components import create_section_header, create_tile, create_two_column_charts
 from app.visualization.charts import display_customer_tab, display_power_time_series, display_current_time_series, display_voltage_time_series
 
 # Configure logging
