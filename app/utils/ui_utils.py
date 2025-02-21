@@ -256,13 +256,15 @@ def create_customer_power_chart(customer_data: pd.DataFrame) -> None:
     
     st.plotly_chart(fig, use_container_width=True)
 
-def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[int] = None) -> None:
+def display_transformer_dashboard(results: pd.DataFrame, start_date: datetime, end_date: datetime, hour: int) -> None:
     """
     Display transformer loading dashboard with optional time marker
     
     Args:
         results: DataFrame with transformer data
-        marker_hour: Optional hour to mark with vertical line (e.g., alert time)
+        start_date: Start date for customer data
+        end_date: End date for customer data
+        hour: Hour for customer data
     """
     try:
         # Create tabs for different visualizations
@@ -314,31 +316,6 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                     align="left"
                 )
             
-            # Add marker for alert time if provided
-            if marker_hour is not None:
-                # Find the timestamp for the marker hour
-                marker_date = results.index[0].date()  # Use first date in range
-                marker_time = pd.Timestamp.combine(marker_date, pd.Timestamp(f"{marker_hour:02d}:00").time())
-                
-                if marker_time in results.index:
-                    marker_value = results.loc[marker_time, 'loading_percentage']
-                    
-                    fig.add_vline(
-                        x=marker_time,
-                        line=dict(color='gray', width=2, dash='dash'),
-                        annotation=dict(
-                            text=f"Alert Time ({marker_hour:02d}:00)<br>{marker_value:.1f}%",
-                            font=dict(size=12),
-                            bgcolor='rgba(255,255,255,0.8)',
-                            bordercolor='gray',
-                            borderwidth=1,
-                            showarrow=True,
-                            arrowhead=2,
-                            ax=40,
-                            ay=-40
-                        )
-                    )
-            
             # Update layout
             fig.update_layout(
                 title=f"Transformer {results['transformer_id'].iloc[0]} Loading Status",
@@ -379,25 +356,6 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 hovertemplate='%{y:.1f} kW<br>%{x}<extra></extra>'
             ))
             
-            # Add marker for alert time if provided
-            if marker_hour is not None and marker_time in results.index:
-                marker_power = results.loc[marker_time, 'power_kw']
-                fig.add_vline(
-                    x=marker_time,
-                    line=dict(color='gray', width=2, dash='dash'),
-                    annotation=dict(
-                        text=f"Alert Time ({marker_hour:02d}:00)<br>{marker_power:.1f} kW",
-                        font=dict(size=12),
-                        bgcolor='rgba(255,255,255,0.8)',
-                        bordercolor='gray',
-                        borderwidth=1,
-                        showarrow=True,
-                        arrowhead=2,
-                        ax=40,
-                        ay=-40
-                    )
-                )
-            
             # Update layout
             fig.update_layout(
                 title=f"Power Consumption Over Time",
@@ -417,18 +375,7 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
             display_df.index = display_df.index.strftime('%Y-%m-%d %H:%M')
             display_df = display_df.round(2)
             
-            # Highlight the alert time row if provided
-            if marker_hour is not None and marker_time in results.index:
-                marker_time_str = marker_time.strftime('%Y-%m-%d %H:%M')
-                st.dataframe(
-                    display_df.style.apply(
-                        lambda x: ['background-color: #f8f9fa' if i == marker_time_str else '' 
-                                 for i in display_df.index],
-                        axis=0
-                    )
-                )
-            else:
-                st.dataframe(display_df)
+            st.dataframe(display_df)
         
         with tab4:
             st.markdown("### Customer Analysis")
@@ -436,14 +383,16 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
             # Get customer data from the data service
             from app.services.cloud_data_service import data_service
             
-            # Use the first timestamp's date and hour
-            first_timestamp = results.index[0]
-            customer_data = data_service.get_customer_data(
-                results['transformer_id'].iloc[0],
-                first_timestamp,
-                first_timestamp.hour
-            )
-            
+            # Get customer data
+            if start_date and end_date:
+                customer_data = data_service.get_customer_data_range(
+                    transformer_id=results['transformer_id'].iloc[0],
+                    start_date=start_date,
+                    end_date=end_date
+                )
+            else:
+                customer_data = None
+
             if customer_data is not None and not customer_data.empty:
                 # Display customer selector
                 st.markdown("#### Select Customer")
@@ -457,10 +406,14 @@ def display_transformer_dashboard(results: pd.DataFrame, marker_hour: Optional[i
                 # Filter data for selected customer
                 customer_details = customer_data[customer_data['customer_id'] == selected_customer]
                 
-                # Display customer data table
+                # Display customer data table for the selected hour
                 st.markdown("#### Customer Data")
+                current_hour_data = customer_details[
+                    (customer_details['timestamp'].dt.date == end_date) &
+                    (customer_details['timestamp'].dt.hour == hour)
+                ]
                 st.dataframe(
-                    customer_details[[
+                    current_hour_data[[
                         'customer_id',
                         'power_kw',
                         'power_factor',

@@ -270,6 +270,66 @@ class CloudDataService:
             logger.error(f"Error getting customer data: {str(e)}")
             return None
 
+    def get_customer_data_range(
+            self,
+            transformer_id: str,
+            start_date: date,
+            end_date: date
+        ) -> Optional[pd.DataFrame]:
+        """Get customer data for a specific transformer within a date range"""
+        try:
+            logger.info(f"Retrieving customer data for transformer {transformer_id} from {start_date} to {end_date}")
+            # Extract feeder number from transformer ID (format: S{feeder}F...)
+            feeder_num = int(transformer_id[1])
+            if feeder_num not in FEEDER_NUMBERS:
+                logger.error(f"Invalid feeder number in transformer ID: {transformer_id}")
+                raise ValueError(f"Invalid feeder number in transformer ID: {transformer_id}")
+                
+            # Table name already includes quotes
+            table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
+            logger.debug(f"Querying table: {table}")
+            
+            # Query for date range
+            query = f"""
+            SELECT 
+                ROUND("current_a", 1) as "current_a",
+                "customer_id",
+                "hour",
+                "power_factor",
+                ROUND("power_kva", 1) as "power_kva",
+                ROUND("power_kw", 1) as "power_kw",
+                "size_kva",
+                "timestamp",
+                "transformer_id",
+                "voltage_v"
+            FROM {table}
+            WHERE "transformer_id" = ?
+              AND DATE_TRUNC('day', "timestamp") >= ?
+              AND DATE_TRUNC('day', "timestamp") <= ?
+            ORDER BY "timestamp"
+            """
+            
+            results = execute_query(
+                query,
+                (transformer_id, start_date, end_date)
+            )
+            
+            if not results:
+                logger.warning(f"No customer data found for transformer {transformer_id}")
+                return None
+                
+            logger.info(f"Found {len(results)} customer records for transformer {transformer_id}")
+            logger.debug(f"First record timestamp: {results[0]['timestamp']}")
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(results)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error getting customer data: {str(e)}")
+            return None
+
     def get_customer_aggregation(
             self,
             transformer_id: str,
