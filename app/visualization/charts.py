@@ -32,7 +32,7 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
         
         # Filter out points that create unrealistic gaps (more than 3 std from mean)
         valid_diffs = time_diff <= (mean_diff + 3 * std_diff)
-        df = df[valid_diffs.fillna(True)]  # Keep first point
+        df = df[valid_diffs.fillna(True, inplace=False)]  # Keep first point
         
         # Validate numeric columns
         numeric_cols = df.select_dtypes(include=[np.number]).columns
@@ -54,10 +54,10 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
             # Keep only valid load ranges (format: XX%-YY%)
             valid_ranges = df['load_range'].str.match(r'^\d+%-\d+%$')
             if valid_ranges is not None:
-                df = df[valid_ranges.fillna(False)]
+                df = df[valid_ranges.fillna(False, inplace=False)]
             
-            # Forward fill missing load ranges
-            df['load_range'] = df['load_range'].fillna(method='ffill')
+            # Forward fill missing load ranges using ffill()
+            df['load_range'] = df['load_range'].ffill()
 
     return df
 
@@ -137,7 +137,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
                     line_color="#dc3545",
                     annotation=dict(
                         text=f"Transformer Size: {size_kva} kVA",
-                        xref="paper",  # Fixed: must be exactly 'paper'
+                        xref="paper",  
                         yref="y",
                         x=1,
                         y=size_kva,
@@ -172,7 +172,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             mode='lines',
             name='Current',
             line=dict(
-                color='#dc3545',  # Red color like in image
+                color='#dc3545',  
                 width=2
             ),
             hovertemplate='%{y:.2f} A<br>%{x}<extra></extra>'
@@ -207,7 +207,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         phase_b = nominal_voltage + np.sin(np.linspace(1, 5*np.pi, len(timestamps))) * 4.5
         
         # Add voltage traces for three phases
-        colors = ['#dc3545', '#ffc107', '#0d6efd']  # Red, Yellow, Blue
+        colors = ['#dc3545', '#ffc107', '#0d6efd']  
         phase_names = ['Phase R', 'Phase Y', 'Phase B']
         phase_data = [phase_r, phase_y, phase_b]
         
@@ -236,7 +236,7 @@ def display_voltage_time_series(results_df: pd.DataFrame):
                 line_color=color,
                 annotation=dict(
                     text=label,
-                    xref="paper",  # Fixed: must be exactly 'paper'
+                    xref="paper",  
                     yref="y",
                     x=1,
                     y=voltage,
@@ -314,8 +314,8 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
                 if lower is not None and upper is not None:
                     # Add both bounds with appropriate colors
                     thresholds.extend([
-                        (upper, f'Upper Bound ({upper}%)', '#dc3545'),  # Red for upper bound
-                        (lower, f'Lower Bound ({lower}%)', '#198754')   # Green for lower bound
+                        (upper, f'Upper Bound ({upper}%)', '#dc3545'),  
+                        (lower, f'Lower Bound ({lower}%)', '#198754')   
                     ])
         else:
             # Fallback to default thresholds if load_range not available
@@ -334,7 +334,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
                 line_color=color,
                 annotation=dict(
                     text=label,
-                    xref="paper",  # Fixed: must be exactly 'paper'
+                    xref="paper",  
                     yref="y",
                     x=1,
                     y=threshold,
@@ -557,13 +557,13 @@ def display_customer_tab(df: pd.DataFrame):
     )
 
     # Filter data for selected customer
-    customer_df = df[df['customer_id'] == selected_customer].copy()  # Create copy to avoid SettingWithCopyWarning
+    customer_df = df[df['customer_id'] == selected_customer].copy()  
     
     # Round values according to spec
-    customer_df['power_kw'] = customer_df['power_kw'].round(3)  # x.xxx
-    customer_df['current_a'] = customer_df['current_a'].round(3)  # x.xxx
-    customer_df['power_factor'] = customer_df['power_factor'].round(3)  # x.xxx
-    customer_df['voltage_v'] = customer_df['voltage_v'].round(1)  # xxx.x
+    customer_df['power_kw'] = customer_df['power_kw'].round(3)  
+    customer_df['current_a'] = customer_df['current_a'].round(3)  
+    customer_df['power_factor'] = customer_df['power_factor'].round(3)  
+    customer_df['voltage_v'] = customer_df['voltage_v'].round(1)  
 
     # Display customer metrics in tiles
     cols = st.columns(4)
@@ -572,22 +572,22 @@ def display_customer_tab(df: pd.DataFrame):
     with cols[0]:
         create_tile(
             "Current Power",
-            f"{latest['power_kw']} kW"  # No format needed, already rounded
+            f"{latest['power_kw']} kW"  
         )
     with cols[1]:
         create_tile(
             "Power Factor",
-            f"{latest['power_factor']}"  # No format needed, already rounded
+            f"{latest['power_factor']}"  
         )
     with cols[2]:
         create_tile(
             "Current",
-            f"{latest['current_a']} A"  # No format needed, already rounded
+            f"{latest['current_a']} A"  
         )
     with cols[3]:
         create_tile(
             "Voltage",
-            f"{latest['voltage_v']} V"  # No format needed, already rounded
+            f"{latest['voltage_v']} V"  
         )
     
     # Display customer charts
@@ -627,11 +627,11 @@ def display_voltage_over_time(results_df: pd.DataFrame):
     )
     
     # Add voltage traces for three phases
-    colors = ['#dc3545', '#ffc107', '#0d6efd']  # Red, Yellow, Blue
+    colors = ['#dc3545', '#ffc107', '#0d6efd']  
     for i, phase in enumerate(['A', 'B', 'C']):
         fig.add_trace(go.Scatter(
             x=results_df['timestamp'],
-            y=results_df['voltage_v'] + np.random.normal(0, 2, len(results_df)),  # Simulate 3 phases
+            y=results_df['voltage_v'] + np.random.normal(0, 2, len(results_df)),  
             mode='lines',
             name=f'Phase {phase}',
             line=dict(
@@ -654,7 +654,7 @@ def display_voltage_over_time(results_df: pd.DataFrame):
             line_color=color,
             annotation=dict(
                 text=label,
-                xref="paper",  # Fixed: must be exactly 'paper'
+                xref="paper",  
                 yref="y",
                 x=1,
                 y=voltage,
