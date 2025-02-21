@@ -1,8 +1,6 @@
 # Visualization components for the Transformer Loading Analysis Application
 
 import streamlit as st
-import plotly.graph_objects as go
-import plotly.express as px
 import pandas as pd
 import numpy as np
 import logging
@@ -51,50 +49,6 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def create_base_figure(title: str = None, xaxis_title: str = None, yaxis_title: str = None) -> go.Figure:
-    """Create a base plotly figure with common settings"""
-    fig = go.Figure()
-    
-    # Update layout with common settings
-    fig.update_layout(
-        title=title,
-        xaxis_title=xaxis_title,
-        yaxis_title=yaxis_title,
-        plot_bgcolor='white',
-        xaxis=dict(
-            showgrid=True,
-            gridcolor='#E1E1E1',
-            type='date',
-            tickformat='%Y-%m-%d %H:%M',  # Show full date and time
-            tickangle=-45,  # Angle the timestamps for better readability
-            dtick='H1',  # Show hourly ticks
-            tickmode='auto',
-            nticks=12,  # Limit number of ticks for readability
-            rangeslider=dict(visible=True),  # Add range slider
-            rangeselector=dict(  # Add range selector buttons
-                buttons=list([
-                    dict(count=6, label="6h", step="hour", stepmode="backward"),
-                    dict(count=12, label="12h", step="hour", stepmode="backward"),
-                    dict(count=1, label="1d", step="day", stepmode="backward"),
-                    dict(count=7, label="1w", step="day", stepmode="backward"),
-                    dict(step="all", label="All")
-                ])
-            )
-        ),
-        yaxis=dict(
-            showgrid=True,
-            gridcolor='#E1E1E1',
-            automargin=True,
-            zeroline=True,
-            zerolinecolor='#E1E1E1',
-            zerolinewidth=1
-        ),
-        margin=dict(t=30, b=0, l=0, r=0),
-        hovermode='x unified'  # Show all points at same x-coordinate
-    )
-    
-    return fig
-
 def display_loading_status_line_chart(results_df: pd.DataFrame):
     """Display loading status as a line chart with threshold indicators."""
     try:
@@ -106,25 +60,7 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
             return
             
         # Create the line chart
-        fig = create_base_figure(
-            title="Loading Status Over Time",
-            xaxis_title="Time",
-            yaxis_title="Loading (%)"
-        )
-        
-        # Add loading percentage line with improved visualization
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['loading_percentage'],
-            mode='lines',  # Remove markers for cleaner look
-            name='Loading %',
-            line=dict(
-                color='#0d6efd',
-                width=2,
-                shape='hv'  # Use step interpolation
-            ),
-            hovertemplate='%{y:.1f}%<br>%{x}<extra></extra>'
-        ))
+        st.line_chart(results_df.set_index('timestamp')['loading_percentage'])
         
         # Add threshold lines with improved visibility
         thresholds = [
@@ -135,44 +71,14 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
         ]
         
         for threshold, label, color in thresholds:
-            fig.add_hline(
-                y=threshold,
-                line_dash="dash",
-                line_color=color,
-                annotation=dict(
-                    text=f"{label} ({threshold}%)",
-                    xref="paper",
-                    x=1.02,
-                    y=threshold,
-                    showarrow=False,
-                    font=dict(color=color)
-                )
-            )
-        
-        # Update layout with improved settings
-        fig.update_layout(
-            yaxis=dict(
-                range=[0, max(150, max(results_df['loading_percentage']) * 1.1)],
-                ticksuffix="%",
-                gridcolor='#E1E1E1',
-                zerolinecolor='#E1E1E1'
-            ),
-            xaxis=dict(
-                rangeslider=dict(visible=True),
-                type='date',
-                gridcolor='#E1E1E1'
-            ),
-            hovermode='x unified'
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+            st.write(f"{label} ({threshold}%)")
         
     except Exception as e:
         logger.error(f"Error displaying loading status: {str(e)}")
         st.error("Error displaying loading status chart")
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
-    """Display power time series visualization."""
+    """Display power time series visualization using Streamlit's line chart."""
     try:
         logger.info("display_power_time_series called with is_transformer_view=" + str(is_transformer_view))
         
@@ -183,76 +89,15 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             st.warning("No valid power data available for the selected time range")
             return
             
-        # Create figure with existing layout settings
-        fig = create_base_figure(
-            title=None,
-            xaxis_title="Time",
-            yaxis_title="Power (kW)"
-        )
-        
-        # Add power consumption trace with improved visualization
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_kw'],
-            mode='lines',  # Remove markers for cleaner look
-            name='Power Consumption',
-            line=dict(
-                color='#0d6efd',
-                width=2,
-                shape='hv'  # Use step interpolation for more accurate representation
-            ),
-            hovertemplate='%{y:.2f} kW<br>%{x}<extra></extra>'
-        ))
-        
-        # Add transformer size reference if available
-        if is_transformer_view and 'size_kva' in results_df.columns:
-            size_kva = results_df['size_kva'].iloc[0]
-            if size_kva > 0:
-                fig.add_hline(
-                    y=size_kva,
-                    line_dash="dash",
-                    line_color="red",
-                    annotation_text=f"Transformer Size: {size_kva} kVA",
-                    annotation_position="top right"
-                )
-                y_max = min(max(results_df['power_kw']) * 1.1, size_kva * 1.2)
-            else:
-                y_max = max(results_df['power_kw']) * 1.1
-        else:
-            y_max = max(results_df['power_kw']) * 1.1
-        
-        # Update layout with improved settings
-        fig.update_layout(
-            showlegend=True,
-            yaxis=dict(
-                range=[0, y_max],
-                tickformat='.2f' if is_transformer_view else '.3f',
-                title_text="Power (kW)",
-                gridcolor='#E1E1E1',
-                zerolinecolor='#E1E1E1'
-            ),
-            xaxis=dict(
-                rangeslider=dict(visible=True),
-                type='date',
-                gridcolor='#E1E1E1'
-            ),
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01
-            ),
-            hovermode='x unified'
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+        # Use Streamlit's line chart for visualization
+        st.line_chart(results_df.set_index('timestamp')['power_kw'])
         
     except Exception as e:
         logger.error(f"Error displaying power time series: {str(e)}")
         st.error("Error displaying power time series chart")
 
 def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = True):
-    """Display current time series visualization."""
+    """Display current time series visualization using Streamlit's line chart."""
     try:
         # Normalize and validate data
         results_df = normalize_timestamps(results_df)
@@ -261,59 +106,15 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             st.warning("No valid current data available for the selected time range")
             return
             
-        # Create figure
-        fig = create_base_figure(
-            title=None,
-            xaxis_title="Time",
-            yaxis_title="Current (A)"
-        )
-        
-        # Add current trace with improved visualization
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['current_a'],
-            mode='lines',  # Remove markers for cleaner look
-            name='Current',
-            line=dict(
-                color='#0d6efd',
-                width=2,
-                shape='hv'  # Use step interpolation
-            ),
-            hovertemplate='%{y:.2f} A<br>%{x}<extra></extra>'
-        ))
-        
-        # Update layout with improved settings
-        fig.update_layout(
-            showlegend=True,
-            yaxis=dict(
-                range=[0, max(results_df['current_a']) * 1.1],
-                tickformat='.2f',
-                title_text="Current (A)",
-                gridcolor='#E1E1E1',
-                zerolinecolor='#E1E1E1'
-            ),
-            xaxis=dict(
-                rangeslider=dict(visible=True),
-                type='date',
-                gridcolor='#E1E1E1'
-            ),
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01
-            ),
-            hovermode='x unified'
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+        # Use Streamlit's line chart for visualization
+        st.line_chart(results_df.set_index('timestamp')['current_a'])
         
     except Exception as e:
         logger.error(f"Error displaying current time series: {str(e)}")
         st.error("Error displaying current time series chart")
 
 def display_voltage_time_series(results_df: pd.DataFrame):
-    """Display voltage time series visualization."""
+    """Display voltage time series visualization using Streamlit's line chart."""
     try:
         # Normalize and validate data
         results_df = normalize_timestamps(results_df)
@@ -322,70 +123,8 @@ def display_voltage_time_series(results_df: pd.DataFrame):
             st.warning("No valid voltage data available for the selected time range")
             return
             
-        # Create figure
-        fig = create_base_figure(
-            title=None,
-            xaxis_title="Time",
-            yaxis_title="Voltage (V)"
-        )
-        
-        # Add voltage trace with improved visualization
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['voltage_v'],
-            mode='lines',  # Remove markers for cleaner look
-            name='Voltage',
-            line=dict(
-                color='#0d6efd',
-                width=2,
-                shape='hv'  # Use step interpolation
-            ),
-            hovertemplate='%{y:.1f} V<br>%{x}<extra></extra>'
-        ))
-        
-        # Add nominal voltage reference line
-        nominal_voltage = 400  # Assuming 400V system
-        fig.add_hline(
-            y=nominal_voltage,
-            line_dash="dash",
-            line_color="#6c757d",
-            annotation=dict(
-                text=f"Nominal Voltage ({nominal_voltage}V)",
-                xref="paper",
-                x=1.02,
-                y=nominal_voltage,
-                showarrow=False
-            )
-        )
-        
-        # Update layout with improved settings
-        fig.update_layout(
-            showlegend=True,
-            yaxis=dict(
-                range=[
-                    min(results_df['voltage_v'].min() * 0.95, nominal_voltage * 0.9),
-                    max(results_df['voltage_v'].max() * 1.05, nominal_voltage * 1.1)
-                ],
-                tickformat='.1f',
-                title_text="Voltage (V)",
-                gridcolor='#E1E1E1',
-                zerolinecolor='#E1E1E1'
-            ),
-            xaxis=dict(
-                rangeslider=dict(visible=True),
-                type='date',
-                gridcolor='#E1E1E1'
-            ),
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01
-            ),
-            hovermode='x unified'
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+        # Use Streamlit's line chart for visualization
+        st.line_chart(results_df.set_index('timestamp')['voltage_v'])
         
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
@@ -398,41 +137,8 @@ def display_loading_status(results_df: pd.DataFrame):
         results_df = normalize_timestamps(results_df)
 
         # Create figure
-        fig = create_base_figure(
-            title=None,
-            xaxis_title="Time",
-            yaxis_title="Loading (%)"
-        )
-
-        # Add loading percentage line
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['loading_percentage'],
-            mode='lines+markers',
-            name='Loading %',
-            line=dict(color='#0d6efd', width=2),
-            marker=dict(size=6)
-        ))
-
-        # Add threshold lines
-        thresholds = [
-            (120, 'Critical', '#dc3545'),
-            (100, 'Overloaded', '#fd7e14'),
-            (80, 'Warning', '#ffc107'),
-            (50, 'Pre-Warning', '#6f42c1')
-        ]
-
-        for threshold, label, color in thresholds:
-            fig.add_hline(
-                y=threshold,
-                line_dash="dot",
-                line_color=color,
-                annotation_text=f"{label} ({threshold}%)",
-                annotation_position="left"
-            )
-
-        st.plotly_chart(fig, use_container_width=True)
-
+        st.line_chart(results_df.set_index('timestamp')['loading_percentage'])
+        
     except Exception as e:
         logger.error(f"Error displaying loading status: {str(e)}")
         st.error("Error displaying loading status visualization")
@@ -444,23 +150,7 @@ def display_power_factor_time_series(results_df: pd.DataFrame):
         results_df = normalize_timestamps(results_df)
         
         # Create figure
-        fig = create_base_figure(
-            title="Power Factor Over Time",
-            xaxis_title="Time",
-            yaxis_title="Power Factor"
-        )
-        
-        # Add power factor line
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_factor'],
-            mode='lines+markers',
-            name='Power Factor',
-            line=dict(color='#0d6efd', width=2),
-            marker=dict(size=6)
-        ))
-        
-        st.plotly_chart(fig, use_container_width=True)
+        st.line_chart(results_df.set_index('timestamp')['power_factor'])
         
     except Exception as e:
         logger.error(f"Error displaying power factor chart: {str(e)}")
@@ -473,23 +163,7 @@ def display_power_consumption(results_df: pd.DataFrame):
         results_df = normalize_timestamps(results_df)
         
         # Create figure
-        fig = create_base_figure(
-            title="Power Consumption Over Time",
-            xaxis_title="Time",
-            yaxis_title="Power (kW)"
-        )
-        
-        # Add power consumption line
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_kw'],
-            mode='lines+markers',
-            name='Power (kW)',
-            line=dict(color='#0d6efd', width=2),
-            marker=dict(size=6)
-        ))
-        
-        st.plotly_chart(fig, use_container_width=True)
+        st.line_chart(results_df.set_index('timestamp')['power_kw'])
         
     except Exception as e:
         logger.error(f"Error displaying power consumption chart: {str(e)}")
@@ -657,20 +331,7 @@ def display_voltage_over_time(results_df: pd.DataFrame):
         return
 
     # Create figure
-    fig = create_base_figure(
-        title="Voltage Over Time",
-        xaxis_title="Time",
-        yaxis_title="Voltage (V)"
-    )
-    
-    # Add voltage traces
-    for phase, color in [('Red Phase', 'red'), ('Yellow Phase', '#FFD700'), ('Blue Phase', 'blue')]:
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['voltage_v'],
-            name=phase,
-            line=dict(color=color, width=1)
-        ))
+    st.line_chart(results_df.set_index('timestamp')['voltage_v'])
     
     # Add nominal voltage line and limits
     for voltage, label, color in [
@@ -678,19 +339,7 @@ def display_voltage_over_time(results_df: pd.DataFrame):
         (126, "+5% (126V)", "red"),
         (114, "-5% (114V)", "red")
     ]:
-        fig.add_hline(
-            y=voltage,
-            line_dash="dash",
-            line_color=color,
-            annotation_text=label,
-            annotation_position="right"
-        )
+        st.write(f"{label}")
     
     # Update layout
-    fig.update_layout(
-        showlegend=False,
-        margin=dict(t=0, b=0, l=0, r=150),
-        yaxis_range=[110, 130]
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
+    st.write("Voltage Over Time")
