@@ -62,55 +62,63 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
+def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None):
     """Display power time series visualization."""
     try:
-        logger.info("display_power_time_series called with is_transformer_view=" + str(is_transformer_view))
-        
         # Normalize and validate data
         results_df = normalize_timestamps(results_df)
         
         if len(results_df) == 0:
             st.warning("No valid power data available for the selected time range")
             return
-            
-        # Get transformer size if available
-        size_kva = None
-        if is_transformer_view and 'size_kva' in results_df.columns:
-            size_kva = results_df['size_kva'].iloc[0]
-            if size_kva > 0:
-                st.metric("Transformer Size", f"{size_kva:.0f} kVA")
-        
-        # Create base chart for power consumption
-        power_chart = alt.Chart(results_df).mark_line().encode(
+
+        # Create base power chart
+        power_chart = alt.Chart(results_df).mark_line(color='blue').encode(
             x=alt.X('timestamp:T', title='Time'),
-            y=alt.Y('power_kw:Q', title='Power (kW)'),
-            color=alt.value('blue')
+            y=alt.Y('power_kw:Q', title='Power (kW)')
         )
-        
-        # Add transformer size reference line if available
-        if size_kva is not None and size_kva > 0:
-            rule = alt.Chart(pd.DataFrame({'y': [size_kva]})).mark_rule(
-                strokeDash=[2, 2],
-                color='red'
+
+        # Add transformer size reference if provided
+        if size_kva is not None:
+            # Create a DataFrame for the transformer size line
+            transformer_df = pd.DataFrame({'y': [size_kva]})
+            
+            # Add the transformer size line
+            transformer_line = alt.Chart(transformer_df).mark_rule(
+                color='red',
+                strokeDash=[4, 4],
+                size=1
+            ).encode(y='y:Q')
+
+            # Add text annotation for transformer size
+            transformer_text = alt.Chart(transformer_df).mark_text(
+                color='red',
+                align='right',
+                baseline='middle',
+                dx=-5,  # Offset from the right edge
+                fontSize=11,
+                fontWeight='bold'
             ).encode(
-                y='y:Q'
+                y='y:Q',
+                text=alt.value(f'Transformer Size: {size_kva} kVA')
             )
-            
-            # Combine the charts
-            chart = alt.layer(power_chart, rule).properties(
-                width='container',
-                height=250
+
+            # Combine charts
+            power_chart = alt.layer(
+                power_chart,
+                transformer_line,
+                transformer_text
             )
-        else:
-            chart = power_chart.properties(
-                width='container',
-                height=250
-            )
-            
+
+        # Set chart properties
+        power_chart = power_chart.properties(
+            width='container',
+            height=250
+        )
+
         # Display the chart
-        st.altair_chart(chart, use_container_width=True)
-        
+        st.altair_chart(power_chart, use_container_width=True)
+
     except Exception as e:
         logger.error(f"Error displaying power time series: {str(e)}")
         st.error("Error displaying power time series chart")
@@ -160,11 +168,24 @@ def display_voltage_time_series(results_df: pd.DataFrame):
         # Display metrics for voltage thresholds
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Upper Limit", f"{upper_limit:.0f}V", "+5%", delta_color="inverse")
+            st.metric(
+                label="Upper Limit",
+                value=f"{upper_limit:.0f}V",
+                delta="+5%",
+                delta_color="inverse"
+            )
         with col2:
-            st.metric("Nominal", f"{nominal_voltage:.0f}V")
+            st.metric(
+                label="Nominal",
+                value=f"{nominal_voltage:.0f}V"
+            )
         with col3:
-            st.metric("Lower Limit", f"{lower_limit:.0f}V", "-5%", delta_color="inverse")
+            st.metric(
+                label="Lower Limit",
+                value=f"{lower_limit:.0f}V",
+                delta="-5%",
+                delta_color="inverse"
+            )
         
         # Create mock data with phases moving together
         timestamps = results_df['timestamp']
@@ -403,7 +424,7 @@ def display_transformer_tab(df: pd.DataFrame):
     st.markdown("### Power Analysis")
     with st.container():
         create_tile("Power Consumption Over Time", "")
-        display_power_time_series(df, is_transformer_view=True)
+        display_power_time_series(df, size_kva=df['size_kva'].iloc[0] if 'size_kva' in df.columns else None)
 
     # Create section for voltage and current
     st.markdown("### Voltage and Current")
