@@ -605,189 +605,6 @@ def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
     st.plotly_chart(fig, use_container_width=True)
 
 def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: int = None):
-    """Display the complete transformer analysis dashboard with filtering options"""
-    if transformer_df is None or transformer_df.empty:
-        st.warning("No data available for the selected filters. Please check your database connection and try again.")
-        return transformer_df
-
-    # Create tabs
-    tab1, tab2 = st.tabs(["Customer", "Alerts"])
-    
-    # Customer tab content
-    with tab1:
-        # Get transformer ID from results
-        transformer_id = transformer_df['transformer_id'].iloc[0]
-        
-        # Get transformer attributes from data service
-        try:
-            from app.services.cloud_data_service import data_service
-            transformer_data = data_service.get_transformer_attributes(transformer_id)
-            
-            # Extract attributes
-            connected_customers = transformer_data.get('number_of_customers', 0)
-            latitude = transformer_data.get('latitude', 0.0)
-            longitude = transformer_data.get('longitude', 0.0)
-        except Exception as e:
-            logger.error(f"Failed to get transformer attributes: {str(e)}")
-            connected_customers = 0
-            latitude = 0.0
-            longitude = 0.0
-        
-        # Create tiles for transformer attributes
-        st.markdown("### Transformer Attributes")
-        cols = st.columns(4)
-        
-        # Transformer ID
-        with cols[0]:
-            create_tile(
-                "Transformer ID",
-                transformer_id
-            )
-        
-        # Connected Customers
-        with cols[1]:
-            create_tile(
-                "Connected Customers",
-                str(connected_customers)
-            )
-        
-        # Latitude
-        with cols[2]:
-            create_tile(
-                "Latitude",
-                f"{latitude:.4f}"
-            )
-        
-        # Longitude
-        with cols[3]:
-            create_tile(
-                "Longitude",
-                f"{longitude:.4f}"
-            )
-
-        # Create section titles for charts
-        create_section_title("Power Consumption Over Time")
-        
-        # Display power consumption over time
-        display_power_time_series(transformer_df, selected_hour, is_transformer_view=True)
-        
-        # Create two columns for the remaining visualizations
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            create_section_title("Current Over Time")
-            display_current_time_series(transformer_df, selected_hour)
-            
-        with col2:
-            create_section_title("Voltage Over Time")
-            display_voltage_time_series(transformer_df, selected_hour)
-    
-    # Alerts tab content (placeholder for now)
-    with tab2:
-        st.info("Alert configuration and history will be displayed here.")
-    
-    return transformer_df  # Return filtered results for raw data display
-
-def display_customer_tab(df: pd.DataFrame, agg_data: dict = None):
-    """Display customer analysis tab with customer selector and individual charts"""
-    if df is None or df.empty:
-        st.warning("No customer data available")
-        return
-        
-    # Get unique customer IDs
-    customer_ids = sorted(df['customer_id'].unique())
-    
-    # Create subtabs for customer selection and detailed data
-    select_tab, details_tab = st.tabs(["Customer Selection", "Detailed Data"])
-    
-    with select_tab:
-        # Customer selector dropdown
-        selected_customer = st.selectbox(
-            "Select Customer",
-            customer_ids,
-            key="customer_selector"
-        )
-        
-        if selected_customer:
-            # Filter data for selected customer
-            customer_data = df[df['customer_id'] == selected_customer]
-            
-            # Power kW Chart
-            st.subheader("Power Consumption")
-            fig_power = go.Figure()
-            fig_power.add_trace(
-                go.Scatter(
-                    x=customer_data['timestamp'],
-                    y=customer_data['power_kw'],
-                    mode='lines+markers',
-                    name='Power',
-                    line=dict(color='#3b82f6', width=2),
-                    marker=dict(color='#3b82f6', size=6)
-                )
-            )
-            fig_power.update_layout(
-                title=f"Power Consumption - Customer {selected_customer}",
-                xaxis_title="Time",
-                yaxis_title="Power (kW)",
-                height=300
-            )
-            st.plotly_chart(fig_power, use_container_width=True)
-            
-            # Current Chart
-            st.subheader("Current")
-            fig_current = go.Figure()
-            fig_current.add_trace(
-                go.Scatter(
-                    x=customer_data['timestamp'],
-                    y=customer_data['current_a'],
-                    mode='lines+markers',
-                    name='Current',
-                    line=dict(color='#10b981', width=2),
-                    marker=dict(color='#10b981', size=6)
-                )
-            )
-            fig_current.update_layout(
-                title=f"Current - Customer {selected_customer}",
-                xaxis_title="Time",
-                yaxis_title="Current (A)",
-                height=300
-            )
-            st.plotly_chart(fig_current, use_container_width=True)
-            
-            # Voltage Chart
-            st.subheader("Voltage")
-            fig_voltage = go.Figure()
-            fig_voltage.add_trace(
-                go.Scatter(
-                    x=customer_data['timestamp'],
-                    y=customer_data['voltage_v'],
-                    mode='lines+markers',
-                    name='Voltage',
-                    line=dict(color='#f59e0b', width=2),
-                    marker=dict(color='#f59e0b', size=6)
-                )
-            )
-            fig_voltage.update_layout(
-                title=f"Voltage - Customer {selected_customer}",
-                xaxis_title="Time",
-                yaxis_title="Voltage (V)",
-                height=300
-            )
-            st.plotly_chart(fig_voltage, use_container_width=True)
-    
-    with details_tab:
-        if selected_customer:
-            st.subheader(f"Detailed Data - Customer {selected_customer}")
-            customer_data = customer_data.sort_values('timestamp')
-            st.dataframe(
-                customer_data[[
-                    'timestamp', 'power_kw', 'current_a', 
-                    'voltage_v', 'power_factor', 'size_kva'
-                ]].reset_index(drop=True),
-                hide_index=True
-            )
-
-def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: int = None):
     """Display the transformer analysis dashboard"""
     try:
         # Get customer data
@@ -795,14 +612,9 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: i
         customer_df = data_service.get_customer_data(
             transformer_df['transformer_id'].iloc[0],
             pd.to_datetime(transformer_df['timestamp'].iloc[0]).date(),
-            selected_hour
+            pd.to_datetime(transformer_df['timestamp'].iloc[-1]).date()
         )
-        customer_agg = data_service.get_customer_aggregation(
-            transformer_df['transformer_id'].iloc[0],
-            pd.to_datetime(transformer_df['timestamp'].iloc[0]).date(),
-            selected_hour
-        )
-
+        
         # Create tabs for different views
         tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
 
@@ -810,8 +622,8 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: i
             display_transformer_tab(transformer_df, selected_hour)
 
         with tab2:
-            if customer_df is not None and customer_agg is not None:
-                display_customer_tab(customer_df, customer_agg, selected_hour)
+            if customer_df is not None:
+                display_customer_tab(customer_df, selected_hour=selected_hour)
             else:
                 st.warning("No customer data available for this transformer")
 
@@ -851,230 +663,90 @@ def display_transformer_tab(df: pd.DataFrame, selected_hour: int = None):
             is_clickable=True
         )
 
-    # Create charts
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=(
-            "Loading Status Over Time",
-            "Power Factor Over Time",
-            "Power Consumption",
-            "Voltage and Current"
-        )
-    )
+    # Create section for loading status
+    st.markdown("### Loading Status")
+    with st.container():
+        create_tile("Loading Status Over Time", "")
+        display_loading_status_line_chart(df, selected_hour)
 
-    # Loading status line chart
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['loading_percentage'],
-            name="Loading %",
-            line=dict(color='blue')
-        ),
-        row=1, col=1
-    )
+    # Create section for power analysis
+    st.markdown("### Power Analysis")
+    with st.container():
+        create_tile("Power Consumption Over Time", "")
+        display_power_time_series(df, selected_hour, is_transformer_view=True)
 
-    # Power factor line chart
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['power_factor'],
-            name="Power Factor",
-            line=dict(color='green')
-        ),
-        row=1, col=2
-    )
+    # Create section for voltage and current
+    st.markdown("### Voltage and Current")
+    cols = st.columns(2)
+    with cols[0]:
+        create_tile("Current Over Time", "")
+        display_current_time_series(df, selected_hour)
+    with cols[1]:
+        create_tile("Voltage Over Time", "")
+        display_voltage_time_series(df, selected_hour)
 
-    # Power consumption chart
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['power_kw'],
-            name="Power (kW)",
-            line=dict(color='red')
-        ),
-        row=2, col=1
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['power_kva'],
-            name="Power (kVA)",
-            line=dict(color='orange')
-        ),
-        row=2, col=1
-    )
-
-    # Voltage and current chart
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['voltage_v'],
-            name="Voltage (V)",
-            line=dict(color='purple')
-        ),
-        row=2, col=2
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['current_a'],
-            name="Current (A)",
-            line=dict(color='brown'),
-            yaxis="y2"
-        ),
-        row=2, col=2
-    )
-
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        for i in range(1, 3):
-            for j in range(1, 3):
-                fig.add_vline(
-                    x=df['timestamp'].iloc[0].replace(hour=selected_hour),
-                    line_dash="dash",
-                    line_color="gray",
-                    row=i,
-                    col=j
-                )
-
-    # Update layout
-    fig.update_layout(
-        height=800,
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        )
-    )
-
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
-
-def display_customer_tab(df: pd.DataFrame, agg_data: dict, selected_hour: int = None):
+def display_customer_tab(df: pd.DataFrame, selected_hour: int = None):
     """Display customer analysis tab"""
-    # Create metrics row
+    if df is None or df.empty:
+        st.warning("No customer data available")
+        return
+
+    # Create customer selector
+    customer_ids = sorted(df['customer_id'].unique())
+    selected_customer = st.selectbox(
+        "Select Customer",
+        customer_ids,
+        format_func=lambda x: f"Customer {x}"
+    )
+
+    # Filter data for selected customer
+    customer_df = df[df['customer_id'] == selected_customer]
+
+    # Display customer metrics in tiles
     cols = st.columns(4)
+    latest = customer_df.iloc[-1]
     
     with cols[0]:
         create_tile(
-            "Connected Customers",
-            str(agg_data.customer_count),
-            is_clickable=True
+            "Current Power",
+            f"{latest['power_kw']:.1f} kW"
         )
     with cols[1]:
         create_tile(
-            "Total Power (kW)",
-            f"{agg_data.total_power_kw:.1f}",
-            is_clickable=True
+            "Power Factor",
+            f"{latest['power_factor']:.2f}"
         )
     with cols[2]:
         create_tile(
-            "Avg Power Factor",
-            f"{agg_data.avg_power_factor:.2f}",
-            is_clickable=True
+            "Current",
+            f"{latest['current_a']:.1f} A"
         )
     with cols[3]:
         create_tile(
-            "Total Current (A)",
-            f"{agg_data.total_current_a:.1f}",
-            is_clickable=True
+            "Voltage",
+            f"{latest['voltage_v']:.1f} V"
         )
 
-    # Create customer charts
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=(
-            "Customer Power Distribution",
-            "Customer Power Factor Distribution",
-            "Total Customer Power Over Time",
-            "Average Customer Voltage"
-        )
-    )
+    # Display customer charts
+    st.markdown("### Power Consumption")
+    with st.container():
+        create_tile("Power Over Time", "")
+        display_power_time_series(customer_df, selected_hour, is_transformer_view=False)
 
-    # Customer power distribution
-    latest_df = df[df['timestamp'] == df['timestamp'].max()]
-    fig.add_trace(
-        go.Box(
-            y=latest_df['power_kw'],
-            name="Power Distribution (kW)",
-            boxpoints='all',
-            jitter=0.3,
-            pointpos=-1.8
-        ),
-        row=1, col=1
-    )
-
-    # Power factor distribution
-    fig.add_trace(
-        go.Box(
-            y=latest_df['power_factor'],
-            name="Power Factor Distribution",
-            boxpoints='all',
-            jitter=0.3,
-            pointpos=-1.8
-        ),
-        row=1, col=2
-    )
-
-    # Total power over time
-    power_by_time = df.groupby('timestamp')['power_kw'].sum().reset_index()
-    fig.add_trace(
-        go.Scatter(
-            x=power_by_time['timestamp'],
-            y=power_by_time['power_kw'],
-            name="Total Power (kW)",
-            line=dict(color='red')
-        ),
-        row=2, col=1
-    )
-
-    # Average voltage over time
-    voltage_by_time = df.groupby('timestamp')['voltage_v'].mean().reset_index()
-    fig.add_trace(
-        go.Scatter(
-            x=voltage_by_time['timestamp'],
-            y=voltage_by_time['voltage_v'],
-            name="Avg Voltage (V)",
-            line=dict(color='purple')
-        ),
-        row=2, col=2
-    )
-
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        for i in range(1, 3):
-            for j in range(1, 3):
-                fig.add_vline(
-                    x=df['timestamp'].iloc[0].replace(hour=selected_hour),
-                    line_dash="dash",
-                    line_color="gray",
-                    row=i,
-                    col=j
-                )
-
-    # Update layout
-    fig.update_layout(
-        height=800,
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        )
-    )
-
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
+    cols = st.columns(2)
+    with cols[0]:
+        st.markdown("### Current")
+        create_tile("Current Over Time", "")
+        display_current_time_series(customer_df, selected_hour)
+    with cols[1]:
+        st.markdown("### Voltage")
+        create_tile("Voltage Over Time", "")
+        display_voltage_time_series(customer_df, selected_hour)
 
     # Display customer table
-    create_section_banner("Customer Details")
+    st.markdown("### Customer Details")
     st.dataframe(
-        latest_df[['customer_id', 'power_kw', 'power_factor', 'voltage_v', 'current_a']],
+        customer_df[['timestamp', 'power_kw', 'power_factor', 'voltage_v', 'current_a']].sort_values('timestamp', ascending=False),
         use_container_width=True
     )
 
