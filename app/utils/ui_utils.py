@@ -4,7 +4,7 @@ UI utility functions for the Transformer Loading Analysis Application
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, Dict
 import logging
 
@@ -515,3 +515,119 @@ def get_alert_status(loading_percentage: float) -> tuple:
         return "Pre-Warning", "#6f42c1"
     else:
         return "Normal", "#198754"
+
+def display_transformer_dashboard(results: pd.DataFrame, alert_hour: Optional[int] = None, start_date: Optional[date] = None, end_date: Optional[date] = None) -> None:
+    """Display the transformer dashboard with graphs and metrics."""
+    if results.empty:
+        st.error("No data available for the selected transformer")
+        return
+
+    # Get date range from data if not provided
+    if start_date is None:
+        start_date = results.index.min().date()
+    if end_date is None:
+        end_date = results.index.max().date()
+
+    # Create layout
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    
+    # Get latest values for metrics
+    latest_data = results.iloc[-1]
+    transformer_id = latest_data['transformer_id']
+    feeder = latest_data['feeder']
+    size_kva = latest_data['size_kva']
+    loading_pct = latest_data['loading_pct']
+
+    # Display metric tiles
+    with metric_col1:
+        st.metric("Transformer ID", transformer_id)
+    with metric_col2:
+        st.metric("Feeder", feeder)
+    with metric_col3:
+        st.metric("Size (kVA)", f"{size_kva:,.0f}")
+    with metric_col4:
+        st.metric("Loading (%)", f"{loading_pct:.1f}%")
+
+    # Create loading status chart
+    fig = go.Figure()
+
+    # Add loading percentage line
+    fig.add_trace(go.Scatter(
+        x=results.index,
+        y=results['loading_pct'],
+        mode='lines',
+        name='Loading %',
+        line=dict(color='blue', width=2)
+    ))
+
+    # Add threshold line
+    fig.add_hline(
+        y=100,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="100% threshold",
+        annotation_position="bottom right"
+    )
+
+    # Add vertical line for alert hour if specified
+    if alert_hour is not None:
+        # Format time for annotation
+        time_str = f"{alert_hour:02d}:00"
+        
+        # Add vertical line
+        fig.add_vline(
+            x=pd.Timestamp.combine(date.today(), pd.Timestamp(f"{alert_hour:02d}:00").time()),
+            line_dash="dash",
+            line_color="gray",
+            annotation_text=f"Alert hour: {time_str}",
+            annotation_position="top right"
+        )
+
+    # Update layout
+    fig.update_layout(
+        title="Transformer Loading Status",
+        xaxis_title="Time",
+        yaxis_title="Loading (%)",
+        showlegend=True,
+        height=400
+    )
+
+    # Show the plot
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Display customer graph if data is available
+    try:
+        data_service = CloudDataService()
+        customer_data = data_service.get_customer_data(transformer_id, start_date, end_date)
+        
+        if not customer_data.empty:
+            # Create customer consumption chart
+            fig = go.Figure()
+
+            # Add customer consumption lines
+            for customer_id in customer_data['customer_id'].unique():
+                customer_subset = customer_data[customer_data['customer_id'] == customer_id]
+                fig.add_trace(go.Scatter(
+                    x=customer_subset.index,
+                    y=customer_subset['consumption_kwh'],
+                    mode='lines',
+                    name=f'Customer {customer_id}'
+                ))
+
+            # Update layout
+            fig.update_layout(
+                title="Customer Consumption Patterns",
+                xaxis_title="Time",
+                yaxis_title="Consumption (kWh)",
+                showlegend=True,
+                height=400
+            )
+
+            # Show the plot
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("No customer data available for the selected transformer")
+            
+    except Exception as e:
+        logger.error(f"Error displaying customer graph: {str(e)}")
+        st.error("Error displaying customer consumption data")

@@ -44,85 +44,63 @@ def main():
                 max_value=end_date
             )
 
-        # Get available feeders
-        feeders = data_service.get_feeder_options()
-        logger.info(f"Found {len(feeders)} feeders")
-
-        # Create feeder selector
-        selected_feeder = st.selectbox(
-            "Select Feeder",
-            options=feeders,
-            key="feeder_selector"
-        )
-
-        if selected_feeder:
-            # Get transformers for selected feeder
-            transformers = data_service.get_transformer_ids(selected_feeder)
-            logger.info(f"Found {len(transformers)} transformers")
-
-            # Create transformer selector
-            selected_transformer = st.selectbox(
-                "Select Transformer",
-                options=transformers,
-                key="transformer_selector"
+        with col2:
+            alert_hour = st.number_input(
+                "Alert Hour (24-hour format)",
+                min_value=0,
+                max_value=23,
+                value=14
             )
 
-            if selected_transformer:
-                # Get transformer data
-                results = data_service.get_transformer_data(
-                    transformer_id=selected_transformer,
-                    start_date=selected_date,
-                    end_date=selected_date
-                )
+        # Create feeder selection
+        feeder_options = data_service.get_feeder_options()
+        if not feeder_options:
+            st.error("No feeders found in the database")
+            return
 
-                if results is not None:
-                    # Display transformer dashboard
-                    if 'selected_hour' in st.session_state:
-                        hour = st.session_state.selected_hour
-                    else:
-                        hour = None
+        logger.info(f"Found {len(feeder_options)} feeders")
+        selected_feeder = st.selectbox("Select Feeder", feeder_options)
 
-                    display_transformer_dashboard(
-                        results,
-                        start_date=selected_date,
-                        end_date=selected_date,
-                        hour=hour
-                    )
+        # Get transformers for selected feeder
+        transformer_ids = data_service.get_transformer_ids(selected_feeder)
+        if not transformer_ids:
+            st.error(f"No transformers found for feeder {selected_feeder}")
+            return
 
-                    # Alert configuration
-                    if alert_service is not None:
-                        st.markdown("### Alert Configuration")
-                        alert_threshold = st.number_input(
-                            "Alert Threshold (%)",
-                            min_value=0,
-                            max_value=200,
-                            value=100
-                        )
-                        alert_email = st.text_input("Alert Email")
-                        alert_clicked = st.button("Set Alert")
+        logger.info(f"Found {len(transformer_ids)} transformers")
+        selected_transformer = st.selectbox("Select Transformer", transformer_ids)
 
-                    # Check and send alerts if needed
-                    if alert_service is not None and alert_clicked:
-                        if alert_email and alert_threshold:
-                            alert_service.set_alert(
-                                transformer_id=selected_transformer,
-                                threshold=alert_threshold,
-                                email=alert_email,
-                                check_hour=hour
-                            )
-                            st.success("Alert set successfully!")
-                        else:
-                            logger.warning("Missing required parameters for alert")
-                            st.error("Please select all required parameters")
-                else:
-                    st.warning("No data available for the selected transformer")
-            else:
-                st.warning("No transformers found for the selected feeder")
-        else:
-            st.warning("No feeders available")
+        # Get transformer data
+        results = data_service.get_transformer_data(selected_transformer, selected_date)
+        if results is None or results.empty:
+            st.error("No data available for the selected transformer")
+            return
+
+        # Display transformer dashboard
+        display_transformer_dashboard(results, alert_hour)
+
+        # Create email alert section
+        st.markdown("---")
+        st.subheader("Email Alerts")
+        
+        # Create two columns with different widths
+        alert_container = st.container()
+        with alert_container:
+            alert_col1, alert_col2 = st.columns([1, 4])
+            
+            with alert_col1:
+                enable_alerts = st.checkbox("Enable Email Alerts", value=True)
+            
+            with alert_col2:
+                if enable_alerts:
+                    email = st.text_input("Email Address for Alerts")
+                    if email:
+                        alert_service.set_email_alert(selected_transformer, email, alert_hour)
+                        st.success(f"Email alerts set for {selected_transformer} at {alert_hour:02d}:00")
+
     except Exception as e:
-        logger.error(f"Application error: {str(e)}\nTraceback: {traceback.format_exc()}")
-        st.error("An unexpected error occurred. Please refresh the page and try again.")
+        logger.error(f"Application error: {str(e)}\n\nTraceback: {traceback.format_exc()}")
+        st.error("An error occurred while running the application. Please check the logs for details.")
 
 if __name__ == "__main__":
     main()
