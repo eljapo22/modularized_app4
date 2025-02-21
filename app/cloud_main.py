@@ -49,47 +49,39 @@ def main():
         
         create_banner("Transformer Loading Analysis")
         
-        # Main content area
-        main_container = st.container()
-        with main_container:
-            # Analysis Parameters section
+        # Sidebar for analysis parameters
+        with st.sidebar:
             st.subheader("Analysis Parameters")
-            col1, col2, col3 = st.columns([2, 1, 1])
             
-            with col1:
-                # Date selection
-                try:
-                    if from_alert and start_date_str:
-                        try:
-                            url_start_date = datetime.fromisoformat(start_date_str).date()
-                            url_end_date = datetime.fromisoformat(alert_time_str).date() if alert_time_str else max_date
-                            initial_dates = [url_start_date, url_end_date]
-                        except ValueError:
-                            initial_dates = [min_date, max_date]
-                    else:
+            # Date selection
+            try:
+                if from_alert and start_date_str:
+                    try:
+                        url_start_date = datetime.fromisoformat(start_date_str).date()
+                        url_end_date = datetime.fromisoformat(alert_time_str).date() if alert_time_str else max_date
+                        initial_dates = [url_start_date, url_end_date]
+                    except ValueError:
                         initial_dates = [min_date, max_date]
-                    
-                    # Always use list for value to ensure we get a range
-                    date_input = st.date_input(
-                        "Date Range",
-                        value=initial_dates,
-                        min_value=min_date,
-                        max_value=max_date,
-                        key="date_range"
-                    )
-                    
-                    # Handle both list and tuple returns
-                    if isinstance(date_input, (list, tuple)) and len(date_input) >= 2:
-                        start_date = date_input[0]
-                        end_date = date_input[-1]
-                    else:
-                        # If somehow we get a single date, use it for both
-                        start_date = end_date = date_input
-                except Exception as e:
-                    logger.error(f"Error processing date input: {str(e)}")
-                    st.error("Failed to process date input. Please try again.")
-            
-            with col2:
+                else:
+                    initial_dates = [min_date, max_date]
+                
+                # Always use list for value to ensure we get a range
+                date_input = st.date_input(
+                    "Date Range",
+                    value=initial_dates,
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="date_range"
+                )
+                
+                # Handle both list and tuple returns
+                if isinstance(date_input, (list, tuple)) and len(date_input) >= 2:
+                    start_date = date_input[0]
+                    end_date = date_input[-1]
+                else:
+                    # If somehow we get a single date, use it for both
+                    start_date = end_date = date_input
+                
                 # Hour selection
                 selected_hour = st.number_input(
                     "Hour (0-23)",
@@ -109,8 +101,7 @@ def main():
                     options=feeder_options,
                     disabled=True
                 )
-            
-            with col3:
+                
                 # Transformer ID selection
                 with st.spinner("Loading transformers..."):
                     transformer_ids = data_service.get_load_options(selected_feeder)
@@ -123,12 +114,15 @@ def main():
                 )
                 
                 # Action buttons
-                search_clicked = st.button("Search & Analyze", use_container_width=True)
-                alert_clicked = st.button("Set Alert", key="set_alert", use_container_width=True)
-            
-            # Add a separator
-            st.markdown("---")
-            
+                search_clicked = st.button("Search & Analyze")
+                alert_clicked = st.button("Set Alert", key="set_alert")
+            except Exception as e:
+                logger.error(f"Error in sidebar: {str(e)}")
+                st.error("Failed to process inputs. Please try again.")
+        
+        # Main content area for visualization
+        main_container = st.container()
+        with main_container:
             if alert_clicked:
                 logger.info("Alert button clicked")
                 if alert_service is None:
