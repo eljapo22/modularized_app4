@@ -59,7 +59,8 @@ def main():
             value=[min_date, min_date],  # Pass as list for range selection
             min_value=min_date,
             max_value=max_date,
-            key="date_range"
+            key="date_range",
+            format="YYYY-MM-DD"  # Use SQL/ISO format
         )
         
         # Ensure we have a start and end date
