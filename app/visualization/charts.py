@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile, create_colored_banner, create_bordered_header
-from app.config.constants import STATUS_COLORS
+from app.config.constants import STATUS_COLORS, CHART_COLORS
 from app.config.table_config import DECIMAL_PLACES
 
 # Configure logging
@@ -33,47 +33,21 @@ def display_loading_status(results_df: pd.DataFrame):
     df = df.set_index('timestamp')
     
     # Create colored loading percentage segments
-    df['Critical (≥120%)'] = df['loading_percentage'].where(df['loading_percentage'] >= 120)
-    df['Overloaded (≥100%)'] = df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120))
-    df['Warning (≥80%)'] = df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100))
-    df['Pre-Warning (≥50%)'] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80))
-    df['Normal (<50%)'] = df['loading_percentage'].where(df['loading_percentage'] < 50)
+    for status, color in STATUS_COLORS.items():
+        if status == 'Critical':
+            df[status] = df['loading_percentage'].where(df['loading_percentage'] >= 120)
+        elif status == 'Overloaded':
+            df[status] = df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120))
+        elif status == 'Warning':
+            df[status] = df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100))
+        elif status == 'Pre-Warning':
+            df[status] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80))
+        elif status == 'Normal':
+            df[status] = df['loading_percentage'].where(df['loading_percentage'] < 50)
     
-    # Create the line chart with custom colors
-    chart_data = df[[
-        'Critical (≥120%)',
-        'Overloaded (≥100%)',
-        'Warning (≥80%)',
-        'Pre-Warning (≥50%)',
-        'Normal (<50%)'
-    ]]
-    
-    # Apply custom colors using Streamlit's native color support
-    st.markdown(f"""
-        <style>
-            .stChart > div > div > div > svg g g.traces path {{
-                stroke: {STATUS_COLORS['Normal']} !important;
-            }}
-            .stChart > div > div > div > svg g g.traces:nth-child(1) path {{
-                stroke: {STATUS_COLORS['Critical']} !important;
-            }}
-            .stChart > div > div > div > svg g g.traces:nth-child(2) path {{
-                stroke: {STATUS_COLORS['Overloaded']} !important;
-            }}
-            .stChart > div > div > div > svg g g.traces:nth-child(3) path {{
-                stroke: {STATUS_COLORS['Warning']} !important;
-            }}
-            .stChart > div > div > div > svg g g.traces:nth-child(4) path {{
-                stroke: {STATUS_COLORS['Pre-Warning']} !important;
-            }}
-            .stChart > div > div > div > svg g g.traces:nth-child(5) path {{
-                stroke: {STATUS_COLORS['Normal']} !important;
-            }}
-        </style>
-    """, unsafe_allow_html=True)
-    
+    # Create the line chart with native Streamlit colors
     st.line_chart(
-        chart_data,
+        df[['Critical', 'Overloaded', 'Warning', 'Pre-Warning', 'Normal']],
         height=400,
         use_container_width=True
     )
