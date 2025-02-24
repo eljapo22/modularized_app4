@@ -195,25 +195,18 @@ def display_transformer_tab(df: pd.DataFrame):
         )
 
     # Create section for power analysis
-    st.markdown("### Power Analysis")
     with st.container():
-        st.subheader("Power Consumption")
         display_power_time_series(df, is_transformer_view=True)
 
     # Create section for voltage and current
-    st.markdown("### Voltage and Current")
     cols = st.columns(2)
     with cols[0]:
-        st.subheader("Current")
         display_current_time_series(df, is_transformer_view=True)
     with cols[1]:
-        st.subheader("Voltage")
         display_voltage_time_series(df)
 
     # Create section for loading status
-    st.markdown("### Loading Status")
     with st.container():
-        st.subheader("Loading Status")
         display_loading_status(df)
 
 def display_customer_tab(df: pd.DataFrame):
@@ -269,18 +262,15 @@ def display_customer_tab(df: pd.DataFrame):
         )
     
     # Display customer charts
-    st.markdown("### Power Consumption")
     with st.container():
-        st.subheader("Power")
+        st.subheader("Power Consumption")
         display_power_time_series(customer_df, is_transformer_view=False)
 
     cols = st.columns(2)
     with cols[0]:
-        st.markdown("### Current")
         st.subheader("Current")
         display_current_time_series(customer_df, is_transformer_view=False)
     with cols[1]:
-        st.markdown("### Voltage")
         st.subheader("Voltage")
         display_voltage_time_series(customer_df)
 
