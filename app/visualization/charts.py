@@ -106,30 +106,16 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         st.warning("No data available for power consumption visualization.")
         return
     
-    # Create basic figure
-    fig = go.Figure()
+    # Ensure timestamp is datetime and set as index
+    results_df = results_df.copy()
+    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    results_df = results_df.set_index('timestamp')
     
-    # Add power consumption trace - raw values from database
-    fig.add_trace(
-        go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_kw'],
-            mode='lines+markers',
-            name='Power',
-            line=dict(color='#3b82f6', width=2),
-            marker=dict(size=6)
-        )
+    # Create Streamlit line chart
+    st.line_chart(
+        results_df['power_kw'],
+        use_container_width=True
     )
-    
-    # Simple layout
-    fig.update_layout(
-        xaxis_title="Time",
-        yaxis_title="Power (kW)",
-        showlegend=True
-    )
-    
-    # Display the chart
-    st.plotly_chart(fig, use_container_width=True)
 
 def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display current time series visualization."""
