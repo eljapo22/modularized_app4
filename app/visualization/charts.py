@@ -28,18 +28,18 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create a copy of the dataframe
     df = results_df.copy()
     
-    # Create colored loading percentage columns based on thresholds
-    df['Critical Loading'] = df['loading_percentage'].where(df['loading_percentage'] >= 120, None)
-    df['Overloaded Loading'] = df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120), None)
-    df['Warning Loading'] = df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100), None)
-    df['Pre-Warning Loading'] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80), None)
-    df['Normal Loading'] = df['loading_percentage'].where(df['loading_percentage'] < 50, None)
-
-    # Select columns for display in correct order
-    plot_df = df[[
-        'Critical Loading', 'Overloaded Loading', 'Warning Loading', 
-        'Pre-Warning Loading', 'Normal Loading'
-    ]]
+    # Ensure timestamp is datetime for x-axis
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.set_index('timestamp')
+    
+    # Create threshold lines
+    df['Critical (≥120%)'] = 120
+    df['Overloaded (≥100%)'] = 100
+    df['Warning (≥80%)'] = 80
+    df['Pre-Warning (≥50%)'] = 50
+    
+    # Select columns for display
+    plot_df = df[['loading_percentage', 'Critical (≥120%)', 'Overloaded (≥100%)', 'Warning (≥80%)', 'Pre-Warning (≥50%)']]
     
     # Create the line chart
     st.line_chart(
@@ -298,7 +298,8 @@ def display_transformer_data(results_df: pd.DataFrame):
     
     # Loading Status at the bottom
     st.subheader("Loading Status")
-    display_loading_status(df.reset_index())  # Pass with timestamp as column
+    df['loading_percentage'] = df['loading_percentage'].round(2)
+    st.line_chart(df[['loading_percentage']], height=400, use_container_width=True)
 
 def display_customer_data(results_df: pd.DataFrame):
     """Display customer data visualizations."""
