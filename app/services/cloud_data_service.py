@@ -162,13 +162,8 @@ class CloudDataService:
             logger.info(f"Fetching transformer data for {transformer_id}")
             logger.info(f"Date range: {start_date} to {end_date}")
             
-            # Extract feeder number from feeder string (format: "Feeder 1")
+            # Get feeder number from feeder string
             feeder_num = int(feeder.split()[-1])
-            if feeder_num not in FEEDER_NUMBERS:
-                logger.error(f"Invalid feeder number: {feeder_num}")
-                return None
-            
-            # Get table name
             table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
             logger.info(f"Using table: {table}")
             
@@ -176,44 +171,18 @@ class CloudDataService:
             start_ts = datetime.combine(start_date, time.min)
             end_ts = datetime.combine(end_date, time.max)
             
-            # Execute query with parameters in correct order (timestamps first, then transformer_id)
+            # Execute query with parameters in correct order
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
-            results = execute_query(
-                query, 
-                params=(start_ts, end_ts, transformer_id)  # Order matches SQL placeholders
-            )
+            params = (transformer_id, start_ts, end_ts)
             
+            results = execute_query(query, params)
             if not results:
-                logger.warning(f"No data found for transformer {transformer_id} in date range")
+                logger.warning(f"No data found for transformer {transformer_id} in range")
                 return None
-            
-            # Convert to DataFrame and ensure proper timestamp sorting
+                
+            # Convert to DataFrame
             df = pd.DataFrame(results)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
-            
-            # Sort by timestamp to ensure proper ordering
-            df = df.sort_values('timestamp')
-            
-            # Validate data
-            validations = validate_transformer_data(df)
-            if validations:
-                if validations.get('monotonic_increase'):
-                    logger.warning("⚠️ Data shows consistent increasing trend - this may indicate an issue")
-                if validations.get('has_time_gaps'):
-                    logger.warning("⚠️ Found gaps in time series data")
-                if validations.get('unusual_power_range') or validations.get('unusual_loading_range'):
-                    logger.warning("⚠️ Detected unusual value ranges in data")
-            
-            # Analyze trends
-            trends = analyze_trends(df)
-            if trends:
-                if abs(trends.get('power_time_correlation', 0)) > 0.9:
-                    logger.warning("⚠️ Strong correlation between time and power values detected")
-                if abs(trends.get('loading_time_correlation', 0)) > 0.9:
-                    logger.warning("⚠️ Strong correlation between time and loading values detected")
-            
-            # Apply numeric formatting
-            df = self._format_numeric_columns(df)
             
             logger.info(f"Data timestamp range: {df['timestamp'].min()} to {df['timestamp'].max()}")
             logger.info(f"Retrieved {len(df)} records")
@@ -251,7 +220,7 @@ class CloudDataService:
             # Use the range query but with a specific end time
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
             start_ts = datetime.combine(start_date, time.min)
-            params = (start_ts, end_time, transformer_id)  # Fixed: correct parameter order
+            params = (transformer_id, start_ts, end_time)  # Fixed: correct parameter order
             
             results = execute_query(query, params)
             if not results:

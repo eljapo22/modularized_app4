@@ -43,7 +43,8 @@ SELECT
     t."load_range"
 FROM {table_name} t 
 WHERE t."transformer_id" = ?
-  AND t."timestamp" BETWEEN ? AND ?
+  AND t."timestamp" >= ?
+  AND t."timestamp" <= ?
 ORDER BY t."timestamp"
 """
 
