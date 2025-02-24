@@ -240,7 +240,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     st.plotly_chart(fig, use_container_width=True)
     logger.info("Displayed chart")
 
-def display_current_time_series(results_df: pd.DataFrame):
+def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display current time series visualization."""
     try:
         # Normalize timestamps
@@ -262,6 +262,19 @@ def display_current_time_series(results_df: pd.DataFrame):
             line=dict(color='#0d6efd', width=2),
             marker=dict(size=6)
         ))
+
+        # Add transformer size line if in transformer view
+        if is_transformer_view and 'size_kva' in results_df.columns:
+            # Calculate rated current based on size_kva
+            rated_current = results_df['size_kva'].iloc[0] * 1000 / (480 * np.sqrt(3))  # Assuming 480V three-phase
+            if rated_current > 0:
+                fig.add_hline(
+                    y=rated_current,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text="Rated Current",
+                    annotation_position="bottom right"
+                )
 
         st.plotly_chart(fig, use_container_width=True)
 

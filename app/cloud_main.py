@@ -134,6 +134,9 @@ def main():
                         logger.info(f"Customer data timestamp range: {customer_data['timestamp'].min()} to {customer_data['timestamp'].max()}")
                     
                     if transformer_data is not None and not transformer_data.empty:
+                        # Add feeder information to transformer data
+                        transformer_data['feeder'] = feeder
+                        
                         # Create tabs for transformer and customer data
                         tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
                         
@@ -144,7 +147,7 @@ def main():
                             if customer_data is not None and not customer_data.empty:
                                 display_customer_tab(customer_data)
                             else:
-                                st.warning("No customer data available for the selected criteria.")
+                                st.warning("No customer data available for this transformer")
                     else:
                         st.warning("No transformer data available for the selected criteria.")
         
