@@ -4,14 +4,12 @@ Uses app.-prefixed imports required by Streamlit Cloud
 """
 import streamlit as st
 import logging
-from datetime import datetime, date, timedelta
 import pandas as pd
-import numpy as np
-from typing import Optional, Tuple
+from datetime import datetime, timedelta
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
-from app.visualization.charts import display_transformer_dashboard, display_customer_tab
+from app.visualization.charts import display_transformer_dashboard
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -23,71 +21,52 @@ def main():
         layout="wide"
     )
     
+    st.title("Transformer Loading Analysis")
+    
     # Initialize services
     data_service = CloudDataService()
     alert_service = CloudAlertService()
     
-    # Create title
-    st.title("Transformer Loading Analysis")
-    
-    # Create sidebar
+    # Sidebar for controls
     with st.sidebar:
-        st.header("Analysis Parameters")
+        st.header("Controls")
         
         # Date range selection
-        st.subheader("Select Date Range")
-        
-        # Get available date range from data service
-        min_date = data_service.min_date
-        max_date = data_service.max_date
-        default_start = max_date - timedelta(days=7)
-        if default_start < min_date:
-            default_start = min_date
-            
+        st.subheader("Date Range")
         start_date = st.date_input(
             "Start Date",
-            value=default_start,
-            min_value=min_date,
-            max_value=max_date,
-            key="start_date"
+            value=pd.to_datetime("2024-01-01").date(),
+            min_value=pd.to_datetime("2024-01-01").date(),
+            max_value=pd.to_datetime("2024-06-28").date()
         )
         end_date = st.date_input(
             "End Date",
-            value=max_date,
-            min_value=min_date,
-            max_value=max_date,
-            key="end_date"
+            value=pd.to_datetime("2024-06-28").date(),
+            min_value=pd.to_datetime("2024-01-01").date(),
+            max_value=pd.to_datetime("2024-06-28").date()
         )
         
         # Feeder selection
-        st.subheader("Select Feeder")
-        feeder_options = data_service.get_feeder_options()
-        if not feeder_options:
-            st.error("No feeders available")
-            return
-            
+        st.subheader("Feeder Selection")
+        feeders = data_service.get_feeder_options()
         feeder = st.selectbox(
-            "Feeder",
-            options=feeder_options,
-            key="feeder"
+            "Select Feeder",
+            options=feeders,
+            index=0 if feeders else None
         )
         
         # Transformer selection
-        st.subheader("Select Transformer")
-        transformer_options = data_service.get_load_options(feeder)
-        if not transformer_options:
-            st.error("No transformers available")
-            return
-            
+        st.subheader("Transformer Selection")
+        transformers = data_service.get_transformer_options(feeder) if feeder else []
         transformer_id = st.selectbox(
-            "Transformer ID",
-            options=transformer_options,
-            key="transformer"
+            "Select Transformer",
+            options=transformers,
+            index=0 if transformers else None
         )
         
         # Search & Alert button
-        if st.button("Search & Alert", key="search"):
-            logger.info(f"Fetching data for date range: {start_date} to {end_date}")
+        if st.button("Search & Alert"):
+            st.session_state.search_clicked = True
             
             # Get transformer data
             transformer_data = data_service.get_transformer_data_range(
@@ -115,7 +94,7 @@ def main():
                 st.session_state.current_feeder = feeder
                 
                 # Rerun to update display
-                st.experimental_rerun()
+                st.rerun()
     
     # Main content area
     if 'transformer_data' in st.session_state:
@@ -123,16 +102,7 @@ def main():
         customer_data = st.session_state.customer_data
         
         if transformer_data is not None:
-            # Create tabs
-            transformer_tab, customer_tab = st.tabs(["Transformer Analysis", "Customer Analysis"])
-            
-            # Transformer Analysis Tab
-            with transformer_tab:
-                display_transformer_dashboard(transformer_data, customer_data)
-            
-            # Customer Analysis Tab
-            with customer_tab:
-                display_customer_tab(customer_data)
+            display_transformer_dashboard(transformer_data, customer_data)
         else:
             st.warning("No transformer data available for the selected criteria.")
 

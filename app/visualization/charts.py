@@ -132,14 +132,11 @@ def display_power_consumption(results_df: pd.DataFrame):
         logger.error(f"Error displaying power consumption chart: {str(e)}")
         st.error("Error displaying power consumption chart")
 
-def display_transformer_dashboard(transformer_df: pd.DataFrame):
+def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.DataFrame = None):
     # Display the transformer analysis dashboard
     if transformer_df is None or transformer_df.empty:
         st.warning("No data available for transformer dashboard.")
         return
-
-    # Get customer data from session state
-    customer_df = st.session_state.get('customer_data')
     
     # Create tabs for different views
     transformer_tab, customer_tab = st.tabs(["Transformer Analysis", "Customer Analysis"])
