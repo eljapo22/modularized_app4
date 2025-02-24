@@ -29,59 +29,75 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create a copy of the dataframe
     df = results_df.copy()
     
-    # Ensure timestamp is datetime for x-axis
+    # Ensure timestamp is datetime and loading_percentage is numeric
     df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df['loading_percentage'] = pd.to_numeric(df['loading_percentage'], errors='coerce')
+    
+    # Drop any rows with NaN values
+    df = df.dropna(subset=['timestamp', 'loading_percentage'])
+    
+    if df.empty:
+        st.warning("No valid data points available after cleaning")
+        return
     
     # Create figure
     fig = go.Figure()
     
-    # Add traces for each threshold with correct colors
-    if df['loading_percentage'].max() >= 120:
-        fig.add_trace(go.Scatter(
-            x=df['timestamp'],
-            y=df['loading_percentage'].where(df['loading_percentage'] >= 120),
-            name='Critical (≥120%)',
-            line=dict(color=STATUS_COLORS['Critical'])
-        ))
-    
-    if df['loading_percentage'].max() >= 100:
-        fig.add_trace(go.Scatter(
-            x=df['timestamp'],
-            y=df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120)),
-            name='Overloaded (≥100%)',
-            line=dict(color=STATUS_COLORS['Overloaded'])
-        ))
-    
-    if df['loading_percentage'].max() >= 80:
-        fig.add_trace(go.Scatter(
-            x=df['timestamp'],
-            y=df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100)),
-            name='Warning (≥80%)',
-            line=dict(color=STATUS_COLORS['Warning'])
-        ))
-    
-    if df['loading_percentage'].max() >= 50:
-        fig.add_trace(go.Scatter(
-            x=df['timestamp'],
-            y=df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80)),
-            name='Pre-Warning (≥50%)',
-            line=dict(color=STATUS_COLORS['Pre-Warning'])
-        ))
-    
+    # Add the main loading percentage line
     fig.add_trace(go.Scatter(
         x=df['timestamp'],
-        y=df['loading_percentage'].where(df['loading_percentage'] < 50),
-        name='Normal (<50%)',
-        line=dict(color=STATUS_COLORS['Normal'])
+        y=df['loading_percentage'],
+        name='Loading',
+        line=dict(color='#1f77b4', width=2)  # Default blue color, slightly thicker
     ))
     
-    # Update layout
+    # Add horizontal threshold lines with improved formatting
+    thresholds = [
+        (120, 'Critical', 'Critical (≥120%)'),
+        (100, 'Overloaded', 'Overloaded (≥100%)'),
+        (80, 'Warning', 'Warning (≥80%)'),
+        (50, 'Pre-Warning', 'Pre-Warning (≥50%)')
+    ]
+    
+    for value, status, label in thresholds:
+        fig.add_hline(
+            y=value,
+            line=dict(
+                color=STATUS_COLORS[status],
+                dash='dash',
+                width=1.5
+            ),
+            annotation=dict(
+                text=label,
+                xref='paper',
+                x=1.02,
+                showarrow=False,
+                font=dict(
+                    color=STATUS_COLORS[status],
+                    size=10
+                )
+            )
+        )
+    
+    # Update layout with improved formatting
     fig.update_layout(
         height=400,
-        margin=dict(l=0, r=0, t=0, b=0),
+        margin=dict(l=0, r=120, t=30, b=0),  # Increased right margin for threshold labels
         showlegend=True,
-        xaxis_title=None,
-        yaxis_title=None,
+        xaxis=dict(
+            title=None,
+            showgrid=True,
+            gridcolor='rgba(128, 128, 128, 0.2)',
+            tickformat='%Y-%m-%d %H:%M'
+        ),
+        yaxis=dict(
+            title='Loading Percentage',
+            showgrid=True,
+            gridcolor='rgba(128, 128, 128, 0.2)',
+            range=[0, max(130, df['loading_percentage'].max() * 1.1)],
+            ticksuffix='%'
+        ),
+        plot_bgcolor='white',
         legend=dict(
             orientation="h",
             yanchor="bottom",
