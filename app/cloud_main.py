@@ -36,14 +36,26 @@ def main():
         
         # Date range selection
         st.subheader("Select Date Range")
+        
+        # Get available date range from data service
+        min_date = data_service.min_date
+        max_date = data_service.max_date
+        default_start = max_date - timedelta(days=7)
+        if default_start < min_date:
+            default_start = min_date
+            
         start_date = st.date_input(
             "Start Date",
-            value=date.today() - timedelta(days=7),
+            value=default_start,
+            min_value=min_date,
+            max_value=max_date,
             key="start_date"
         )
         end_date = st.date_input(
             "End Date",
-            value=date.today(),
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date,
             key="end_date"
         )
         
@@ -94,7 +106,7 @@ def main():
             
             if transformer_data is not None:
                 # Process alerts
-                alert_service.process_alerts(transformer_data)
+                alert_service.check_and_send_alerts(transformer_data)
                 
                 # Store data in session state
                 st.session_state.transformer_data = transformer_data
