@@ -86,11 +86,10 @@ def main():
             )
             
             # Get customer data
-            customer_data = data_service.get_customer_data_range(
+            customer_data = data_service.get_customer_data(
+                transformer_id=transformer_id,
                 start_date=start_date,
-                end_date=end_date,
-                feeder=feeder,
-                transformer_id=transformer_id
+                end_date=end_date
             )
             
             if transformer_data is not None:
