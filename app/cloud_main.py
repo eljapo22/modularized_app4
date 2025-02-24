@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
-from app.visualization.charts import display_transformer_tab, display_customer_tab
+from app.visualization.charts import display_transformer_dashboard, display_customer_tab
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ def main():
             
             # Transformer Analysis Tab
             with transformer_tab:
-                display_transformer_tab(transformer_data, customer_data)
+                display_transformer_dashboard(transformer_data, customer_data)
             
             # Customer Analysis Tab
             with customer_tab:
