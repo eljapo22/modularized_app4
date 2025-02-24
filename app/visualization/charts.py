@@ -138,13 +138,8 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame):
         st.warning("No data available for transformer dashboard.")
         return
 
-    # Get customer data
-    data_service = CloudDataService()
-    customer_df = data_service.get_customer_data(
-        transformer_df['transformer_id'].iloc[0],
-        pd.to_datetime(transformer_df['timestamp'].iloc[0]).date(),
-        pd.to_datetime(transformer_df['timestamp'].iloc[-1]).date()
-    )
+    # Get customer data from session state
+    customer_df = st.session_state.get('customer_data')
     
     # Create tabs for different views
     tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])

@@ -128,7 +128,7 @@ def main():
             
             # Transformer Analysis Tab
             with transformer_tab:
-                display_transformer_tab(transformer_data)
+                display_transformer_tab(transformer_data, customer_data)
             
             # Customer Analysis Tab
             with customer_tab:
