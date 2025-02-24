@@ -160,32 +160,37 @@ class CloudDataService:
         """
         try:
             logger.info(f"Fetching transformer data for {transformer_id}")
-            logger.info(f"Date range: {start_date} to {end_date}")
             
             # Get feeder number from feeder string
             feeder_num = int(feeder.split()[-1])
             table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
-            logger.info(f"Using table: {table}")
             
             # Convert dates to timestamps for the query
             start_ts = datetime.combine(start_date, time.min)
             end_ts = datetime.combine(end_date, time.max)
             
-            # Execute query with parameters in correct order
+            # Execute query
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
             params = (transformer_id, start_ts, end_ts)
             
             results = execute_query(query, params)
             if not results:
-                logger.warning(f"No data found for transformer {transformer_id} in range")
                 return None
                 
             # Convert to DataFrame
             df = pd.DataFrame(results)
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
             
-            logger.info(f"Data timestamp range: {df['timestamp'].min()} to {df['timestamp'].max()}")
-            logger.info(f"Retrieved {len(df)} records")
+            # Print first few rows of raw data for debugging
+            logger.info("First 5 rows of raw data:")
+            logger.info(df.head().to_string())
+            
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df = df.sort_values('timestamp')
+            
+            # Print some sequential rows to check for cumulative values
+            logger.info("\nSample of sequential power readings:")
+            sample_size = min(10, len(df))
+            logger.info(df[['timestamp', 'power_kw']].head(sample_size).to_string())
             
             return df
             

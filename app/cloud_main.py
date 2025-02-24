@@ -62,7 +62,7 @@ def main():
         
         # Transformer selection
         st.subheader("Select Transformer")
-        transformer_options = data_service.get_transformer_ids(feeder)
+        transformer_options = data_service.get_load_options(feeder)
         if not transformer_options:
             st.error("No transformers available")
             return
