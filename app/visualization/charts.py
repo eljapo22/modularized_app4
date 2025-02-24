@@ -141,80 +141,58 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame):
     # Get customer data from session state
     customer_df = st.session_state.get('customer_data')
     
-    # Create tabs for different views with keys
-    tab1, tab2 = st.tabs(
-        ["Transformer Analysis", "Customer Analysis"],
-        key="main_tabs"
-    )
+    # Create tabs for different views
+    transformer_tab, customer_tab = st.tabs(["Transformer Analysis", "Customer Analysis"])
 
-    with tab1:
-        display_transformer_tab(transformer_df, customer_df)
+    # Display transformer analysis tab
+    with transformer_tab:
+        if transformer_df is None or transformer_df.empty:
+            st.warning("No data available for transformer analysis.")
+            return
 
-    with tab2:
+        # Create metrics row
+        cols = st.columns(4)
+        
+        # Current transformer info
+        latest = transformer_df.iloc[-1]
+        with cols[0]:
+            create_tile(
+                "Transformer ID",
+                latest.get('transformer_id', 'N/A'),
+                is_clickable=False
+            )
+        with cols[1]:
+            # Get number of unique customers
+            customer_count = len(customer_df['customer_id'].unique()) if customer_df is not None else 'N/A'
+            if create_tile(
+                "Customers",
+                str(customer_count),
+                is_clickable=True
+            ):
+                # This will make the Customer Analysis tab active
+                customer_tab.nav_item.button.click()
+        with cols[2]:
+            create_tile(
+                "Latitude",
+                f"{latest.get('latitude', 'N/A')}",
+                is_clickable=False
+            )
+        with cols[3]:
+            create_tile(
+                "Longitude",
+                f"{latest.get('longitude', 'N/A')}",
+                is_clickable=False
+            )
+
+        # Display charts
+        display_transformer_data(transformer_df)
+
+    # Display customer analysis tab
+    with customer_tab:
         if customer_df is not None:
             display_customer_tab(customer_df)
         else:
             st.warning("No customer data available for this transformer")
-
-def display_transformer_tab(df: pd.DataFrame, customer_df: pd.DataFrame = None):
-    # Display transformer analysis tab
-    if df is None or df.empty:
-        st.warning("No data available for transformer analysis.")
-        return
-
-    # Create metrics row
-    cols = st.columns(4)
-    
-    # Current transformer info
-    latest = df.iloc[-1]
-    with cols[0]:
-        create_tile(
-            "Transformer ID",
-            latest.get('transformer_id', 'N/A'),
-            is_clickable=False
-        )
-    with cols[1]:
-        # Get number of unique customers
-        customer_count = len(customer_df['customer_id'].unique()) if customer_df is not None else 'N/A'
-        if create_tile(
-            "Customers",
-            str(customer_count),
-            is_clickable=True
-        ):
-            # Switch to Customer Analysis tab using index
-            st.session_state["main_tabs"] = 1
-            st.rerun()
-    with cols[2]:
-        create_tile(
-            "Latitude",
-            f"{latest.get('latitude', 'N/A')}",
-            is_clickable=False
-        )
-    with cols[3]:
-        create_tile(
-            "Longitude",
-            f"{latest.get('longitude', 'N/A')}",
-            is_clickable=False
-        )
-
-    # Create section for power analysis
-    with st.container():
-        create_colored_banner("Power Consumption")
-        display_power_time_series(df, is_transformer_view=True)
-
-    # Create section for voltage and current
-    cols = st.columns(2)
-    with cols[0]:
-        create_colored_banner("Current")
-        display_current_time_series(df, is_transformer_view=True)
-    with cols[1]:
-        create_colored_banner("Voltage")
-        display_voltage_time_series(df)
-
-    # Create section for loading status
-    with st.container():
-        create_colored_banner("Loading Status")
-        display_loading_status(df)
 
 def display_customer_tab(df: pd.DataFrame):
     # Display customer analysis tab
