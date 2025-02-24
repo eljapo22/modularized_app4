@@ -141,29 +141,19 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame):
     # Get customer data from session state
     customer_df = st.session_state.get('customer_data')
     
-    # Initialize tab selection in session state if not present
-    if 'active_tab' not in st.session_state:
-        st.session_state.active_tab = "Transformer Analysis"
-    
     # Create tabs for different views
-    tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
+    transformer_tab, customer_tab = st.tabs(["Transformer Analysis", "Customer Analysis"])
 
-    # Show content based on active tab
-    if st.session_state.active_tab == "Transformer Analysis":
-        with tab1:
-            display_transformer_tab(transformer_df, customer_df)
-        with tab2:
-            pass  # Empty tab
-    else:
-        with tab1:
-            pass  # Empty tab
-        with tab2:
-            if customer_df is not None:
-                display_customer_tab(customer_df)
-            else:
-                st.warning("No customer data available for this transformer")
+    with transformer_tab:
+        display_transformer_tab(transformer_df, customer_df, customer_tab)
 
-def display_transformer_tab(df: pd.DataFrame, customer_df: pd.DataFrame = None):
+    with customer_tab:
+        if customer_df is not None:
+            display_customer_tab(customer_df)
+        else:
+            st.warning("No customer data available for this transformer")
+
+def display_transformer_tab(df: pd.DataFrame, customer_df: pd.DataFrame = None, customer_tab = None):
     # Display transformer analysis tab
     if df is None or df.empty:
         st.warning("No data available for transformer analysis.")
@@ -187,10 +177,9 @@ def display_transformer_tab(df: pd.DataFrame, customer_df: pd.DataFrame = None):
             "Customers",
             str(customer_count),
             is_clickable=True
-        ):
+        ) and customer_tab:
             # Switch to Customer Analysis tab
-            st.session_state.active_tab = "Customer Analysis"
-            st.experimental_rerun()
+            customer_tab.active = True
     with cols[2]:
         create_tile(
             "Latitude",
