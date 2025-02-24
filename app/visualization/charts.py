@@ -35,41 +35,11 @@ def display_loading_status(results_df: pd.DataFrame):
     df['Pre-Warning Loading'] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80), None)
     df['Normal Loading'] = df['loading_percentage'].where(df['loading_percentage'] < 50, None)
 
-    # Create threshold lines
-    df['Critical (≥120%)'] = 120
-    df['Overloaded (≥100%)'] = 100
-    df['Warning (≥80%)'] = 80
-    df['Pre-Warning (≥50%)'] = 50
-    df['Normal (<50%)'] = 0
-
     # Select columns for display in correct order
     plot_df = df[[
         'Critical Loading', 'Overloaded Loading', 'Warning Loading', 
-        'Pre-Warning Loading', 'Normal Loading',
-        'Critical (≥120%)', 'Overloaded (≥100%)', 'Warning (≥80%)', 
-        'Pre-Warning (≥50%)', 'Normal (<50%)'
+        'Pre-Warning Loading', 'Normal Loading'
     ]]
-    
-    # Add custom CSS for chart colors and centered legend
-    st.markdown(f"""
-        <style>
-        /* Loading status line colors */
-        .loading-chart {{
-            --critical-color: {STATUS_COLORS['Critical']};
-            --overloaded-color: {STATUS_COLORS['Overloaded']};
-            --warning-color: {STATUS_COLORS['Warning']};
-            --pre-warning-color: {STATUS_COLORS['Pre-Warning']};
-            --normal-color: {STATUS_COLORS['Normal']};
-        }}
-        /* Center the legend */
-        .stMarkdown div[data-testid="stMarkdownContainer"] {{
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            margin-top: 0.5rem;
-        }}
-        </style>
-    """, unsafe_allow_html=True)
     
     # Create the line chart
     st.line_chart(
@@ -80,7 +50,7 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Add color-coded legend below the chart
     legend_html = f"""
-        <div>
+        <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 0.5rem;">
             <span style="color: {STATUS_COLORS['Critical']}">●</span> Critical (≥120%)
             <span style="color: {STATUS_COLORS['Overloaded']}">●</span> Overloaded (≥100%)
             <span style="color: {STATUS_COLORS['Warning']}">●</span> Warning (≥80%)
