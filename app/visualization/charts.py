@@ -21,7 +21,7 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     return df
 
-def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
+def create_base_figure(xaxis_title: str, yaxis_title: str):
     # Create a base plotly figure with common settings
     fig = go.Figure()
     
@@ -41,7 +41,7 @@ def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
         },
         'plot_bgcolor': 'white',
         'paper_bgcolor': 'white',
-        'margin': dict(t=30, b=0, l=0, r=0)
+        'margin': dict(t=0, b=0, l=0, r=0)
     }
     
     fig.update_layout(**layout_updates)
@@ -167,24 +167,11 @@ def display_power_consumption(results_df: pd.DataFrame):
         # Normalize timestamps
         results_df = normalize_timestamps(results_df)
         
-        # Create figure
-        fig = create_base_figure(
-            title="Power Consumption Over Time",
-            xaxis_title="Time",
-            yaxis_title="Power (kW)"
+        # Create power consumption chart
+        st.line_chart(
+            results_df['power_kw'],
+            use_container_width=True
         )
-        
-        # Add power consumption line
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_kw'],
-            mode='lines+markers',
-            name='Power (kW)',
-            line=dict(color='#0d6efd', width=2),
-            marker=dict(size=6)
-        ))
-        
-        st.plotly_chart(fig, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying power consumption chart: {str(e)}")
