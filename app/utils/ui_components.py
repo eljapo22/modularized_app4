@@ -47,28 +47,8 @@ def create_section_banner(title: str):
     st.header(title)
 
 def create_bordered_header(title: str):
-    """Create a header with a professional border that spans the container width"""
-    css = """
-    <style>
-    .bordered-header {
-        border: 1px solid #dee2e6;
-        border-radius: 0.25rem;
-        padding: 0.75rem;
-        margin-bottom: 1rem;
-        background-color: white;
-    }
-    .bordered-header h3 {
-        margin: 0;
-        color: #212529;
-        font-size: 1.1rem;
-        font-weight: 500;
-    }
-    </style>
-    """
-    html = f"""
-    <div class="bordered-header">
-        <h3>{title}</h3>
-    </div>
-    """
-    st.markdown(css, unsafe_allow_html=True)
-    st.markdown(html, unsafe_allow_html=True)
+    """Create a header with a professional border using Streamlit elements"""
+    with st.container():
+        st.markdown(f"""---""")
+        st.markdown(f"### {title}")
+        st.markdown(f"""---""")
