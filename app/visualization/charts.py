@@ -276,12 +276,6 @@ def display_transformer_tab(df: pd.DataFrame):
             is_clickable=True
         )
 
-    # Create section for loading status
-    st.markdown("### Loading Status")
-    with st.container():
-        create_tile("Loading Status Over Time", "")
-        display_loading_status_line_chart(df)
-
     # Create section for power analysis
     st.markdown("### Power Analysis")
     with st.container():
@@ -297,6 +291,12 @@ def display_transformer_tab(df: pd.DataFrame):
     with cols[1]:
         create_tile("Voltage Over Time", "")
         display_voltage_time_series(df)
+
+    # Create section for loading status
+    st.markdown("### Loading Status")
+    with st.container():
+        create_tile("Loading Status Over Time", "")
+        display_loading_status_line_chart(df)
 
 def display_customer_tab(df: pd.DataFrame):
     # Display customer analysis tab
@@ -517,18 +517,35 @@ def display_transformer_data(results_df: pd.DataFrame):
 
     # Power Consumption
     st.subheader("Power Consumption")
-    display_power_time_series(results_df, is_transformer_view=True)
+    # Ensure timestamp is datetime and set as index
+    df_power = results_df.copy()
+    df_power['timestamp'] = pd.to_datetime(df_power['timestamp'])
+    df_power = df_power.set_index('timestamp')
+    st.line_chart(df_power['power_kw'])
 
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("Current")
-        display_current_time_series(results_df, is_transformer_view=True)
+        df_current = results_df.copy()
+        df_current['timestamp'] = pd.to_datetime(df_current['timestamp'])
+        df_current = df_current.set_index('timestamp')
+        st.line_chart(df_current['current_a'])
         
     with col2:
         st.subheader("Voltage")
-        display_voltage_time_series(results_df, is_transformer_view=True)
+        df_voltage = results_df.copy()
+        df_voltage['timestamp'] = pd.to_datetime(df_voltage['timestamp'])
+        df_voltage = df_voltage.set_index('timestamp')
+        st.line_chart(df_voltage['voltage_v'])
+    
+    # Loading Status at the bottom
+    st.subheader("Loading Status")
+    df_loading = results_df.copy()
+    df_loading['timestamp'] = pd.to_datetime(df_loading['timestamp'])
+    df_loading = df_loading.set_index('timestamp')
+    st.line_chart(df_loading['loading_percentage'])
 
 def display_customer_data(results_df: pd.DataFrame):
     """Display customer data visualizations."""
@@ -538,15 +555,24 @@ def display_customer_data(results_df: pd.DataFrame):
 
     # Power Consumption
     st.subheader("Power Consumption")
-    display_power_time_series(results_df)
+    df_power = results_df.copy()
+    df_power['timestamp'] = pd.to_datetime(df_power['timestamp'])
+    df_power = df_power.set_index('timestamp')
+    st.line_chart(df_power['power_kw'])
 
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("Current")
-        display_current_time_series(results_df)
+        df_current = results_df.copy()
+        df_current['timestamp'] = pd.to_datetime(df_current['timestamp'])
+        df_current = df_current.set_index('timestamp')
+        st.line_chart(df_current['current_a'])
         
     with col2:
         st.subheader("Voltage")
-        display_voltage_time_series(results_df)
+        df_voltage = results_df.copy()
+        df_voltage['timestamp'] = pd.to_datetime(df_voltage['timestamp'])
+        df_voltage = df_voltage.set_index('timestamp')
+        st.line_chart(df_voltage['voltage_v'])

@@ -10,7 +10,7 @@ import pandas as pd
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
-from app.utils.ui_utils import create_banner, display_transformer_dashboard
+from app.utils.ui_utils import create_banner, display_transformer_data, display_customer_data
 from app.visualization.charts import display_customer_tab
 
 # Configure logging
@@ -137,17 +137,15 @@ def main():
                         # Add feeder information to transformer data
                         transformer_data['feeder'] = feeder
                         
-                        # Create tabs for transformer and customer data
-                        tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
+                        # Display transformer data
+                        if transformer_data is not None:
+                            st.header("Transformer Analysis")
+                            display_transformer_data(transformer_data)
                         
-                        with tab1:
-                            display_transformer_dashboard(transformer_data)
-                        
-                        with tab2:
-                            if customer_data is not None and not customer_data.empty:
-                                display_customer_tab(customer_data)
-                            else:
-                                st.warning("No customer data available for this transformer")
+                        # Display customer data
+                        if customer_data is not None:
+                            st.header("Customer Analysis")
+                            display_customer_data(customer_data)
                     else:
                         st.warning("No transformer data available for the selected criteria.")
         
