@@ -141,19 +141,22 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame):
     # Get customer data from session state
     customer_df = st.session_state.get('customer_data')
     
-    # Create tabs for different views
-    transformer_tab, customer_tab = st.tabs(["Transformer Analysis", "Customer Analysis"])
+    # Create tabs for different views with keys
+    tab1, tab2 = st.tabs(
+        ["Transformer Analysis", "Customer Analysis"],
+        key="main_tabs"
+    )
 
-    with transformer_tab:
-        display_transformer_tab(transformer_df, customer_df, customer_tab)
+    with tab1:
+        display_transformer_tab(transformer_df, customer_df)
 
-    with customer_tab:
+    with tab2:
         if customer_df is not None:
             display_customer_tab(customer_df)
         else:
             st.warning("No customer data available for this transformer")
 
-def display_transformer_tab(df: pd.DataFrame, customer_df: pd.DataFrame = None, customer_tab = None):
+def display_transformer_tab(df: pd.DataFrame, customer_df: pd.DataFrame = None):
     # Display transformer analysis tab
     if df is None or df.empty:
         st.warning("No data available for transformer analysis.")
@@ -168,7 +171,7 @@ def display_transformer_tab(df: pd.DataFrame, customer_df: pd.DataFrame = None, 
         create_tile(
             "Transformer ID",
             latest.get('transformer_id', 'N/A'),
-            is_clickable=True
+            is_clickable=False
         )
     with cols[1]:
         # Get number of unique customers
@@ -177,20 +180,21 @@ def display_transformer_tab(df: pd.DataFrame, customer_df: pd.DataFrame = None, 
             "Customers",
             str(customer_count),
             is_clickable=True
-        ) and customer_tab:
-            # Switch to Customer Analysis tab
-            customer_tab.active = True
+        ):
+            # Switch to Customer Analysis tab using index
+            st.session_state["main_tabs"] = 1
+            st.rerun()
     with cols[2]:
         create_tile(
             "Latitude",
             f"{latest.get('latitude', 'N/A')}",
-            is_clickable=True
+            is_clickable=False
         )
     with cols[3]:
         create_tile(
             "Longitude",
             f"{latest.get('longitude', 'N/A')}",
-            is_clickable=True
+            is_clickable=False
         )
 
     # Create section for power analysis
