@@ -101,65 +101,15 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
         st.error("Error displaying loading status chart")
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
-    # Display power consumption time series visualization
-    logger.info(f"display_power_time_series called with is_transformer_view={is_transformer_view}")
-    
-    st.write("Power Consumption")
-    
+    """Display power consumption time series visualization."""
     if results_df is None or results_df.empty:
-        st.warning("No data available for power consumption visualization. Please check your database connection and try again.")
+        st.warning("No data available for power consumption visualization.")
         return
     
-    logger.info(f"DataFrame columns: {results_df.columns.tolist()}")
+    # Create basic figure
+    fig = go.Figure()
     
-    # Handle size_kva based on view type
-    if not is_transformer_view:
-        # For customer view, ensure size_kva is 0
-        if 'size_kva' in results_df.columns:
-            results_df['size_kva'] = 0
-    elif 'size_kva' in results_df.columns:
-        # For transformer view, log the value
-        logger.info(f"size_kva value in visualization: {results_df['size_kva'].iloc[0]}")
-
-    # Normalize timestamps
-    results_df = normalize_timestamps(results_df)
-
-    # Ensure timestamp is in datetime format and reset index if it's the index
-    if isinstance(results_df.index, pd.DatetimeIndex):
-        results_df = results_df.reset_index()
-        logger.info("Reset DatetimeIndex to column")
-    
-    logger.info(f"Plotting power time series for period: {results_df['timestamp'].min()} to {results_df['timestamp'].max()}")
-    logger.info(f"Timestamp dtype: {results_df['timestamp'].dtype}")
-    
-    # Log some sample data for debugging
-    if not results_df.empty:
-        logger.info("Sample power data:")
-        logger.info(results_df[['timestamp', 'power_kw']].head().to_string())
-        if 'size_kva' in results_df.columns:
-            logger.info(f"Transformer size: {results_df['size_kva'].iloc[0]} kVA")
-            logger.info(f"Max power: {results_df['power_kw'].max():.2f} kW")
-            logger.info(f"Min power: {results_df['power_kw'].min():.2f} kW")
-
-    # Sample a few timestamps to verify format
-    sample_timestamps = results_df['timestamp'].head()
-    logger.info(f"Sample timestamps: {sample_timestamps.tolist()}")
-        
-    # Round power values based on view type
-    if is_transformer_view:
-        results_df['power_kw'] = results_df['power_kw'].round(2)  # xx.xx for transformers
-    else:
-        results_df['power_kw'] = results_df['power_kw'].round(3)  # x.xxx for customers
-    
-    # Create figure
-    fig = create_base_figure(
-        None,
-        None,
-        "Power (kW)"
-    )
-    logger.info("Created base figure")
-    
-    # Add power consumption trace with simpler formatting
+    # Add power consumption trace - raw values from database
     fig.add_trace(
         go.Scatter(
             x=results_df['timestamp'],
@@ -167,79 +117,19 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             mode='lines+markers',
             name='Power',
             line=dict(color='#3b82f6', width=2),
-            marker=dict(color='#3b82f6', size=6),
-            hoverinfo='skip'
+            marker=dict(size=6)
         )
     )
-    logger.info("Added power consumption trace")
     
-    # Add transformer size line if in transformer view and size_kva exists
-    if is_transformer_view and 'size_kva' in results_df.columns and not pd.isna(results_df['size_kva'].iloc[0]):
-        logger.info("Adding transformer size line")
-        size_kva = float(results_df['size_kva'].iloc[0])
-        logger.info(f"Using size_kva value: {size_kva}")
-        
-        # Add size_kva limit line
-        fig.add_trace(
-            go.Scatter(
-                x=results_df['timestamp'],
-                y=[size_kva] * len(results_df),
-                mode='lines',
-                name='Transformer Capacity (kVA)',
-                line=dict(color='red', width=2, dash='dash'),
-                hoverinfo='skip'
-            )
-        )
-        logger.info("Added size_kva trace")
-        
-        # Add size_kva value annotation
-        fig.add_annotation(
-            x=results_df['timestamp'].iloc[-1],
-            y=size_kva,
-            text=f"{size_kva:.2f} kVA",
-            showarrow=False,
-            yshift=10,
-            xshift=5,
-            font=dict(
-                color='red'
-            )
-        )
-        logger.info("Added size_kva annotation")
-        
-        # Update y-axis to include size_kva
-        y_max = max(max(results_df['power_kw']), size_kva) * 1.35
-        logger.info(f"Set y_max to {y_max} to include size_kva")
-    else:
-        logger.info("Not in transformer view or no size_kva column")
-        y_max = max(results_df['power_kw']) * 1.35
-
-    # Update layout with simpler time formatting
+    # Simple layout
     fig.update_layout(
-        showlegend=True,
-        yaxis=dict(
-            title="Power (kW)",
-            range=[0, y_max],
-            automargin=True,
-            gridcolor='#E1E1E1',
-            tickformat='.2f' if is_transformer_view else '.3f'  # Match rounding precision
-        ),
-        xaxis=dict(
-            title='Time',
-            gridcolor='#E1E1E1',
-            type='date',
-            tickformat='%H:%M'  # Only show hour:minute
-        ),
-        plot_bgcolor='white',
-        legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=0.01
-        )
+        xaxis_title="Time",
+        yaxis_title="Power (kW)",
+        showlegend=True
     )
-
+    
+    # Display the chart
     st.plotly_chart(fig, use_container_width=True)
-    logger.info("Displayed chart")
 
 def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display current time series visualization."""

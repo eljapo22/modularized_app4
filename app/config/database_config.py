@@ -30,27 +30,21 @@ ORDER BY hours.hour
 """
 
 TRANSFORMER_DATA_RANGE_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    hours.hour as "timestamp",
+    t."timestamp",
     t."voltage_v",
     t."size_kva",
-    CAST(t."loading_percentage" AS DECIMAL(5,2)) as "loading_percentage",
+    t."loading_percentage",
     t."current_a",
     t."power_kw",
     t."power_kva",
     t."power_factor",
     t."transformer_id",
     t."load_range"
-FROM hours
-LEFT JOIN {table_name} t ON t."timestamp" = hours.hour AND t."transformer_id" = ?
-ORDER BY hours.hour
+FROM {table_name} t 
+WHERE t."transformer_id" = ?
+  AND t."timestamp" BETWEEN ? AND ?
+ORDER BY t."timestamp"
 """
 
 CUSTOMER_DATA_QUERY = """
