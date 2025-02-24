@@ -161,11 +161,11 @@ class CloudDataService:
             start_ts = datetime.combine(start_date, time.min)
             end_ts = datetime.combine(end_date, time.max)
             
-            # Execute query
+            # Execute query with parameters in correct order (timestamps first, then transformer_id)
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
             results = execute_query(
                 query, 
-                params=(transformer_id, start_ts, end_ts)  # Match SQL parameter order
+                params=(start_ts, end_ts, transformer_id)  # Order matches SQL placeholders
             )
             
             if not results:
@@ -275,11 +275,11 @@ class CloudDataService:
             start_ts = datetime.combine(start_date, time.min)
             end_ts = datetime.combine(end_date, time.max)
             
-            # Execute query
+            # Execute query with all required parameters
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
                 query,
-                params=(start_ts, end_ts, transformer_id)  # Match SQL parameter order
+                params=(start_ts, end_ts, transformer_id, start_date, end_date)  # All 5 parameters for the query
             )
             
             if not results:
