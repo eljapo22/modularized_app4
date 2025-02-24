@@ -49,56 +49,32 @@ def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
 
 def display_loading_status_line_chart(results_df: pd.DataFrame):
     """Display loading status as a line chart with threshold indicators."""
-    try:
-        # Ensure timestamp is in datetime format
-        results_df = results_df.copy()
-        results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
-        
-        # Create the line chart
-        fig = create_base_figure(
-            title="Loading Status Over Time",
-            xaxis_title="Time",
-            yaxis_title="Loading (%)"
-        )
-        
-        # Add loading percentage line
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['loading_percentage'],
-            mode='lines+markers',
-            name='Loading %',
-            line=dict(color='#0d6efd', width=2),
-            marker=dict(size=6)
-        ))
-        
-        # Add threshold lines
-        thresholds = [
-            (120, 'Critical', '#dc3545'),
-            (100, 'Overloaded', '#fd7e14'),
-            (80, 'Warning', '#ffc107'),
-            (50, 'Pre-Warning', '#6f42c1')
-        ]
-        
-        for threshold, label, color in thresholds:
-            fig.add_hline(
-                y=threshold,
-                line_dash="dot",
-                line_color=color,
-                annotation_text=f"{label} ({threshold}%)",
-                annotation_position="left"
-            )
-        
-        # Update layout
-        fig.update_layout(
-            showlegend=False,
-            margin=dict(t=0, b=0, l=0, r=150)  # Extra right margin for threshold labels
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-    except Exception as e:
-        logger.error(f"Error displaying loading status chart: {str(e)}")
-        st.error("Error displaying loading status chart")
+    if results_df is None or results_df.empty:
+        st.warning("No data available for loading status chart")
+        return
+
+    # Create a copy of the dataframe
+    df = results_df.copy()
+    
+    # Ensure timestamp is datetime
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.set_index('timestamp')
+
+    # Create threshold columns for visualization
+    df['Critical (120%)'] = 120
+    df['Overloaded (100%)'] = 100
+    df['Warning (80%)'] = 80
+    df['Pre-Warning (50%)'] = 50
+
+    # Select columns for display
+    plot_df = df[['loading_percentage', 'Critical (120%)', 'Overloaded (100%)', 'Warning (80%)', 'Pre-Warning (50%)']]
+    
+    # Create the line chart using Streamlit
+    st.line_chart(
+        plot_df,
+        height=400,
+        use_container_width=True
+    )
 
 def display_loading_status(results_df: pd.DataFrame):
     """Display loading status chart."""
