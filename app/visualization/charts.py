@@ -138,63 +138,53 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.
         st.warning("No data available for transformer dashboard.")
         return
 
-    # Initialize tab index in session state if not present
-    if 'selected_tab' not in st.session_state:
-        st.session_state.selected_tab = 0
-    
-    # Create tabs for different views
-    tabs = st.tabs(["Transformer Analysis", "Customer Analysis"])
-    
-    # Display transformer analysis tab
-    with tabs[0]:
-        if transformer_df is None or transformer_df.empty:
-            st.warning("No data available for transformer analysis.")
-            return
-
-        # Create metrics row
-        cols = st.columns(4)
-        
-        # Current transformer info
-        latest = transformer_df.iloc[-1]
-        with cols[0]:
-            create_tile(
-                "Transformer ID",
-                latest.get('transformer_id', 'N/A'),
-                is_clickable=False
-            )
-        with cols[1]:
-            # Get number of unique customers
-            customer_count = len(customer_df['customer_id'].unique()) if customer_df is not None else 'N/A'
-            if create_tile(
-                "Customers",
-                str(customer_count),
-                is_clickable=True
-            ):
-                # Switch to Customer Analysis tab
-                st.session_state.selected_tab = 1
-                st.rerun()
-        with cols[2]:
-            create_tile(
-                "Latitude",
-                f"{latest.get('latitude', 'N/A')}",
-                is_clickable=False
-            )
-        with cols[3]:
-            create_tile(
-                "Longitude",
-                f"{latest.get('longitude', 'N/A')}",
-                is_clickable=False
-            )
-
-        # Display charts
-        display_transformer_data(transformer_df)
-
-    # Display customer analysis tab
-    with tabs[1]:
+    # Show customer analysis if tile was clicked
+    if 'show_customer_analysis' in st.session_state and st.session_state.show_customer_analysis:
+        st.session_state.show_customer_analysis = False  # Reset for next time
         if customer_df is not None:
             display_customer_tab(customer_df)
+            return
         else:
-            st.warning("No customer data available for this transformer")
+            st.warning("No customer data available for this transformer.")
+            return
+
+    # Create metrics row
+    cols = st.columns(4)
+    
+    # Current transformer info
+    latest = transformer_df.iloc[-1]
+    with cols[0]:
+        create_tile(
+            "Transformer ID",
+            latest.get('transformer_id', 'N/A'),
+            is_clickable=False
+        )
+    with cols[1]:
+        # Get number of unique customers
+        customer_count = len(customer_df['customer_id'].unique()) if customer_df is not None else 'N/A'
+        if create_tile(
+            "Customers",
+            str(customer_count),
+            is_clickable=True
+        ):
+            # Show customer analysis
+            st.session_state.show_customer_analysis = True
+            st.rerun()
+    with cols[2]:
+        create_tile(
+            "Latitude",
+            f"{latest.get('latitude', 'N/A')}",
+            is_clickable=False
+        )
+    with cols[3]:
+        create_tile(
+            "Longitude",
+            f"{latest.get('longitude', 'N/A')}",
+            is_clickable=False
+        )
+
+    # Display transformer data
+    display_transformer_data(transformer_df)
 
 def display_customer_tab(df: pd.DataFrame):
     # Display customer analysis tab
