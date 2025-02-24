@@ -57,7 +57,7 @@ def main():
         
         # Transformer selection
         st.subheader("Transformer Selection")
-        transformers = data_service.get_transformer_options(feeder) if feeder else []
+        transformers = data_service.get_load_options(feeder) if feeder else []
         transformer_id = st.selectbox(
             "Select Transformer",
             options=transformers,
