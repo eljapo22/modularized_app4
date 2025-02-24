@@ -6,33 +6,57 @@ import streamlit as st
 
 def create_tile(title: str, value: str, has_multiline_title: bool = False, is_clickable: bool = False):
     """Create a styled tile using Streamlit components"""
-    with st.container():
-        css = """
-        <style>
-        .stMetric .metric-container {
-            background-color: white !important;
-            border: 1px solid #dee2e6 !important;
-            border-radius: 0.25rem !important;
-            padding: 0.75rem !important;
-            margin-bottom: 1rem !important;
-        }
-        .stMetric .metric-title {
-            color: #6c757d !important;
-            font-size: 0.75rem !important;
-            font-weight: 400 !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.5px !important;
-        }
-        .stMetric .metric-value {
-            color: #212529 !important;
-            font-size: 1.25rem !important;
-            font-weight: 500 !important;
-            font-family: monospace !important;
-        }
-        </style>
-        """
-        st.markdown(css, unsafe_allow_html=True)
-        st.metric(title, value)
+    
+    # Create unique key for this tile
+    key = f"tile_{title.lower().replace(' ', '_')}"
+    
+    # Define CSS for the tile
+    css = """
+    <style>
+    .metric-container {
+        background-color: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .metric-container:hover {
+        background-color: #f8f9fa;
+    }
+    .metric-title {
+        color: #6c757d;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+    .metric-value {
+        color: #212529;
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+    </style>
+    """
+    
+    # Create HTML for the tile
+    html = f"""
+    <div class="metric-container" onclick="this.click()">
+        <div class="metric-title">{title}</div>
+        <div class="metric-value">{value}</div>
+    </div>
+    """
+    
+    # Add CSS to the page
+    st.markdown(css, unsafe_allow_html=True)
+    
+    # Create a clickable container if needed
+    if is_clickable:
+        clicked = st.markdown(html, unsafe_allow_html=True)
+        return clicked
+    else:
+        st.markdown(html, unsafe_allow_html=True)
+        return False
 
 def create_section_title(title: str):
     """Create a section title with the same styling as tiles"""
