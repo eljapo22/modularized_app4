@@ -6,7 +6,6 @@ import pandas as pd
 from datetime import datetime, date, time, timedelta
 import logging
 from typing import List, Optional, Dict
-import time
 
 from app.config.database_config import (
     TRANSFORMER_DATA_QUERY,
