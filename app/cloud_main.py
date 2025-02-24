@@ -3,155 +3,127 @@ Cloud-specific entry point for the Transformer Loading Analysis Application
 Uses app.-prefixed imports required by Streamlit Cloud
 """
 import streamlit as st
-import traceback
-from datetime import datetime, time, date
 import logging
+from datetime import datetime, date, timedelta
 import pandas as pd
+import numpy as np
+from typing import Optional, Tuple
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
-from app.utils.ui_utils import create_banner, display_transformer_data, display_customer_data
-from app.visualization.charts import display_customer_tab
+from app.visualization.charts import display_transformer_data, display_customer_data
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def main():
-    try:
-        # Initialize services first to get date range
-        try:
-            data_service = CloudDataService()
-            alert_service = CloudAlertService()
-            logger.info("Services initialized successfully")
-        except Exception as e:
-            logger.error(f"Error initializing services: {str(e)}")
-            st.error("Failed to initialize some services. Some features may be limited.")
-            data_service = CloudDataService()  # Retry just the data service
-            alert_service = None
-
-        # Get available date range
-        min_date, max_date = data_service.get_available_dates()
-        logger.info(f"Got date range: {min_date} to {max_date}")
+    st.set_page_config(
+        page_title="Transformer Loading Analysis",
+        page_icon="⚡",
+        layout="wide"
+    )
+    
+    # Initialize services
+    data_service = CloudDataService()
+    alert_service = CloudAlertService()
+    
+    # Create title
+    st.title("Transformer Loading Analysis")
+    
+    # Create sidebar
+    with st.sidebar:
+        st.header("Analysis Parameters")
+        
+        # Date range selection
+        st.subheader("Select Date Range")
+        start_date = st.date_input(
+            "Start Date",
+            value=date.today() - timedelta(days=7),
+            key="start_date"
+        )
+        end_date = st.date_input(
+            "End Date",
+            value=date.today(),
+            key="end_date"
+        )
+        
+        # Feeder selection
+        st.subheader("Select Feeder")
+        feeder_options = data_service.get_feeder_options()
+        if not feeder_options:
+            st.error("No feeders available")
+            return
             
-        # Set page config
-        st.set_page_config(
-            page_title="Transformer Loading Analysis",
-            page_icon="⚡",
-            layout="wide"
+        feeder = st.selectbox(
+            "Feeder",
+            options=feeder_options,
+            key="feeder"
         )
         
-        # Check for URL parameters
-        params = st.experimental_get_query_params()
-        from_alert = params.get('view', [''])[0] == 'alert'
-        alert_transformer = params.get('id', [''])[0] if from_alert else None
-        start_date_str = params.get('start', [''])[0]
-        alert_time_str = params.get('alert_time', [''])[0]
-        
-        create_banner("Transformer Loading Analysis")
-        
-        # Analysis Parameters in sidebar
-        st.sidebar.header("Analysis Parameters")
-        
-        # Date range selection with default range
-        dates = st.sidebar.date_input(
-            "Select Date Range",
-            value=[min_date, min_date],  # Pass as list for range selection
-            min_value=min_date,
-            max_value=max_date,
-            key="date_range",
-            format="YYYY-MM-DD"  # Use SQL/ISO format
+        # Transformer selection
+        st.subheader("Select Transformer")
+        transformer_options = data_service.get_transformer_ids(feeder)
+        if not transformer_options:
+            st.error("No transformers available")
+            return
+            
+        transformer_id = st.selectbox(
+            "Transformer ID",
+            options=transformer_options,
+            key="transformer"
         )
         
-        # Ensure we have a start and end date
-        if isinstance(dates, (datetime, date)):
-            start_date = end_date = dates
+        # Search & Alert button
+        if st.button("Search & Alert", key="search"):
+            logger.info(f"Fetching data for date range: {start_date} to {end_date}")
+            
+            # Get transformer data
+            transformer_data = data_service.get_transformer_data_range(
+                start_date=start_date,
+                end_date=end_date,
+                feeder=feeder,
+                transformer_id=transformer_id
+            )
+            
+            # Get customer data
+            customer_data = data_service.get_customer_data_range(
+                start_date=start_date,
+                end_date=end_date,
+                feeder=feeder,
+                transformer_id=transformer_id
+            )
+            
+            if transformer_data is not None:
+                # Process alerts
+                alert_service.process_alerts(transformer_data)
+                
+                # Store data in session state
+                st.session_state.transformer_data = transformer_data
+                st.session_state.customer_data = customer_data
+                st.session_state.current_transformer = transformer_id
+                st.session_state.current_feeder = feeder
+                
+                # Rerun to update display
+                st.experimental_rerun()
+    
+    # Main content area
+    if 'transformer_data' in st.session_state:
+        transformer_data = st.session_state.transformer_data
+        customer_data = st.session_state.customer_data
+        
+        if transformer_data is not None:
+            # Display transformer data
+            st.header("Transformer Analysis")
+            display_transformer_data(transformer_data)
+            
+            # Display customer data if available
+            if customer_data is not None and not customer_data.empty:
+                st.header("Customer Analysis")
+                display_customer_data(customer_data)
+            else:
+                st.warning("No customer data available for this transformer")
         else:
-            start_date, end_date = dates[0], dates[-1]  # Handle both list and tuple cases
-        
-        # Feeder and transformer selection
-        feeder = st.sidebar.selectbox("Select Feeder", data_service.get_feeder_options())
-        transformer_id = st.sidebar.selectbox(
-            "Select Transformer",
-            data_service.get_load_options(feeder)
-        )
-        
-        # Action buttons
-        search_clicked = st.sidebar.button("Search & Analyze")
-        alert_clicked = st.sidebar.button("Set Alert", key="set_alert")
-        
-        # Main content area for visualization
-        main_container = st.container()
-        with main_container:
-            if alert_clicked:
-                logger.info("Alert button clicked")
-                if alert_service is None:
-                    logger.warning("Alert service not available")
-                    st.error("Alert service is not available")
-                else:
-                    logger.info("Checking alert conditions...")
-                    if not all([start_date, end_date, feeder, transformer_id]):
-                        logger.warning("Missing required parameters for alert")
-                        st.error("Please select all required parameters")
-                    else:
-                        query_datetime = datetime.combine(start_date, time(12))
-                        logger.info(f"Checking alerts for {query_datetime}")
-                        
-                        # Check and send alerts if needed
-                        if alert_service.check_and_send_alerts(
-                            None,
-                            start_date,
-                            query_datetime
-                        ):
-                            logger.info("Alert email sent successfully")
-                            st.success("Alert email sent successfully")
-                        else:
-                            logger.warning("Alert check completed without sending email")
-            
-            if search_clicked or (from_alert and alert_transformer):
-                if not all([start_date, end_date, feeder, transformer_id]):
-                    st.error("Please select all required parameters")
-                else:
-                    logger.info(f"Fetching data for date range: {start_date} to {end_date}")
-                    
-                    # Get transformer data
-                    transformer_data = data_service.get_transformer_data_range(
-                        start_date,
-                        end_date,
-                        feeder,
-                        transformer_id
-                    )
-                    if transformer_data is not None:
-                        logger.info(f"Transformer data timestamp range: {transformer_data['timestamp'].min()} to {transformer_data['timestamp'].max()}")
-                    
-                    # Get customer data
-                    customer_data = data_service.get_customer_data(
-                        transformer_id,
-                        start_date,
-                        end_date
-                    )
-                    if customer_data is not None:
-                        logger.info(f"Customer data timestamp range: {customer_data['timestamp'].min()} to {customer_data['timestamp'].max()}")
-                    
-                    if transformer_data is not None and not transformer_data.empty:
-                        # Add feeder information to transformer data
-                        transformer_data['feeder'] = feeder
-                        
-                        # Display transformer data
-                        if transformer_data is not None:
-                            st.header("Transformer Analysis")
-                            display_transformer_data(transformer_data)
-                        
-                        # Display customer data
-                        if customer_data is not None:
-                            st.header("Customer Analysis")
-                            display_customer_data(customer_data)
-                    else:
-                        st.warning("No transformer data available for the selected criteria.")
-        
-    except Exception as e:
-        logger.error(f"Application error: {str(e)}\nTraceback: {traceback.format_exc()}")
-        st.error("An unexpected error occurred. Please refresh the page and try again.")
+            st.warning("No transformer data available for the selected criteria.")
 
 if __name__ == "__main__":
     main()

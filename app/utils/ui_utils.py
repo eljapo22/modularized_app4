@@ -4,17 +4,33 @@ UI utility functions for the Transformer Loading Analysis Application
 import streamlit as st
 import pandas as pd
 import logging
+from datetime import datetime
+from app.visualization.charts import (
+    display_transformer_data,
+    display_customer_data,
+    display_loading_status,
+    display_power_time_series,
+    display_current_time_series,
+    display_voltage_time_series,
+    display_power_factor_time_series
+)
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-def create_banner(title: str):
-    """Create a page banner with title"""
-    st.markdown(f"""
-        <div style="background-color:#f8f9fa; padding:1.5rem; border-radius:0.5rem; margin-bottom:1rem;">
-            <h1 style="color:#2f4f4f; margin:0; text-align:center;">{title}</h1>
-        </div>
-    """, unsafe_allow_html=True)
+def create_banner(title: str, subtitle: str = None, is_clickable: bool = False):
+    """Create a banner with title and optional subtitle."""
+    if is_clickable:
+        st.markdown(f"[{title}](#)")
+    else:
+        st.markdown(title)
+    
+    if subtitle:
+        st.markdown(subtitle)
+
+def format_timestamp(timestamp: datetime) -> str:
+    """Format timestamp for display."""
+    return timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
 def create_metric_tiles(transformer_id: str, feeder: str, size_kva: float, loading_pct: float):
     """Create metric tiles for transformer details"""
@@ -82,10 +98,13 @@ def display_transformer_dashboard(results_df: pd.DataFrame):
         )
 
         # Display charts
-        from app.visualization.charts import display_loading_status_line_chart
-        
-        st.markdown("### Loading Status")
-        display_loading_status_line_chart(results_df)
+        display_transformer_data(results_df)
+        display_customer_data(results_df)
+        display_loading_status(results_df)
+        display_power_time_series(results_df)
+        display_current_time_series(results_df)
+        display_voltage_time_series(results_df)
+        display_power_factor_time_series(results_df)
 
     except Exception as e:
         logger.error(f"Error displaying transformer dashboard: {str(e)}")
