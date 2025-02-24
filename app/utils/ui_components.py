@@ -7,29 +7,30 @@ import streamlit as st
 def create_tile(title: str, value: str, is_clickable: bool = False):
     """Create a styled tile using pure Streamlit components"""
     
+    # Style disabled buttons to have same text color
+    st.markdown("""
+        <style>
+        /* Make disabled button text same color as enabled */
+        .stButton button:disabled {
+            color: rgb(49, 51, 63) !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     # Create unique key for this tile
     key = f"tile_{title.lower().replace(' ', '_')}"
     
-    # Create a button that will contain both title and value
-    if is_clickable:
-        clicked = st.button(
-            label=f"{title}  \n{value}",  # Use markdown double space for line break
-            key=key,
-            use_container_width=True,
-            type="secondary"
-        )
-    else:
-        # For non-clickable tiles, use a disabled button with the same style
-        st.button(
-            label=f"{title}  \n{value}",  # Use markdown double space for line break
-            key=key,
-            disabled=True,
-            use_container_width=True,
-            type="secondary"
-        )
-        clicked = False
-        
-    return clicked
+    # Create button content
+    button_label = f"{title}  \n{value}"  # Use markdown double space for line break
+    
+    # Return button with consistent styling
+    return st.button(
+        label=button_label,
+        key=key,
+        disabled=not is_clickable,
+        use_container_width=True,
+        type="secondary"
+    )
 
 def create_section_title(title: str):
     """Create a section title with the same styling as tiles"""
