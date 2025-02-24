@@ -159,8 +159,8 @@ class CloudDataService:
             logger.info(f"Using table: {table}")
             
             # Convert dates to timestamps for the query
-            start_ts = datetime.combine(start_date, time())
-            end_ts = datetime.combine(end_date, time())
+            start_ts = datetime.combine(start_date, time.min)
+            end_ts = datetime.combine(end_date, time.max)
             
             # Execute query
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
@@ -273,8 +273,8 @@ class CloudDataService:
             logger.info(f"Using table: {table}")
             
             # Convert dates to timestamps for the query
-            start_ts = datetime.combine(start_date, time())
-            end_ts = datetime.combine(end_date, time())
+            start_ts = datetime.combine(start_date, time.min)
+            end_ts = datetime.combine(end_date, time.max)
             
             # Execute query
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
