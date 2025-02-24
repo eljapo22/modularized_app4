@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import logging
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile, create_colored_banner, create_bordered_header
@@ -30,27 +31,68 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Ensure timestamp is datetime for x-axis
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df = df.set_index('timestamp')
     
-    # Create colored loading percentage segments
-    for status, color in STATUS_COLORS.items():
-        if status == 'Critical':
-            df[status] = df['loading_percentage'].where(df['loading_percentage'] >= 120)
-        elif status == 'Overloaded':
-            df[status] = df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120))
-        elif status == 'Warning':
-            df[status] = df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100))
-        elif status == 'Pre-Warning':
-            df[status] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80))
-        elif status == 'Normal':
-            df[status] = df['loading_percentage'].where(df['loading_percentage'] < 50)
+    # Create figure
+    fig = go.Figure()
     
-    # Create the line chart with native Streamlit colors
-    st.line_chart(
-        df[['Critical', 'Overloaded', 'Warning', 'Pre-Warning', 'Normal']],
+    # Add traces for each threshold with correct colors
+    if df['loading_percentage'].max() >= 120:
+        fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['loading_percentage'].where(df['loading_percentage'] >= 120),
+            name='Critical (≥120%)',
+            line=dict(color=STATUS_COLORS['Critical'])
+        ))
+    
+    if df['loading_percentage'].max() >= 100:
+        fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120)),
+            name='Overloaded (≥100%)',
+            line=dict(color=STATUS_COLORS['Overloaded'])
+        ))
+    
+    if df['loading_percentage'].max() >= 80:
+        fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100)),
+            name='Warning (≥80%)',
+            line=dict(color=STATUS_COLORS['Warning'])
+        ))
+    
+    if df['loading_percentage'].max() >= 50:
+        fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80)),
+            name='Pre-Warning (≥50%)',
+            line=dict(color=STATUS_COLORS['Pre-Warning'])
+        ))
+    
+    fig.add_trace(go.Scatter(
+        x=df['timestamp'],
+        y=df['loading_percentage'].where(df['loading_percentage'] < 50),
+        name='Normal (<50%)',
+        line=dict(color=STATUS_COLORS['Normal'])
+    ))
+    
+    # Update layout
+    fig.update_layout(
         height=400,
-        use_container_width=True
+        margin=dict(l=0, r=0, t=0, b=0),
+        showlegend=True,
+        xaxis_title=None,
+        yaxis_title=None,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
     )
+    
+    # Display the plot
+    st.plotly_chart(fig, use_container_width=True)
     
     # Add color-coded legend below the chart
     legend_html = f"""
