@@ -264,37 +264,29 @@ def display_transformer_data(results_df: pd.DataFrame):
         st.warning("No data available for transformer visualization.")
         return
 
+    # Ensure timestamp is datetime for all visualizations
+    df = results_df.copy()
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.set_index('timestamp')
+
     # Power Consumption
     st.subheader("Power Consumption")
-    # Ensure timestamp is datetime and set as index
-    df_power = results_df.copy()
-    df_power['timestamp'] = pd.to_datetime(df_power['timestamp'])
-    df_power = df_power.set_index('timestamp')
-    st.line_chart(df_power['power_kw'])
+    st.line_chart(df['power_kw'])
 
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("Current")
-        df_current = results_df.copy()
-        df_current['timestamp'] = pd.to_datetime(df_current['timestamp'])
-        df_current = df_current.set_index('timestamp')
-        st.line_chart(df_current['current_a'])
+        st.line_chart(df['current_a'])
         
     with col2:
         st.subheader("Voltage")
-        df_voltage = results_df.copy()
-        df_voltage['timestamp'] = pd.to_datetime(df_voltage['timestamp'])
-        df_voltage = df_voltage.set_index('timestamp')
-        st.line_chart(df_voltage['voltage_v'])
+        st.line_chart(df['voltage_v'])
     
     # Loading Status at the bottom
     st.subheader("Loading Status")
-    df_loading = results_df.copy()
-    df_loading['timestamp'] = pd.to_datetime(df_loading['timestamp'])
-    df_loading = df_loading.set_index('timestamp')
-    display_loading_status(df_loading)
+    display_loading_status(df.reset_index())  # Pass with timestamp as column
 
 def display_customer_data(results_df: pd.DataFrame):
     """Display customer data visualizations."""
