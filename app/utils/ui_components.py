@@ -4,58 +4,64 @@ Reusable UI components for the Transformer Loading Analysis Application
 
 import streamlit as st
 
-def create_tile(title: str, value: str, has_multiline_title: bool = False, is_clickable: bool = False):
+def create_tile(title: str, value: str, is_clickable: bool = False):
     """Create a styled tile using Streamlit components"""
     
     # Create unique key for this tile
     key = f"tile_{title.lower().replace(' ', '_')}"
     
-    # Define CSS for the tile
-    css = """
-    <style>
-    .metric-container {
-        background-color: white;
-        border: 1px solid #dee2e6;
-        border-radius: 0.25rem;
-        padding: 0.75rem;
-        margin-bottom: 1rem;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-    .metric-container:hover {
-        background-color: #f8f9fa;
-    }
-    .metric-title {
-        color: #6c757d;
-        font-size: 0.875rem;
-        font-weight: 500;
-        margin-bottom: 0.25rem;
-    }
-    .metric-value {
-        color: #212529;
-        font-size: 1.25rem;
-        font-weight: 600;
-    }
-    </style>
-    """
+    # Custom styling for the tile
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stButton"] > button {
+            background-color: white;
+            color: #212529;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            width: 100%;
+            text-align: left;
+            font-weight: normal;
+        }
+        div[data-testid="stButton"] > button:hover {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        div[data-testid="stButton"] > button:active {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        div[data-testid="stButton"] > button:focus {
+            box-shadow: none;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     
-    # Create HTML for the tile
-    html = f"""
-    <div class="metric-container" onclick="this.click()">
-        <div class="metric-title">{title}</div>
-        <div class="metric-value">{value}</div>
+    # Create button content with title and value
+    button_content = f"""
+    <div>
+        <div style='color: #6c757d; font-size: 0.875rem;'>{title}</div>
+        <div style='font-size: 1.25rem;'>{value}</div>
     </div>
     """
     
-    # Add CSS to the page
-    st.markdown(css, unsafe_allow_html=True)
-    
-    # Create a clickable container if needed
+    # Return button click state if clickable, otherwise just display content
     if is_clickable:
-        clicked = st.markdown(html, unsafe_allow_html=True)
-        return clicked
+        return st.button(
+            button_content,
+            key=key,
+            use_container_width=True
+        )
     else:
-        st.markdown(html, unsafe_allow_html=True)
+        st.button(
+            button_content,
+            key=key,
+            disabled=True,
+            use_container_width=True
+        )
         return False
 
 def create_section_title(title: str):
