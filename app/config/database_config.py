@@ -105,3 +105,13 @@ WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
 GROUP BY hours.hour::DATE, c."customer_id"
 ORDER BY hours.hour::DATE, c."customer_id"
 """
+
+# Query to get feeder names
+FEEDER_LIST_QUERY = """
+SELECT DISTINCT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'main'
+AND table_name LIKE 'Transformer Feeder %'
+AND table_catalog = 'ModApp4DB'
+ORDER BY table_name;
+"""
