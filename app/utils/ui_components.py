@@ -44,21 +44,16 @@ def create_section_banner(title: str):
     st.header(title)
 
 def create_colored_banner(title: str):
-    """Create a banner using Streamlit button styling with left-aligned text"""
-    st.markdown(
-        f"""
-        <div class="stButton">
-            <button kind="secondary" class="st-emotion-cache-19rxjzo ef3psqc11" style="text-align: left; width: 100%; justify-content: flex-start;" disabled="">
-                {title}
-            </button>
-        </div>
-        """,
-        unsafe_allow_html=True
+    """Create a banner using Streamlit button styling"""
+    st.button(
+        title,
+        disabled=True,
+        use_container_width=True,
+        type="secondary"
     )
 
 def create_bordered_header(title: str):
     """Create a header with a professional border using Streamlit elements"""
-    with st.container():
-        st.markdown(f"""---""")
-        st.markdown(f"### {title}")
-        st.markdown(f"""---""")
+    st.divider()
+    st.header(title)
+    st.divider()
