@@ -167,30 +167,30 @@ def display_transformer_tab(df: pd.DataFrame):
     # Create metrics row
     cols = st.columns(4)
     
-    # Current loading metrics
+    # Current transformer info
     latest = df.iloc[-1]
     with cols[0]:
         create_tile(
-            "Loading Status",
-            f"{latest['loading_percentage']:.{DECIMAL_PLACES['loading_percentage']}f}%",
+            "Transformer ID",
+            latest.get('transformer_id', 'N/A'),
             is_clickable=True
         )
     with cols[1]:
         create_tile(
-            "Power Factor",
-            f"{latest['power_factor']:.{DECIMAL_PLACES['power_factor']}f}",
+            "Customers",
+            str(latest.get('customer_count', 'N/A')),
             is_clickable=True
         )
     with cols[2]:
         create_tile(
-            "Power (kW)",
-            f"{latest['power_kw']:.{DECIMAL_PLACES['power_kw']}f}",
+            "Latitude",
+            f"{latest.get('latitude', 'N/A')}",
             is_clickable=True
         )
     with cols[3]:
         create_tile(
-            "Power (kVA)",
-            f"{latest['power_kva']:.{DECIMAL_PLACES['power_kva']}f}",
+            "Longitude",
+            f"{latest.get('longitude', 'N/A')}",
             is_clickable=True
         )
 
