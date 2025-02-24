@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile
 from app.config.constants import STATUS_COLORS
+from app.config.table_config import DECIMAL_PLACES
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -455,25 +456,25 @@ def display_transformer_tab(df: pd.DataFrame):
     with cols[0]:
         create_tile(
             "Loading Status",
-            f"{latest['loading_percentage']:.1f}%",
+            f"{latest['loading_percentage']:.{DECIMAL_PLACES['loading_percentage']}f}%",
             is_clickable=True
         )
     with cols[1]:
         create_tile(
             "Power Factor",
-            f"{latest['power_factor']:.2f}",
+            f"{latest['power_factor']:.{DECIMAL_PLACES['power_factor']}f}",
             is_clickable=True
         )
     with cols[2]:
         create_tile(
             "Power (kW)",
-            f"{latest['power_kw']:.1f}",
+            f"{latest['power_kw']:.{DECIMAL_PLACES['power_kw']}f}",
             is_clickable=True
         )
     with cols[3]:
         create_tile(
             "Power (kVA)",
-            f"{latest['power_kva']:.1f}",
+            f"{latest['power_kva']:.{DECIMAL_PLACES['power_kva']}f}",
             is_clickable=True
         )
 
@@ -528,23 +529,27 @@ def display_customer_tab(df: pd.DataFrame):
     
     with cols[0]:
         create_tile(
-            "Current Power",
-            f"{latest['power_kw']} kW"  # No format needed, already rounded
+            "Current (A)",
+            f"{latest['current_a']:.{DECIMAL_PLACES['current_a']}f}",
+            is_clickable=True
         )
     with cols[1]:
         create_tile(
             "Power Factor",
-            f"{latest['power_factor']}"  # No format needed, already rounded
+            f"{latest['power_factor']:.{DECIMAL_PLACES['power_factor']}f}",
+            is_clickable=True
         )
     with cols[2]:
         create_tile(
-            "Current",
-            f"{latest['current_a']} A"  # No format needed, already rounded
+            "Power (kW)",
+            f"{latest['power_kw']:.{DECIMAL_PLACES['power_kw']}f}",
+            is_clickable=True
         )
     with cols[3]:
         create_tile(
-            "Voltage",
-            f"{latest['voltage_v']} V"  # No format needed, already rounded
+            "Power (kVA)",
+            f"{latest['power_kva']:.{DECIMAL_PLACES['power_kva']}f}",
+            is_clickable=True
         )
     
     # Display customer charts

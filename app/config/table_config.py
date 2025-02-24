@@ -48,6 +48,15 @@ Database Structure:
    - Measurement Frequency: Hourly
 """
 
+# Column decimal place configuration
+DECIMAL_PLACES = {
+    'loading_percentage': 2,  # Changed from 0 to 2 to match actual data
+    'current_a': 2,
+    'power_kw': 2,
+    'power_kva': 2,
+    'power_factor': 3
+}
+
 # Table names - with proper quoting for SQL
 TRANSFORMER_TABLE_TEMPLATE = '"Transformer Feeder {}"'  # Already includes quotes for SQL
 CUSTOMER_TABLE_TEMPLATE = '"Customer Feeder {}"'        # Already includes quotes for SQL

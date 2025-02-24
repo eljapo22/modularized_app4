@@ -17,7 +17,8 @@ from app.config.database_config import (
 from app.config.table_config import (
     TRANSFORMER_TABLE_TEMPLATE,
     CUSTOMER_TABLE_TEMPLATE,
-    FEEDER_NUMBERS
+    FEEDER_NUMBERS,
+    DECIMAL_PLACES
 )
 from app.utils.db_utils import (
     init_db_pool,
@@ -96,6 +97,18 @@ class CloudDataService:
         logger.info(f"Returning date range: {self.min_date} to {self.max_date}")
         return self.min_date, self.max_date
 
+    def _format_numeric_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Format numeric columns with proper decimal places"""
+        if df is None or df.empty:
+            return df
+            
+        # Apply formatting to each numeric column based on configuration
+        for col, decimals in DECIMAL_PLACES.items():
+            if col in df.columns:
+                df[col] = df[col].round(decimals)
+        
+        return df
+
     def get_transformer_data(self, date: datetime, hour: int, feeder: str, transformer_id: str) -> Optional[pd.DataFrame]:
         """
         Get transformer data for a specific date and hour.
@@ -126,7 +139,9 @@ class CloudDataService:
             results = execute_query(query, (transformer_id, query_date, hour))
             
             if results and len(results) > 0:
-                return pd.DataFrame(results)
+                df = pd.DataFrame(results)
+                df = self._format_numeric_columns(df)
+                return df
             return None
             
         except Exception as e:
@@ -147,8 +162,8 @@ class CloudDataService:
             logger.info(f"Fetching transformer data for {transformer_id}")
             logger.info(f"Date range: {start_date} to {end_date}")
             
-            # Extract feeder number from transformer ID (format: S1F2ATF001)
-            feeder_num = int(transformer_id[3])  # Position 3 is the feeder number
+            # Extract feeder number from feeder string (format: "Feeder 1")
+            feeder_num = int(feeder.split()[-1])
             if feeder_num not in FEEDER_NUMBERS:
                 logger.error(f"Invalid feeder number: {feeder_num}")
                 return None
@@ -197,6 +212,9 @@ class CloudDataService:
                 if abs(trends.get('loading_time_correlation', 0)) > 0.9:
                     logger.warning("⚠️ Strong correlation between time and loading values detected")
             
+            # Apply numeric formatting
+            df = self._format_numeric_columns(df)
+            
             logger.info(f"Data timestamp range: {df['timestamp'].min()} to {df['timestamp'].max()}")
             logger.info(f"Retrieved {len(df)} records")
             
@@ -227,12 +245,13 @@ class CloudDataService:
         """
         try:
             # Get feeder number from feeder string
-            feeder_num = feeder.split('_')[-1]
+            feeder_num = int(feeder.split()[-1])  # Fixed: use space split instead of underscore
             table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Use the range query but with a specific end time
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
-            params = (transformer_id, start_date, end_time)
+            start_ts = datetime.combine(start_date, time.min)
+            params = (start_ts, end_time, transformer_id)  # Fixed: correct parameter order
             
             results = execute_query(query, params)
             if not results:
@@ -244,6 +263,9 @@ class CloudDataService:
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             df.set_index('timestamp', inplace=True)
             df.sort_index(inplace=True)
+            
+            # Apply numeric formatting
+            df = self._format_numeric_columns(df)
             
             return df
             
@@ -289,6 +311,9 @@ class CloudDataService:
             # Convert to DataFrame
             df = pd.DataFrame(results)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            # Apply numeric formatting
+            df = self._format_numeric_columns(df)
             
             logger.info(f"Data timestamp range: {df['timestamp'].min()} to {df['timestamp'].max()}")
             logger.info(f"Retrieved {len(df)} records")

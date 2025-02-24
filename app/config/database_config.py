@@ -39,13 +39,13 @@ WITH RECURSIVE hours AS (
 )
 SELECT 
     hours.hour as "timestamp",
-    COALESCE(t."voltage_v", LAG(t."voltage_v") OVER (ORDER BY hours.hour)) as "voltage_v",
+    t."voltage_v",
     t."size_kva",
-    CAST(COALESCE(t."loading_percentage", LAG(t."loading_percentage") OVER (ORDER BY hours.hour)) AS DECIMAL(3,0)) as "loading_percentage",
-    CAST(COALESCE(t."current_a", LAG(t."current_a") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
-    CAST(COALESCE(t."power_kw", LAG(t."power_kw") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
-    CAST(COALESCE(t."power_kva", LAG(t."power_kva") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kva",
-    CAST(COALESCE(t."power_factor", LAG(t."power_factor") OVER (ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
+    CAST(t."loading_percentage" AS DECIMAL(5,2)) as "loading_percentage",
+    t."current_a",
+    t."power_kw",
+    t."power_kva",
+    t."power_factor",
     t."transformer_id",
     t."load_range"
 FROM hours
