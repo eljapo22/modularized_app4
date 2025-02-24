@@ -6,7 +6,7 @@ import numpy as np
 import logging
 from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
-from app.utils.ui_components import create_tile
+from app.utils.ui_components import create_tile, create_bordered_header
 from app.config.constants import STATUS_COLORS
 from app.config.table_config import DECIMAL_PLACES
 
@@ -196,21 +196,21 @@ def display_transformer_tab(df: pd.DataFrame):
 
     # Create section for power analysis
     with st.container():
-        st.subheader("Power Consumption")
+        create_bordered_header("Power Consumption")
         display_power_time_series(df, is_transformer_view=True)
 
     # Create section for voltage and current
     cols = st.columns(2)
     with cols[0]:
-        st.subheader("Current")
+        create_bordered_header("Current")
         display_current_time_series(df, is_transformer_view=True)
     with cols[1]:
-        st.subheader("Voltage")
+        create_bordered_header("Voltage")
         display_voltage_time_series(df)
 
     # Create section for loading status
     with st.container():
-        st.subheader("Loading Status")
+        create_bordered_header("Loading Status")
         display_loading_status(df)
 
 def display_customer_tab(df: pd.DataFrame):
@@ -267,15 +267,15 @@ def display_customer_tab(df: pd.DataFrame):
     
     # Display customer charts
     with st.container():
-        st.subheader("Power Consumption")
+        create_bordered_header("Power Consumption")
         display_power_time_series(customer_df, is_transformer_view=False)
 
     cols = st.columns(2)
     with cols[0]:
-        st.subheader("Current")
+        create_bordered_header("Current")
         display_current_time_series(customer_df, is_transformer_view=False)
     with cols[1]:
-        st.subheader("Voltage")
+        create_bordered_header("Voltage")
         display_voltage_time_series(customer_df)
 
     # Display customer table
