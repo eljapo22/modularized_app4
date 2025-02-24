@@ -137,12 +137,16 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.
     if transformer_df is None or transformer_df.empty:
         st.warning("No data available for transformer dashboard.")
         return
+
+    # Initialize tab index in session state if not present
+    if 'selected_tab' not in st.session_state:
+        st.session_state.selected_tab = 0
     
     # Create tabs for different views
-    transformer_tab, customer_tab = st.tabs(["Transformer Analysis", "Customer Analysis"])
-
+    tabs = st.tabs(["Transformer Analysis", "Customer Analysis"])
+    
     # Display transformer analysis tab
-    with transformer_tab:
+    with tabs[0]:
         if transformer_df is None or transformer_df.empty:
             st.warning("No data available for transformer analysis.")
             return
@@ -166,8 +170,9 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.
                 str(customer_count),
                 is_clickable=True
             ):
-                # This will make the Customer Analysis tab active
-                customer_tab.nav_item.button.click()
+                # Switch to Customer Analysis tab
+                st.session_state.selected_tab = 1
+                st.rerun()
         with cols[2]:
             create_tile(
                 "Latitude",
@@ -185,7 +190,7 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.
         display_transformer_data(transformer_df)
 
     # Display customer analysis tab
-    with customer_tab:
+    with tabs[1]:
         if customer_df is not None:
             display_customer_tab(customer_df)
         else:
