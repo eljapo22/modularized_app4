@@ -128,7 +128,8 @@ def main():
             
             # Transformer Analysis Tab
             with transformer_tab:
-                display_transformer_tab(transformer_data)
+                customer_count = len(customer_data) if customer_data is not None else 0
+                display_transformer_tab(transformer_data, customer_count)
             
             # Customer Analysis Tab
             with customer_tab:
