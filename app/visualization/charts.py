@@ -283,10 +283,14 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Ensure timestamp is datetime for all visualizations
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df = df.set_index('timestamp')
+    
+    # Loading Status at the top
+    st.subheader("Loading Status")
+    display_loading_status(df)
 
     # Power Consumption
     st.subheader("Power Consumption")
+    df = df.set_index('timestamp')
     st.line_chart(df['power_kw'])
 
     # Current and Voltage in columns
@@ -300,10 +304,9 @@ def display_transformer_data(results_df: pd.DataFrame):
         st.subheader("Voltage")
         st.line_chart(df['voltage_v'])
     
-    # Loading Status at the bottom
-    st.subheader("Loading Status")
-    df['loading_percentage'] = df['loading_percentage'].round(2)
-    st.line_chart(df[['loading_percentage']], height=400, use_container_width=True)
+    # Power Factor at the bottom
+    st.subheader("Power Factor")
+    st.line_chart(df['power_factor'])
 
 def display_customer_data(results_df: pd.DataFrame):
     """Display customer data visualizations."""
