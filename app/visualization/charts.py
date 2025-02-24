@@ -32,25 +32,48 @@ def display_loading_status(results_df: pd.DataFrame):
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.set_index('timestamp')
     
-    # Create threshold reference lines
-    df['Critical Threshold'] = 120
-    df['Overload Threshold'] = 100
-    df['Warning Threshold'] = 80
-    df['Pre-Warning Threshold'] = 50
+    # Create colored loading percentage segments
+    df['Critical (≥120%)'] = df['loading_percentage'].where(df['loading_percentage'] >= 120)
+    df['Overloaded (≥100%)'] = df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120))
+    df['Warning (≥80%)'] = df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100))
+    df['Pre-Warning (≥50%)'] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80))
+    df['Normal (<50%)'] = df['loading_percentage'].where(df['loading_percentage'] < 50)
     
-    # Create continuous segments by filling forward
-    df['Critical'] = df['loading_percentage'].where(df['loading_percentage'] >= 120)
-    df['Overloaded'] = df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120))
-    df['Warning'] = df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100))
-    df['Pre-Warning'] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80))
-    df['Normal'] = df['loading_percentage'].where(df['loading_percentage'] < 50)
+    # Create the line chart with custom colors
+    chart_data = df[[
+        'Critical (≥120%)',
+        'Overloaded (≥100%)',
+        'Warning (≥80%)',
+        'Pre-Warning (≥50%)',
+        'Normal (<50%)'
+    ]]
     
-    # Plot with native Streamlit colors
+    # Apply custom colors using Streamlit's native color support
+    st.markdown(f"""
+        <style>
+            .stChart > div > div > div > svg g g.traces path {{
+                stroke: {STATUS_COLORS['Normal']} !important;
+            }}
+            .stChart > div > div > div > svg g g.traces:nth-child(1) path {{
+                stroke: {STATUS_COLORS['Critical']} !important;
+            }}
+            .stChart > div > div > div > svg g g.traces:nth-child(2) path {{
+                stroke: {STATUS_COLORS['Overloaded']} !important;
+            }}
+            .stChart > div > div > div > svg g g.traces:nth-child(3) path {{
+                stroke: {STATUS_COLORS['Warning']} !important;
+            }}
+            .stChart > div > div > div > svg g g.traces:nth-child(4) path {{
+                stroke: {STATUS_COLORS['Pre-Warning']} !important;
+            }}
+            .stChart > div > div > div > svg g g.traces:nth-child(5) path {{
+                stroke: {STATUS_COLORS['Normal']} !important;
+            }}
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.line_chart(
-        df[[
-            'Critical', 'Overloaded', 'Warning', 'Pre-Warning', 'Normal',
-            'Critical Threshold', 'Overload Threshold', 'Warning Threshold', 'Pre-Warning Threshold'
-        ]],
+        chart_data,
         height=400,
         use_container_width=True
     )
