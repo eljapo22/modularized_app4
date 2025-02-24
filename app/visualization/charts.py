@@ -32,7 +32,19 @@ def display_loading_status(results_df: pd.DataFrame):
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.set_index('timestamp')
     
-    # Create threshold lines
+    # Add custom CSS for line colors
+    st.markdown(f"""
+        <style>
+            .element-container:has(div[data-testid="stChart"]) {{
+                --critical-color: {STATUS_COLORS['Critical']};
+                --overloaded-color: {STATUS_COLORS['Overloaded']};
+                --warning-color: {STATUS_COLORS['Warning']};
+                --pre-warning-color: {STATUS_COLORS['Pre-Warning']};
+            }}
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Create threshold lines with colors
     df['Critical (≥120%)'] = 120
     df['Overloaded (≥100%)'] = 100
     df['Warning (≥80%)'] = 80
