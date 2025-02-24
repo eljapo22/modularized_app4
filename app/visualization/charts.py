@@ -196,17 +196,21 @@ def display_transformer_tab(df: pd.DataFrame):
 
     # Create section for power analysis
     with st.container():
+        st.subheader("Power Consumption")
         display_power_time_series(df, is_transformer_view=True)
 
     # Create section for voltage and current
     cols = st.columns(2)
     with cols[0]:
+        st.subheader("Current")
         display_current_time_series(df, is_transformer_view=True)
     with cols[1]:
+        st.subheader("Voltage")
         display_voltage_time_series(df)
 
     # Create section for loading status
     with st.container():
+        st.subheader("Loading Status")
         display_loading_status(df)
 
 def display_customer_tab(df: pd.DataFrame):
