@@ -160,7 +160,7 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame):
         tab1.active = True
 
     with tab1:
-        display_transformer_tab(transformer_df, len(customer_df) if customer_df is not None else 0)
+        display_transformer_tab(transformer_df)
 
     with tab2:
         if customer_df is not None:
@@ -168,7 +168,7 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame):
         else:
             st.warning("No customer data available for this transformer")
 
-def display_transformer_tab(df: pd.DataFrame, customer_count: int):
+def display_transformer_tab(df: pd.DataFrame):
     # Display transformer analysis tab
     if df is None or df.empty:
         st.warning("No data available for transformer analysis.")
@@ -186,15 +186,11 @@ def display_transformer_tab(df: pd.DataFrame, customer_count: int):
             is_clickable=True
         )
     with cols[1]:
-        # Make customers tile clickable to switch tabs
-        if create_tile(
+        create_tile(
             "Customers",
-            str(customer_count),
-            is_clickable=True,
-            has_multiline_title=False
-        ):
-            st.session_state.selected_tab = "Customer Analysis"
-            st.experimental_rerun()
+            str(latest.get('total_customers', 'N/A')),
+            is_clickable=True
+        )
     with cols[2]:
         create_tile(
             "Latitude",
