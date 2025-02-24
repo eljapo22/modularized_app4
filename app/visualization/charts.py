@@ -100,6 +100,23 @@ def display_loading_status_line_chart(results_df: pd.DataFrame):
         logger.error(f"Error displaying loading status chart: {str(e)}")
         st.error("Error displaying loading status chart")
 
+def display_loading_status(results_df: pd.DataFrame):
+    """Display loading status chart."""
+    if results_df is None or results_df.empty:
+        st.warning("No data available for loading status visualization.")
+        return
+        
+    # Ensure timestamp is datetime and set as index
+    results_df = results_df.copy()
+    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    results_df = results_df.set_index('timestamp')
+    
+    # Create loading percentage chart
+    st.line_chart(
+        results_df['loading_percentage'],
+        use_container_width=True
+    )
+
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
     if results_df is None or results_df.empty:
@@ -111,7 +128,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
     results_df = results_df.set_index('timestamp')
     
-    # Create Streamlit line chart
+    # Create power chart
     st.line_chart(
         results_df['power_kw'],
         use_container_width=True
@@ -119,149 +136,54 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
 
 def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display current time series visualization."""
-    try:
-        # Normalize timestamps
-        results_df = normalize_timestamps(results_df)
+    if results_df is None or results_df.empty:
+        st.warning("No data available for current visualization.")
+        return
+        
+    # Ensure timestamp is datetime and set as index
+    results_df = results_df.copy()
+    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    results_df = results_df.set_index('timestamp')
+    
+    # Create current chart
+    st.line_chart(
+        results_df['current_a'],
+        use_container_width=True
+    )
 
-        # Create figure
-        fig = create_base_figure(
-            title=None,
-            xaxis_title="Time",
-            yaxis_title="Current (A)"
-        )
-
-        # Add current trace
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['current_a'],
-            mode='lines+markers',
-            name='Current',
-            line=dict(color='#0d6efd', width=2),
-            marker=dict(size=6)
-        ))
-
-        # Add transformer size line if in transformer view
-        if is_transformer_view and 'size_kva' in results_df.columns:
-            # Calculate rated current based on size_kva
-            rated_current = results_df['size_kva'].iloc[0] * 1000 / (480 * np.sqrt(3))  # Assuming 480V three-phase
-            if rated_current > 0:
-                fig.add_hline(
-                    y=rated_current,
-                    line_dash="dash",
-                    line_color="red",
-                    annotation_text="Rated Current",
-                    annotation_position="bottom right"
-                )
-
-        st.plotly_chart(fig, use_container_width=True)
-
-    except Exception as e:
-        logger.error(f"Error displaying current time series: {str(e)}")
-        st.error("Error displaying current time series visualization")
-
-def display_voltage_time_series(results_df: pd.DataFrame):
+def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display voltage time series visualization."""
-    try:
-        # Normalize timestamps
-        results_df = normalize_timestamps(results_df)
+    if results_df is None or results_df.empty:
+        st.warning("No data available for voltage visualization.")
+        return
+        
+    # Ensure timestamp is datetime and set as index
+    results_df = results_df.copy()
+    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    results_df = results_df.set_index('timestamp')
+    
+    # Create voltage chart
+    st.line_chart(
+        results_df['voltage_v'],
+        use_container_width=True
+    )
 
-        # Create figure
-        fig = create_base_figure(
-            title=None,
-            xaxis_title="Time",
-            yaxis_title="Voltage (V)"
-        )
-
-        # Add voltage trace
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['voltage_v'],
-            mode='lines+markers',
-            name='Voltage',
-            line=dict(color='#0d6efd', width=2),
-            marker=dict(size=6)
-        ))
-
-        st.plotly_chart(fig, use_container_width=True)
-
-    except Exception as e:
-        logger.error(f"Error displaying voltage time series: {str(e)}")
-        st.error("Error displaying voltage time series visualization")
-
-def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status visualization."""
-    try:
-        # Normalize timestamps
-        results_df = normalize_timestamps(results_df)
-
-        # Create figure
-        fig = create_base_figure(
-            title=None,
-            xaxis_title="Time",
-            yaxis_title="Loading (%)"
-        )
-
-        # Add loading percentage line
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['loading_percentage'],
-            mode='lines+markers',
-            name='Loading %',
-            line=dict(color='#0d6efd', width=2),
-            marker=dict(size=6)
-        ))
-
-        # Add threshold lines
-        thresholds = [
-            (120, 'Critical', '#dc3545'),
-            (100, 'Overloaded', '#fd7e14'),
-            (80, 'Warning', '#ffc107'),
-            (50, 'Pre-Warning', '#6f42c1')
-        ]
-
-        for threshold, label, color in thresholds:
-            fig.add_hline(
-                y=threshold,
-                line_dash="dot",
-                line_color=color,
-                annotation_text=f"{label} ({threshold}%)",
-                annotation_position="left"
-            )
-
-        st.plotly_chart(fig, use_container_width=True)
-
-    except Exception as e:
-        logger.error(f"Error displaying loading status: {str(e)}")
-        st.error("Error displaying loading status visualization")
-
-def display_power_factor_time_series(results_df: pd.DataFrame):
+def display_power_factor_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power factor time series visualization."""
-    try:
-        # Normalize timestamps
-        results_df = normalize_timestamps(results_df)
+    if results_df is None or results_df.empty:
+        st.warning("No data available for power factor visualization.")
+        return
         
-        # Create figure
-        fig = create_base_figure(
-            title="Power Factor Over Time",
-            xaxis_title="Time",
-            yaxis_title="Power Factor"
-        )
-        
-        # Add power factor line
-        fig.add_trace(go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_factor'],
-            mode='lines+markers',
-            name='Power Factor',
-            line=dict(color='#0d6efd', width=2),
-            marker=dict(size=6)
-        ))
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-    except Exception as e:
-        logger.error(f"Error displaying power factor chart: {str(e)}")
-        st.error("Error displaying power factor chart")
+    # Ensure timestamp is datetime and set as index
+    results_df = results_df.copy()
+    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    results_df = results_df.set_index('timestamp')
+    
+    # Create power factor chart
+    st.line_chart(
+        results_df['power_factor'],
+        use_container_width=True
+    )
 
 def display_power_consumption(results_df: pd.DataFrame):
     """Display power consumption visualization."""
@@ -586,3 +508,45 @@ def display_voltage_over_time(results_df: pd.DataFrame):
     
     # Display the figure
     st.plotly_chart(fig, use_container_width=True)
+
+def display_transformer_data(results_df: pd.DataFrame):
+    """Display transformer data visualizations in the same layout as customer tab."""
+    if results_df is None or results_df.empty:
+        st.warning("No data available for transformer visualization.")
+        return
+
+    # Power Consumption
+    st.subheader("Power Consumption")
+    display_power_time_series(results_df, is_transformer_view=True)
+
+    # Current and Voltage in columns
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Current")
+        display_current_time_series(results_df, is_transformer_view=True)
+        
+    with col2:
+        st.subheader("Voltage")
+        display_voltage_time_series(results_df, is_transformer_view=True)
+
+def display_customer_data(results_df: pd.DataFrame):
+    """Display customer data visualizations."""
+    if results_df is None or results_df.empty:
+        st.warning("No data available for customer visualization.")
+        return
+
+    # Power Consumption
+    st.subheader("Power Consumption")
+    display_power_time_series(results_df)
+
+    # Current and Voltage in columns
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Current")
+        display_current_time_series(results_df)
+        
+    with col2:
+        st.subheader("Voltage")
+        display_voltage_time_series(results_df)
