@@ -28,15 +28,27 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create a copy of the dataframe
     df = results_df.copy()
     
-    # Create threshold columns for visualization
+    # Create colored loading percentage columns based on thresholds
+    df['Critical Loading'] = df['loading_percentage'].where(df['loading_percentage'] >= 120, None)
+    df['Overloaded Loading'] = df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120), None)
+    df['Warning Loading'] = df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100), None)
+    df['Pre-Warning Loading'] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80), None)
+    df['Normal Loading'] = df['loading_percentage'].where(df['loading_percentage'] < 50, None)
+
+    # Create threshold lines
     df['Critical (≥120%)'] = 120
     df['Overloaded (≥100%)'] = 100
     df['Warning (≥80%)'] = 80
     df['Pre-Warning (≥50%)'] = 50
     df['Normal (<50%)'] = 0
 
-    # Select columns for display
-    plot_df = df[['loading_percentage', 'Critical (≥120%)', 'Overloaded (≥100%)', 'Warning (≥80%)', 'Pre-Warning (≥50%)', 'Normal (<50%)']]
+    # Select columns for display in correct order
+    plot_df = df[[
+        'Critical Loading', 'Overloaded Loading', 'Warning Loading', 
+        'Pre-Warning Loading', 'Normal Loading',
+        'Critical (≥120%)', 'Overloaded (≥100%)', 'Warning (≥80%)', 
+        'Pre-Warning (≥50%)', 'Normal (<50%)'
+    ]]
     
     # Add custom CSS for chart colors and centered legend
     st.markdown(f"""
@@ -69,11 +81,11 @@ def display_loading_status(results_df: pd.DataFrame):
     # Add color-coded legend below the chart
     legend_html = f"""
         <div>
-            <span style="color: {STATUS_COLORS['Critical']}">●</span> Critical
-            <span style="color: {STATUS_COLORS['Overloaded']}">●</span> Overloaded
-            <span style="color: {STATUS_COLORS['Warning']}">●</span> Warning
-            <span style="color: {STATUS_COLORS['Pre-Warning']}">●</span> Pre-Warning
-            <span style="color: {STATUS_COLORS['Normal']}">●</span> Normal
+            <span style="color: {STATUS_COLORS['Critical']}">●</span> Critical (≥120%)
+            <span style="color: {STATUS_COLORS['Overloaded']}">●</span> Overloaded (≥100%)
+            <span style="color: {STATUS_COLORS['Warning']}">●</span> Warning (≥80%)
+            <span style="color: {STATUS_COLORS['Pre-Warning']}">●</span> Pre-Warning (≥50%)
+            <span style="color: {STATUS_COLORS['Normal']}">●</span> Normal (<50%)
         </div>
     """
     st.markdown(legend_html, unsafe_allow_html=True)
