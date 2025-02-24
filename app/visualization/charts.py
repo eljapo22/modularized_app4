@@ -28,25 +28,55 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create a copy of the dataframe
     df = results_df.copy()
     
-    # Ensure timestamp is datetime
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df = df.set_index('timestamp')
-
     # Create threshold columns for visualization
-    df['Critical (120%)'] = 120
-    df['Overloaded (100%)'] = 100
-    df['Warning (80%)'] = 80
-    df['Pre-Warning (50%)'] = 50
+    df['Critical (≥120%)'] = 120
+    df['Overloaded (≥100%)'] = 100
+    df['Warning (≥80%)'] = 80
+    df['Pre-Warning (≥50%)'] = 50
+    df['Normal (<50%)'] = 0
 
     # Select columns for display
-    plot_df = df[['loading_percentage', 'Critical (120%)', 'Overloaded (100%)', 'Warning (80%)', 'Pre-Warning (50%)']]
+    plot_df = df[['loading_percentage', 'Critical (≥120%)', 'Overloaded (≥100%)', 'Warning (≥80%)', 'Pre-Warning (≥50%)', 'Normal (<50%)']]
     
-    # Create the line chart using Streamlit
+    # Add custom CSS for chart colors and centered legend
+    st.markdown(f"""
+        <style>
+        /* Loading status line colors */
+        .loading-chart {{
+            --critical-color: {STATUS_COLORS['Critical']};
+            --overloaded-color: {STATUS_COLORS['Overloaded']};
+            --warning-color: {STATUS_COLORS['Warning']};
+            --pre-warning-color: {STATUS_COLORS['Pre-Warning']};
+            --normal-color: {STATUS_COLORS['Normal']};
+        }}
+        /* Center the legend */
+        .stMarkdown div[data-testid="stMarkdownContainer"] {{
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }}
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Create the line chart
     st.line_chart(
         plot_df,
         height=400,
         use_container_width=True
     )
+    
+    # Add color-coded legend below the chart
+    legend_html = f"""
+        <div>
+            <span style="color: {STATUS_COLORS['Critical']}">●</span> Critical
+            <span style="color: {STATUS_COLORS['Overloaded']}">●</span> Overloaded
+            <span style="color: {STATUS_COLORS['Warning']}">●</span> Warning
+            <span style="color: {STATUS_COLORS['Pre-Warning']}">●</span> Pre-Warning
+            <span style="color: {STATUS_COLORS['Normal']}">●</span> Normal
+        </div>
+    """
+    st.markdown(legend_html, unsafe_allow_html=True)
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
