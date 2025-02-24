@@ -146,21 +146,11 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame):
         pd.to_datetime(transformer_df['timestamp'].iloc[-1]).date()
     )
     
-    # Initialize session state for tab selection
-    if 'selected_tab' not in st.session_state:
-        st.session_state.selected_tab = "Transformer Analysis"
-    
     # Create tabs for different views
     tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
 
-    # Switch to appropriate tab based on session state
-    if st.session_state.selected_tab == "Customer Analysis":
-        tab2.active = True
-    else:
-        tab1.active = True
-
     with tab1:
-        display_transformer_tab(transformer_df)
+        display_transformer_tab(transformer_df, customer_df)
 
     with tab2:
         if customer_df is not None:
@@ -168,7 +158,7 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame):
         else:
             st.warning("No customer data available for this transformer")
 
-def display_transformer_tab(df: pd.DataFrame):
+def display_transformer_tab(df: pd.DataFrame, customer_df: pd.DataFrame = None):
     # Display transformer analysis tab
     if df is None or df.empty:
         st.warning("No data available for transformer analysis.")
@@ -186,9 +176,11 @@ def display_transformer_tab(df: pd.DataFrame):
             is_clickable=True
         )
     with cols[1]:
+        # Get number of unique customers
+        customer_count = len(customer_df['customer_id'].unique()) if customer_df is not None else 'N/A'
         create_tile(
             "Customers",
-            str(latest.get('total_customers', 'N/A')),
+            str(customer_count),
             is_clickable=True
         )
     with cols[2]:
