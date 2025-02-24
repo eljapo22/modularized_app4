@@ -5,6 +5,8 @@ import os
 import logging
 import duckdb
 from typing import List, Dict, Any, Optional
+import streamlit as st
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +18,12 @@ def init_db_pool():
     global _connection_pool
     try:
         if _connection_pool is None:
-            # Get MotherDuck token from environment
-            motherduck_token = os.getenv('MOTHERDUCK_TOKEN')
-            if not motherduck_token:
-                raise ValueError("MOTHERDUCK_TOKEN environment variable not set")
+            # Get MotherDuck token from Streamlit secrets
+            try:
+                motherduck_token = st.secrets["MOTHERDUCK_TOKEN"]
+            except Exception as e:
+                logger.error(f"Error accessing MOTHERDUCK_TOKEN from Streamlit secrets: {str(e)}")
+                raise ValueError("MOTHERDUCK_TOKEN not found in Streamlit secrets")
 
             # Create connection to MotherDuck
             _connection_pool = duckdb.connect(f'md:?motherduck_token={motherduck_token}')
@@ -31,8 +35,16 @@ def init_db_pool():
         logger.error(f"Error initializing database pool: {str(e)}")
         raise
 
-def execute_query(query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
-    """Execute a query and return results as a list of dictionaries"""
+def execute_query(query: str, params: Optional[tuple] = None) -> pd.DataFrame:
+    """Execute a query and return results as a pandas DataFrame
+    
+    Args:
+        query: SQL query to execute
+        params: Optional tuple of parameters for the query
+        
+    Returns:
+        pd.DataFrame: Query results as a DataFrame
+    """
     global _connection_pool
     try:
         if _connection_pool is None:
@@ -45,8 +57,16 @@ def execute_query(query: str, params: Optional[tuple] = None) -> List[Dict[str, 
             else:
                 result = _connection_pool.execute(query).fetchdf()
 
-            # Convert to list of dictionaries
-            return result.to_dict('records')
+            # Return DataFrame directly
+            if result is not None and not result.empty:
+                # Convert timestamp columns to datetime
+                for col in result.columns:
+                    if 'timestamp' in col.lower():
+                        result[col] = pd.to_datetime(result[col])
+                return result
+            else:
+                return pd.DataFrame()  # Return empty DataFrame instead of None
+                
         except duckdb.Error as e:
             logger.error(f"DuckDB error executing query: {str(e)}")
             logger.error(f"Query: {query}")

@@ -1,767 +1,447 @@
-"""
-Visualization components for the Transformer Loading Analysis Application
-"""
+# Visualization components for the Transformer Loading Analysis Application
 
 import streamlit as st
-import plotly.graph_objects as go
-import plotly.express as px
 import pandas as pd
-from app.config.constants import STATUS_COLORS
-from datetime import datetime, timedelta
 import numpy as np
 import logging
-from app.utils.ui_components import create_tile, create_section_title
+from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
+from app.utils.ui_components import create_tile
+from app.config.constants import STATUS_COLORS
+import altair as alt
+import numpy as np
+from typing import Optional
+import plotly.graph_objects as go
 
-# Initialize logger
+# Configure logging
 logger = logging.getLogger(__name__)
 
-def add_hour_indicator(fig, selected_hour: int, y_range: tuple = None):
-    """
-    Add a vertical line indicator for the selected hour to any plotly figure.
+def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
+    """Helper function to normalize timestamps and validate data in a DataFrame"""
+    df = df.copy()
+    if 'timestamp' in df.columns:
+        # Convert to datetime and sort
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df.sort_values('timestamp')
+
+        # Remove duplicates keeping last value
+        df = df.drop_duplicates(subset=['timestamp'], keep='last')
+
+        # Identify and handle gaps
+        time_diff = df['timestamp'].diff()
+        mean_diff = time_diff.mean()
+        std_diff = time_diff.std()
+        
+        # Filter out points that create unrealistic gaps (more than 3 std from mean)
+        valid_diffs = time_diff <= (mean_diff + 3 * std_diff)
+        valid_diffs = valid_diffs.fillna(True, inplace=False)  # Keep first point
+        df = df[valid_diffs]
+        
+        # Validate numeric columns
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        for col in numeric_cols:
+            if col in ['power_kw', 'power_kva', 'current_a', 'voltage_v', 'loading_percentage']:
+                # Remove negative values
+                df = df[df[col] >= 0]
+                
+                # Remove unrealistic spikes (more than 3 std from mean)
+                mean_val = df[col].mean()
+                std_val = df[col].std()
+                df = df[df[col] <= (mean_val + 3 * std_val)]
+                
+                # Interpolate small gaps
+                df[col] = df[col].interpolate(method='linear', limit=2)
+        
+        # Validate load_range format
+        if 'load_range' in df.columns:
+            # Keep only valid load ranges (format: XX%-YY%)
+            valid_ranges = df['load_range'].str.match(r'^\d+%-\d+%$')
+            if valid_ranges is not None:
+                valid_ranges = valid_ranges.fillna(False, inplace=False)
+                df = df[valid_ranges]
+            
+            # Forward fill missing load ranges
+            df['load_range'] = df['load_range'].ffill()
+
+    return df
+
+def display_power_time_series(results_df: pd.DataFrame, size_kva: float = None, is_transformer_view: bool = True):
+    """Display power time series visualization."""
+    try:
+        # Normalize and validate data
+        results_df = normalize_timestamps(results_df)
+        
+        if len(results_df) == 0:
+            st.warning("No valid power data available for the selected time range")
+            return
+
+        # Create base power chart
+        base = alt.Chart(results_df).encode(
+            x=alt.X('timestamp:T', title='Time'),
+            y=alt.Y('power_kw:Q', title='Power (kW)')
+        )
+        
+        # Add the power consumption line
+        power_line = base.mark_line(color='blue')
+
+        # Add transformer size reference if provided
+        if size_kva is not None:
+            # Create a DataFrame for the transformer size
+            transformer_df = pd.DataFrame({
+                'x': [results_df['timestamp'].max()],  # Position at the rightmost point
+                'y': [size_kva]
+            })
+            
+            # Add the transformer size line
+            transformer_line = alt.Chart(transformer_df).mark_rule(
+                color='red',
+                strokeDash=[4, 4]
+            ).encode(y='y:Q')
+
+            # Add text annotation for transformer size on the right
+            transformer_text = alt.Chart(transformer_df).mark_text(
+                color='red',
+                align='left',  # Align to the left of the point
+                baseline='middle',
+                dx=5,  # Small offset to the right
+                fontSize=11,
+                fontWeight='bold',
+                text=f'Transformer Size: {size_kva:.0f} kVA'
+            ).encode(
+                x='x:T',  # Position at the rightmost timestamp
+                y='y:Q'
+            )
+
+            # Combine all layers
+            chart = alt.layer(
+                power_line,
+                transformer_line,
+                transformer_text
+            ).properties(
+                width='container',
+                height=250
+            ).configure_axis(
+                grid=True
+            )
+        else:
+            chart = power_line.properties(
+                width='container',
+                height=250
+            ).configure_axis(
+                grid=True
+            )
+
+        # Display the chart
+        st.altair_chart(chart, use_container_width=True)
+
+    except Exception as e:
+        logger.error(f"Error displaying power time series: {str(e)}")
+        st.error("Error displaying power time series chart")
+
+def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = True) -> None:
+    """Display current time series visualization.
     
     Args:
-        fig: plotly figure object
-        selected_hour: hour to indicate (0-23)
-        y_range: optional tuple of (min, max) for y-axis range
-    
-    Returns:
-        Modified plotly figure
+        results_df: DataFrame containing transformer data
+        is_transformer_view: Whether this is being displayed in transformer view
     """
-    if not isinstance(selected_hour, (int, float)) or not (0 <= selected_hour <= 23):
-        return fig
+    try:
+        logger.info("Displaying current time series")
         
-    # Find the first x value in the data
-    first_x = None
-    for trace in fig.data:
-        if hasattr(trace, 'x') and len(trace.x) > 0:
-            first_x = trace.x[0]
-            break
+        if results_df is None or results_df.empty:
+            st.warning("No data available for current visualization")
+            return
             
-    if first_x is None:
-        return fig
+        # Create figure
+        fig = go.Figure()
         
-    # Convert the timestamp to pandas Timestamp if it's not already
-    if not isinstance(first_x, pd.Timestamp):
-        first_x = pd.Timestamp(first_x)
-        
-    # Create a new timestamp for the indicator at the same date but different hour
-    indicator_time = pd.Timestamp(
-        year=first_x.year,
-        month=first_x.month,
-        day=first_x.day,
-        hour=selected_hour
-    )
-    
-    # If no y_range provided, try to get it from the figure
-    if y_range is None:
-        try:
-            y_values = []
-            for trace in fig.data:
-                if hasattr(trace, 'y'):
-                    y_values.extend(trace.y)
-            y_range = (min(y_values), max(y_values))
-        except:
-            y_range = (0, 100)
-    
-    # Add the vertical line
-    fig.add_shape(
-        type="line",
-        x0=indicator_time,
-        x1=indicator_time,
-        y0=y_range[0],
-        y1=y_range[1],
-        line=dict(
-            color='#9ca3af',
-            width=1,
-            dash='dash'
-        )
-    )
-    
-    # Add the annotation
-    fig.add_annotation(
-        text=f"{selected_hour:02d}:00",
-        x=indicator_time,
-        y=y_range[1],
-        yanchor="bottom",
-        showarrow=False,
-        textangle=-90,
-        font=dict(
-            color='#2f4f4f',
-            size=12
-        )
-    )
-    
-    return fig
-
-def create_base_figure(title: str, xaxis_title: str, yaxis_title: str):
-    """Create a base plotly figure with common settings"""
-    fig = go.Figure()
-    
-    # Update layout with common settings
-    layout_updates = {
-        'plot_bgcolor': 'white',
-        'paper_bgcolor': 'white',
-        'showlegend': False,
-        'margin': dict(l=0, r=0, t=30 if title else 0, b=0),
-        'xaxis': {
-            'showgrid': True,
-            'gridwidth': 1,
-            'gridcolor': '#f0f0f0',
-            'zeroline': False,
-            'showline': True,
-            'linewidth': 1,
-            'linecolor': '#e0e0e0'
-        },
-        'yaxis': {
-            'showgrid': True,
-            'gridwidth': 1,
-            'gridcolor': '#f0f0f0',
-            'zeroline': False,
-            'showline': True,
-            'linewidth': 1,
-            'linecolor': '#e0e0e0',
-            'title_standoff': 0,
-            'automargin': True
-        }
-    }
-    
-    # Only add titles if they are provided
-    if title:
-        layout_updates['title'] = title
-    if xaxis_title:
-        layout_updates['xaxis']['title'] = xaxis_title
-    if yaxis_title:
-        layout_updates['yaxis']['title'] = yaxis_title
-    
-    fig.update_layout(**layout_updates)
-    return fig
-
-def display_loading_status_line_chart(results_df: pd.DataFrame, selected_hour: int = None):
-    """Display a scatter plot of loading status events with detailed hover data"""
-    if results_df is None or results_df.empty:
-        st.warning("No data available for loading status visualization. Please check your database connection and try again.")
-        return
-        
-    # Ensure required columns exist
-    required_columns = ['timestamp', 'loading_percentage', 'load_range']
-    missing_columns = [col for col in required_columns if col not in results_df.columns]
-    if missing_columns:
-        st.error(f"Missing required columns: {', '.join(missing_columns)}")
-        return
-    
-    # Create figure
-    fig = create_base_figure(
-        None,
-        None,
-        "Loading (%)"
-    )
-    
-    # Add scatter plot for each status
-    for status, color in STATUS_COLORS.items():
-        mask = results_df['load_range'] == status
-        if not mask.any():
-            continue
-            
-        status_data = results_df[mask]
-        fig.add_trace(
-            go.Scatter(
-                x=status_data['timestamp'],
-                y=status_data['loading_percentage'],
-                mode='markers',
-                name=status,
-                marker=dict(
-                    color=color,
-                    size=8
-                ),
-                hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Loading: %{y:.1f}%<br>Status: ' + status + '<extra></extra>'
-            )
-        )
-    
-    # Add hour indicator if selected
-    if selected_hour is not None:
-        # Get y-axis range from data
-        y_min = results_df['loading_percentage'].min()
-        y_max = results_df['loading_percentage'].max()
-        y_padding = (y_max - y_min) * 0.1  # Add 10% padding
-        y_range = (y_min - y_padding, y_max + y_padding)
-        
-        # Get first timestamp and create indicator time
-        first_timestamp = pd.to_datetime(results_df['timestamp'].iloc[0])
-        indicator_time = pd.Timestamp(first_timestamp.date()) + pd.Timedelta(hours=selected_hour)
-        
-        # Add the vertical line
-        fig.add_shape(
-            type="line",
-            x0=indicator_time,
-            x1=indicator_time,
-            y0=y_range[0],
-            y1=y_range[1],
-            line=dict(
-                color='#9ca3af',
-                width=1,
-                dash='dash'
-            )
-        )
-        
-        # Add the annotation
-        fig.add_annotation(
-            text=f"{selected_hour:02d}:00",
-            x=indicator_time,
-            y=y_range[1],
-            yanchor="bottom",
-            showarrow=False,
-            textangle=-90,
-            font=dict(
-                color='#2f4f4f',
-                size=12
-            )
-        )
-    
-    # Update layout
-    fig.update_layout(
-        showlegend=True,
-        legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=0.01,
-            bgcolor="rgba(255, 255, 255, 0.8)"
-        ),
-        margin=dict(l=0, r=0, t=0, b=0),
-        xaxis_title="Time",
-        yaxis_title="Loading (%)",
-        hovermode='closest'
-    )
-    
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
-
-def display_power_time_series(results_df: pd.DataFrame, selected_hour: int = None, is_transformer_view: bool = False):
-    """Display power consumption time series visualization"""
-    logger.info(f"display_power_time_series called with is_transformer_view={is_transformer_view}")
-    
-    if results_df is None or results_df.empty:
-        st.warning("No data available for power consumption visualization. Please check your database connection and try again.")
-        return
-    
-    logger.info(f"DataFrame columns: {results_df.columns.tolist()}")
-    if 'size_kva' in results_df.columns:
-        logger.info(f"size_kva value in visualization: {results_df['size_kva'].iloc[0]}")
-
-    # Create figure
-    fig = create_base_figure(
-        None,
-        None,
-        "Power (kW)"
-    )
-    
-    # Add power consumption trace
-    fig.add_trace(
-        go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['power_kw'],
-            mode='lines+markers',
-            name='Power',
-            line=dict(
-                color='#3b82f6',
-                width=2
-            ),
-            marker=dict(
-                color='#3b82f6',
-                size=6
-            ),
-            hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Power: %{y:.1f} kW<extra></extra>'
-        )
-    )
-    
-    # Add transformer size line if in transformer view
-    if is_transformer_view and 'size_kva' in results_df.columns:
-        logger.info("Adding transformer size line")
-        size_kva = float(results_df['size_kva'].iloc[0])
-        logger.info(f"Using size_kva value: {size_kva}")
-        
-        # Add size_kva limit line
-        fig.add_trace(
-            go.Scatter(
-                x=results_df['timestamp'],
-                y=[size_kva] * len(results_df),
-                mode='lines',
-                name='Transformer Capacity (kVA)',
-                line=dict(
-                    color='red',
-                    width=2,
-                    dash='dash'
-                )
-            )
-        )
-        logger.info("Added size_kva trace")
-        
-        # Add size_kva value annotation
-        fig.add_annotation(
-            x=results_df['timestamp'].iloc[-1],
-            y=size_kva,
-            text=f"{size_kva} kVA",
-            showarrow=False,
-            yshift=10,
-            xshift=5,
-            font=dict(
-                color='red'
-            )
-        )
-        logger.info("Added size_kva annotation")
-        
-        # Update y-axis to include size_kva
-        y_max = max(max(results_df['power_kw']), size_kva) * 1.35
-        logger.info(f"Set y_max to {y_max} to include size_kva")
-    else:
-        logger.info("Not in transformer view or no size_kva column")
-        y_max = max(results_df['power_kw']) * 1.35
-
-    # Update layout
-    fig.update_layout(
-        showlegend=True,
-        yaxis=dict(
-            title="Power (kW)",
-            range=[0, y_max],
-            automargin=True,
-            gridcolor='#E1E1E1'
-        ),
-        xaxis=dict(
-            gridcolor='#E1E1E1',
-            title='Time'
-        ),
-        plot_bgcolor='white',
-        legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=0.01
-        )
-    )
-    logger.info(f"Updated layout with y-axis range: [0, {y_max}]")
-
-    st.plotly_chart(fig, use_container_width=True)
-    logger.info("Displayed chart")
-
-def display_current_time_series(results_df: pd.DataFrame, selected_hour: int = None):
-    """Display current analysis time series visualization"""
-    if results_df is None or results_df.empty:
-        st.warning("No data available for current analysis visualization. Please check your database connection and try again.")
-        return
-        
-    # Create figure
-    fig = create_base_figure(
-        None,
-        None,
-        "Current (A)"
-    )
-    
-    # Add current trace
-    fig.add_trace(
-        go.Scatter(
-            x=results_df['timestamp'],
+        # Add current trace
+        fig.add_trace(go.Scatter(
+            x=results_df.index if isinstance(results_df.index, pd.DatetimeIndex) else results_df['timestamp'],
             y=results_df['current_a'],
-            mode='lines+markers',
             name='Current',
-            line=dict(
-                color='#ef4444',
-                width=2
-            ),
-            marker=dict(
-                color='#ef4444',
-                size=6
-            ),
-            hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Current: %{y:.1f} A<extra></extra>'
-        )
-    )
-    
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        fig = add_hour_indicator(fig, selected_hour)
-    
-    # Update layout
-    fig.update_layout(
-        showlegend=False,
-        margin=dict(l=0, r=0, t=0, b=0),
-        xaxis_title="Time",
-        yaxis_title="Current (A)",
-        hovermode='closest'
-    )
-    
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
-
-def display_voltage_time_series(results_df: pd.DataFrame, selected_hour: int = None):
-    """Display voltage analysis time series visualization"""
-    if results_df is None or results_df.empty:
-        st.warning("No data available for voltage analysis visualization. Please check your database connection and try again.")
-        return
+            line=dict(color='blue', width=2),
+            hovertemplate='%{y:.1f}A<extra></extra>'
+        ))
         
-    # Create figure
-    fig = create_base_figure(
-        None,
-        None,
-        "Voltage (V)"
-    )
-    
-    # Add voltage trace
-    fig.add_trace(
-        go.Scatter(
-            x=results_df['timestamp'],
-            y=results_df['voltage_v'],
-            mode='lines+markers',
-            name='Voltage',
-            line=dict(
-                color='#22c55e',
-                width=2
-            ),
-            marker=dict(
-                color='#22c55e',
-                size=6
-            ),
-            hovertemplate='<b>%{x|%Y-%m-%d %H:%M}</b><br>Voltage: %{y:.1f} V<extra></extra>'
+        # Update layout
+        title = "Current Over Time" if is_transformer_view else "Customer Current Over Time"
+        fig.update_layout(
+            title=title,
+            xaxis_title="Time",
+            yaxis_title="Current (A)",
+            hovermode='x unified',
+            showlegend=False
         )
-    )
-    
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        fig = add_hour_indicator(fig, selected_hour)
-    
-    # Update layout
-    fig.update_layout(
-        showlegend=False,
-        margin=dict(l=0, r=0, t=0, b=0),
-        xaxis_title="Time",
-        yaxis_title="Voltage (V)",
-        hovermode='closest'
-    )
-    
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
-
-def display_voltage_over_time(results_df: pd.DataFrame):
-    """Display voltage over time chart."""
-    if results_df is None or results_df.empty:
-        st.warning("No data available for voltage over time visualization. Please check your database connection and try again.")
-        return
-
-    # Create sample voltage data
-    voltage_df = get_sample_voltage_data(results_df)
-    
-    # Create figure
-    fig = go.Figure()
-    
-    # Add voltage traces
-    fig.add_trace(go.Scatter(
-        x=voltage_df.index,
-        y=voltage_df['Red Phase'],
-        name='Red Phase',
-        line=dict(color='red', width=1)
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=voltage_df.index,
-        y=voltage_df['Yellow Phase'],
-        name='Yellow Phase',
-        line=dict(color='#FFD700', width=1)  # Dark yellow for better visibility
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=voltage_df.index,
-        y=voltage_df['Blue Phase'],
-        name='Blue Phase',
-        line=dict(color='blue', width=1)
-    ))
-    
-    # Add nominal voltage line
-    fig.add_hline(
-        y=120,
-        line_dash="dash",
-        line_color="gray",
-        annotation_text="Nominal (120V)",
-        annotation_position="right"
-    )
-    
-    # Add +5% limit line (126V)
-    fig.add_hline(
-        y=126,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="+5% (126V)",
-        annotation_position="right"
-    )
-    
-    # Add -5% limit line (114V)
-    fig.add_hline(
-        y=114,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="-5% (114V)",
-        annotation_position="right"
-    )
-    
-    # Update layout
-    fig.update_layout(
-        margin=dict(l=0, r=100, t=0, b=0),  # Add right margin for annotations
-        height=250,
-        yaxis=dict(
-            title=dict(
-                text="Voltage (V)",
-                font=dict(size=12),
-                standoff=25
-            ),
-            range=[110, 130],  # Expanded range to show limits clearly
-            automargin=True,
-            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
-        xaxis=dict(
-            tickformat='%H:%M',  # Show hours and minutes
-            dtick=3*3600000,  # Show tick every 3 hours (in milliseconds)
-            tickangle=0,
-            gridcolor='#E1E1E1',  # Darker grey for x-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
-        showlegend=False,
-        plot_bgcolor='white'  # White background to make grid more visible
-    )
-    
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
-
-def display_loading_status(results_df: pd.DataFrame, selected_hour: int = None):
-    """Display loading status visualization."""
-    if results_df is None or results_df.empty:
-        st.warning("No data available for loading status visualization. Please check your database connection and try again.")
-        return
-
-    # Calculate loading percentage
-    results_df['loading_pct'] = (results_df['power_kw'] / 75.0) * 100
-
-    # Replace deprecated 'T' with 'min'
-    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
-    daily_min = results_df.groupby(results_df['timestamp'].dt.date)['loading_percentage'].min()
-    daily_max = results_df.groupby(results_df['timestamp'].dt.date)['loading_percentage'].max()
-
-    # Create figure
-    fig = go.Figure()
-    
-    # Add loading percentage trace
-    fig.add_trace(go.Scatter(
-        x=results_df.index,
-        y=results_df['loading_pct'],
-        mode='lines',
-        name='Loading %',
-        line=dict(color='#2196f3', width=1.5)
-    ))
-
-    # Add 100% threshold line
-    fig.add_hline(
-        y=100,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="100% Loading",
-        annotation_position="right"
-    )
-
-    # Calculate y-axis range
-    y_max = max(100, results_df['loading_pct'].max() * 1.1)
-    y_min = 0
-
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        add_hour_indicator(fig, selected_hour, y_range=(y_min, y_max))
-
-    # Update layout
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=250,
-        yaxis=dict(
-            title=dict(
-                text="Loading (%)",
-                font=dict(size=12),
-                standoff=25
-            ),
-            range=[y_min, y_max],
-            automargin=True,
-            gridcolor='#E1E1E1',  # Darker grey for y-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
-        xaxis=dict(
-            title=None,
-            gridcolor='#E1E1E1',  # Darker grey for x-axis grid
-            gridwidth=1,
-            showgrid=True
-        ),
-        showlegend=False,
-        plot_bgcolor='white'  # White background to make grid more visible
-    )
-
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
-
-def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: int = None):
-    """Display the complete transformer analysis dashboard with filtering options"""
-    if transformer_df is None or transformer_df.empty:
-        st.warning("No data available for the selected filters. Please check your database connection and try again.")
-        return transformer_df
-
-    # Create tabs
-    tab1, tab2 = st.tabs(["Customer", "Alerts"])
-    
-    # Customer tab content
-    with tab1:
-        # Get transformer ID from results
-        transformer_id = transformer_df['transformer_id'].iloc[0]
         
-        # Get transformer attributes from data service
-        try:
-            from app.services.cloud_data_service import data_service
-            transformer_data = data_service.get_transformer_attributes(transformer_id)
+        # Display
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error in current time series: {str(e)}")
+        st.error("Error displaying current data")
+
+def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: bool = True):
+    """Display voltage time series visualization."""
+    try:
+        # Normalize and validate data
+        results_df = normalize_timestamps(results_df)
+        
+        if len(results_df) == 0:
+            st.warning("No valid voltage data available for the selected time range")
+            return
             
-            # Extract attributes
-            connected_customers = transformer_data.get('number_of_customers', 0)
-            latitude = transformer_data.get('latitude', 0.0)
-            longitude = transformer_data.get('longitude', 0.0)
-        except Exception as e:
-            logger.error(f"Failed to get transformer attributes: {str(e)}")
-            connected_customers = 0
-            latitude = 0.0
-            longitude = 0.0
+        # Create mock data
+        timestamps = results_df['timestamp']
+        n_points = len(timestamps)
         
-        # Create tiles for transformer attributes
-        st.markdown("### Transformer Attributes")
-        cols = st.columns(4)
+        # Create voltage variation
+        base_variation = np.cumsum(np.random.uniform(-0.1, 0.1, n_points))
+        base_variation = base_variation - np.mean(base_variation)
+        base_variation = base_variation * (10 / np.max(np.abs(base_variation)))  # Scale to ±10V
+        voltage = 400 + base_variation  # Center around 400V
         
-        # Transformer ID
-        with cols[0]:
-            create_tile(
-                "Transformer ID",
-                transformer_id
-            )
+        # Generate data
+        df_voltage = pd.DataFrame({
+            'timestamp': timestamps,
+            'Voltage': voltage
+        })
         
-        # Connected Customers
-        with cols[1]:
-            create_tile(
-                "Connected Customers",
-                str(connected_customers)
-            )
+        # Display section title
+        st.markdown("#### Voltage Over Time")
         
-        # Latitude
-        with cols[2]:
-            create_tile(
-                "Latitude",
-                f"{latitude:.4f}"
-            )
+        # Create base chart with exact same dimensions and style as current chart
+        base_chart = alt.Chart(df_voltage).mark_line(
+            color='blue',
+            strokeWidth=2
+        ).encode(
+            x=alt.X('timestamp:T', 
+                   title='Time',
+                   axis=alt.Axis(
+                       grid=True,
+                       gridOpacity=0.5,
+                       labelFontSize=11,
+                       titleFontSize=12,
+                       tickCount=10,
+                       gridWidth=0.5
+                   )),
+            y=alt.Y('Voltage:Q', 
+                   scale=alt.Scale(domain=[380, 420], nice=True),
+                   title='Voltage (V)',
+                   axis=alt.Axis(
+                       grid=True,
+                       gridOpacity=0.5,
+                       labelFontSize=11,
+                       titleFontSize=12,
+                       tickCount=5,
+                       gridWidth=0.5
+                   ))
+        ).properties(
+            width='container',
+            height=300
+        )
         
-        # Longitude
-        with cols[3]:
-            create_tile(
-                "Longitude",
-                f"{longitude:.4f}"
-            )
+        # Create voltage limits
+        upper_limit = 420
+        nominal = 400
+        lower_limit = 380
+        
+        # Add reference lines
+        reference_lines = alt.Chart(pd.DataFrame({
+            'y': [upper_limit, nominal, lower_limit],
+            'color': ['red', 'gray', 'red'],
+            'dash': ['dashed', 'dashed', 'dashed']
+        })).mark_rule(
+            strokeDash=[5, 5]
+        ).encode(
+            y='y:Q',
+            color=alt.Color('color:N', scale=None),
+            strokeDash='dash:N'
+        )
+        
+        # Combine charts and add padding to match current chart
+        chart = alt.layer(base_chart, reference_lines).properties(
+            width='container',
+            height=300,
+            padding={"left": 45, "right": 20, "top": 10, "bottom": 30}
+        ).configure_view(
+            strokeWidth=0
+        )
+        
+        # Display voltage metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown(f"""
+                <div style='text-align: left; padding: 5px 0;'>
+                    <span style='color: red; font-size: 12px;'>Upper Limit</span><br/>
+                    <span style='color: red; font-size: 16px; font-weight: 500;'>{upper_limit}V</span>
+                    <span style='color: red; font-size: 11px;'> (+5%)</span>
+                </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"""
+                <div style='text-align: center; padding: 5px 0;'>
+                    <span style='color: gray; font-size: 12px;'>Nominal</span><br/>
+                    <span style='color: gray; font-size: 16px; font-weight: 500;'>{nominal}V</span>
+                </div>
+            """, unsafe_allow_html=True)
+        with col3:
+            st.markdown(f"""
+                <div style='text-align: right; padding: 5px 0;'>
+                    <span style='color: red; font-size: 12px;'>Lower Limit</span><br/>
+                    <span style='color: red; font-size: 16px; font-weight: 500;'>{lower_limit}V</span>
+                    <span style='color: red; font-size: 11px;'> (-5%)</span>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        # Create a container with full width
+        with st.container():
+            # Display the chart with full width
+            st.altair_chart(chart, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying voltage time series: {str(e)}")
+        st.error("Error displaying voltage time series chart")
 
-        # Create section titles for charts
-        create_section_title("Power Consumption Over Time")
-        
-        # Display power consumption over time
-        display_power_time_series(transformer_df, selected_hour, is_transformer_view=True)
-        
-        # Create two columns for the remaining visualizations
+def display_current_and_voltage_charts(results_df: pd.DataFrame):
+    """Display current and voltage time series visualizations side by side."""
+    try:
+        # Create two columns for the charts
         col1, col2 = st.columns(2)
         
         with col1:
-            create_section_title("Current Over Time")
-            display_current_time_series(transformer_df, selected_hour)
+            # Current Chart
+            display_current_time_series(results_df)
             
         with col2:
-            create_section_title("Voltage Over Time")
-            display_voltage_time_series(transformer_df, selected_hour)
-    
-    # Alerts tab content (placeholder for now)
-    with tab2:
-        st.info("Alert configuration and history will be displayed here.")
-    
-    return transformer_df  # Return filtered results for raw data display
-
-def get_sample_voltage_data(df):
-    """Generate sample three-phase voltage data."""
-    # Create a 24-hour time range with hourly points
-    if isinstance(df.index[0], (int, float)):
-        # If index is numeric, create a 24-hour range from midnight
-        start_time = pd.Timestamp.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    else:
-        # If index is timestamp, use its date
-        start_time = pd.Timestamp(df.index[0]).replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    end_time = start_time + pd.Timedelta(days=1)
-    time_index = pd.date_range(start=start_time, end=end_time, freq='5T')  # 5-minute intervals
-    
-    # Generate sample voltage data
-    n_points = len(time_index)
-    t = np.linspace(0, 8*np.pi, n_points)  # Increase cycles for 24-hour period
-    
-    # Base voltage with some random fluctuation
-    base_voltage = 120
-    noise_level = 0.5
-    
-    # Generate three phases with 120-degree shifts and realistic fluctuation
-    # Add slow variation over 24 hours
-    daily_variation = 1 * np.sin(np.linspace(0, 2*np.pi, n_points))  # ±1V daily swing
-    
-    phase_a = base_voltage + daily_variation + 2*np.sin(t) + noise_level * np.random.randn(n_points)
-    phase_b = base_voltage + daily_variation + 2*np.sin(t + 2*np.pi/3) + noise_level * np.random.randn(n_points)
-    phase_c = base_voltage + daily_variation + 2*np.sin(t + 4*np.pi/3) + noise_level * np.random.randn(n_points)
-    
-    # Ensure voltages stay within realistic bounds
-    phase_a = np.clip(phase_a, 117, 123)
-    phase_b = np.clip(phase_b, 117, 123)
-    phase_c = np.clip(phase_c, 117, 123)
-    
-    return pd.DataFrame({
-        'Red Phase': phase_a,
-        'Yellow Phase': phase_b,
-        'Blue Phase': phase_c
-    }, index=time_index)
-
-def display_transformer_dashboard(transformer_df: pd.DataFrame, selected_hour: int = None):
-    """Display the transformer analysis dashboard"""
-    try:
-        # Get customer data
-        data_service = CloudDataService()
-        customer_df = data_service.get_customer_data(
-            transformer_df['transformer_id'].iloc[0],
-            pd.to_datetime(transformer_df['timestamp'].iloc[0]).date(),
-            selected_hour
-        )
-        customer_agg = data_service.get_customer_aggregation(
-            transformer_df['transformer_id'].iloc[0],
-            pd.to_datetime(transformer_df['timestamp'].iloc[0]).date(),
-            selected_hour
-        )
-
-        # Create tabs for different views
-        tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
-
-        with tab1:
-            display_transformer_tab(transformer_df, selected_hour)
-
-        with tab2:
-            if customer_df is not None and customer_agg is not None:
-                display_customer_tab(customer_df, customer_agg, selected_hour)
-            else:
-                st.warning("No customer data available for this transformer")
-
+            # Voltage Chart
+            display_voltage_time_series(results_df)
+                
     except Exception as e:
-        logger.error(f"Error displaying dashboard: {str(e)}")
-        st.error("An error occurred while displaying the dashboard")
+        logger.error(f"Error displaying current and voltage charts: {str(e)}")
+        st.error("Error displaying charts")
 
-def display_transformer_tab(df: pd.DataFrame, selected_hour: int = None):
-    """Display transformer analysis tab"""
+def display_loading_status_line_chart(results_df: pd.DataFrame):
+    """Display loading status as a line chart with threshold indicators."""
+    try:
+        # Normalize and validate data
+        results_df = normalize_timestamps(results_df)
+        
+        if len(results_df) == 0:
+            st.warning("No valid loading data available for the selected time range")
+            return
+            
+        # Create DataFrame for display
+        df_loading = pd.DataFrame({
+            'timestamp': results_df['timestamp'],
+            'Loading Status (%)': results_df['loading_percentage']
+        }).set_index('timestamp')
+        
+        # Get unique load ranges and parse them
+        if 'load_range' in results_df.columns:
+            unique_ranges = results_df['load_range'].unique()
+            thresholds = []
+            for range_str in unique_ranges:
+                lower, upper = parse_load_range(range_str)
+                if lower is not None and upper is not None:
+                    thresholds.extend([
+                        (upper, f'Upper Bound', f'{upper}%', 'off'),
+                        (lower, f'Lower Bound', f'{lower}%', 'normal')
+                    ])
+        else:
+            # Fallback to default thresholds
+            thresholds = [
+                (120, 'Critical', '120%', 'off'),
+                (100, 'Overloaded', '100%', 'off'),
+                (80, 'Warning', '80%', 'normal'),
+                (50, 'Pre-Warning', '50%', 'normal')
+            ]
+        
+        # Display thresholds as metrics in columns
+        cols = st.columns(len(thresholds))
+        for i, (value, label, display_value, delta_color) in enumerate(sorted(thresholds, key=lambda x: x[0], reverse=True)):
+            with cols[i]:
+                st.metric(label, display_value, delta_color=delta_color)
+        
+        # Display current load range if available
+        if 'load_range' in results_df.columns:
+            current_range = results_df['load_range'].iloc[-1]
+            st.caption(f"Current Load Range: {current_range}")
+        
+        # Display the line chart
+        st.line_chart(
+            df_loading,
+            use_container_width=True,
+            height=250
+        )
+        
+    except Exception as e:
+        logger.error(f"Error displaying loading status: {str(e)}")
+        st.error("Error displaying loading status chart")
+
+def display_power_consumption(results_df: pd.DataFrame):
+    """Display power consumption visualization."""
+    try:
+        # Normalize timestamps
+        results_df = normalize_timestamps(results_df)
+        
+        if len(results_df) == 0:
+            st.warning("No valid power consumption data available")
+            return
+            
+        # Create DataFrame for display
+        df_power = pd.DataFrame({
+            'timestamp': results_df['timestamp'],
+            'Power (kW)': results_df['power_kw']
+        }).set_index('timestamp')
+        
+        # Display current power consumption
+        current_power = results_df['power_kw'].iloc[-1]
+        st.metric("Current Power Consumption", f"{current_power:.2f} kW")
+        
+        # Display the line chart
+        st.line_chart(
+            df_power,
+            use_container_width=True,
+            height=250
+        )
+        
+    except Exception as e:
+        logger.error(f"Error displaying power consumption: {str(e)}")
+        st.error("Error displaying power consumption visualization")
+
+def display_transformer_dashboard(transformer_df: pd.DataFrame):
+    # Display the transformer analysis dashboard
+    if transformer_df is None or transformer_df.empty:
+        st.warning("No data available for transformer dashboard.")
+        return
+
+    # Get customer data
+    data_service = CloudDataService()
+    customer_df = data_service.get_customer_data(
+        transformer_df['transformer_id'].iloc[0],
+        pd.to_datetime(transformer_df['timestamp'].iloc[0]).date(),
+        pd.to_datetime(transformer_df['timestamp'].iloc[-1]).date()
+    )
+    
+    # Create tabs for different views
+    tab1, tab2 = st.tabs(["Transformer Analysis", "Customer Analysis"])
+
+    with tab1:
+        display_transformer_tab(transformer_df)
+
+    with tab2:
+        if customer_df is not None:
+            display_customer_tab(customer_df)
+        else:
+            st.warning("No customer data available for this transformer")
+
+def display_transformer_tab(df: pd.DataFrame):
+    # Display transformer analysis tab
+    if df is None or df.empty:
+        st.warning("No data available for transformer analysis.")
+        return
+
     # Create metrics row
     cols = st.columns(4)
     
@@ -775,246 +455,231 @@ def display_transformer_tab(df: pd.DataFrame, selected_hour: int = None):
         )
     with cols[1]:
         create_tile(
-            "Power Factor",
-            f"{latest['power_factor']:.2f}",
-            is_clickable=True
-        )
-    with cols[2]:
-        create_tile(
             "Power (kW)",
             f"{latest['power_kw']:.1f}",
             is_clickable=True
         )
-    with cols[3]:
+    with cols[2]:
         create_tile(
             "Power (kVA)",
             f"{latest['power_kva']:.1f}",
             is_clickable=True
         )
-
-    # Create charts
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=(
-            "Loading Status Over Time",
-            "Power Factor Over Time",
-            "Power Consumption",
-            "Voltage and Current"
-        )
-    )
-
-    # Loading status line chart
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['loading_percentage'],
-            name="Loading %",
-            line=dict(color='blue')
-        ),
-        row=1, col=1
-    )
-
-    # Power factor line chart
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['power_factor'],
-            name="Power Factor",
-            line=dict(color='green')
-        ),
-        row=1, col=2
-    )
-
-    # Power consumption chart
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['power_kw'],
-            name="Power (kW)",
-            line=dict(color='red')
-        ),
-        row=2, col=1
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['power_kva'],
-            name="Power (kVA)",
-            line=dict(color='orange')
-        ),
-        row=2, col=1
-    )
-
-    # Voltage and current chart
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['voltage_v'],
-            name="Voltage (V)",
-            line=dict(color='purple')
-        ),
-        row=2, col=2
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df['timestamp'],
-            y=df['current_a'],
-            name="Current (A)",
-            line=dict(color='brown'),
-            yaxis="y2"
-        ),
-        row=2, col=2
-    )
-
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        for i in range(1, 3):
-            for j in range(1, 3):
-                fig.add_vline(
-                    x=df['timestamp'].iloc[0].replace(hour=selected_hour),
-                    line_dash="dash",
-                    line_color="gray",
-                    row=i,
-                    col=j
-                )
-
-    # Update layout
-    fig.update_layout(
-        height=800,
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        )
-    )
-
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
-
-def display_customer_tab(df: pd.DataFrame, agg_data: dict, selected_hour: int = None):
-    """Display customer analysis tab"""
-    # Create metrics row
-    cols = st.columns(4)
-    
-    with cols[0]:
-        create_tile(
-            "Connected Customers",
-            str(agg_data.customer_count),
-            is_clickable=True
-        )
-    with cols[1]:
-        create_tile(
-            "Total Power (kW)",
-            f"{agg_data.total_power_kw:.1f}",
-            is_clickable=True
-        )
-    with cols[2]:
-        create_tile(
-            "Avg Power Factor",
-            f"{agg_data.avg_power_factor:.2f}",
-            is_clickable=True
-        )
     with cols[3]:
         create_tile(
-            "Total Current (A)",
-            f"{agg_data.total_current_a:.1f}",
+            "Current",
+            f"{latest['current_a']:.1f} A",
             is_clickable=True
         )
 
-    # Create customer charts
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=(
-            "Customer Power Distribution",
-            "Customer Power Factor Distribution",
-            "Total Customer Power Over Time",
-            "Average Customer Voltage"
-        )
+    # Create section for loading status
+    st.markdown("### Loading Status")
+    with st.container():
+        create_tile("Loading Status Over Time", "")
+        display_loading_status_line_chart(df)
+
+    # Create section for power analysis
+    st.markdown("### Power Analysis")
+    with st.container():
+        create_tile("Power Consumption Over Time", "")
+        display_power_time_series(df, size_kva=df['size_kva'].iloc[0] if 'size_kva' in df.columns else None)
+
+    # Create section for voltage and current
+    st.markdown("### Voltage and Current")
+    
+    # Create two columns for current and voltage
+    current_col, voltage_col = st.columns(2)
+    
+    with current_col:
+        display_current_time_series(df)
+        
+    with voltage_col:
+        display_voltage_time_series(df)
+
+def display_customer_tab(customer_df: pd.DataFrame):
+    """Display customer data visualization."""
+    try:
+        if customer_df.empty:
+            st.warning("No customer data available")
+            return
+
+        # Create section for customer details
+        st.markdown("### Customer Details")
+        
+        # Display customer metrics in a grid
+        col1, col2, col3, col4 = st.columns(4)
+        
+        # Get customer ID if available, otherwise use placeholder
+        customer_id = customer_df['customer_id'].iloc[0] if 'customer_id' in customer_df.columns else "N/A"
+        
+        with col1:
+            create_tile("Customer ID", customer_id)
+        with col2:
+            create_tile("Feeder", "Feeder 1")  # From table name in logs
+        with col3:
+            create_tile("Records", f"{len(customer_df):,}")
+        with col4:
+            create_tile("Date Range", f"{customer_df.index.min().strftime('%Y-%m-%d')} to {customer_df.index.max().strftime('%Y-%m-%d')}")
+
+        # Power Analysis Section
+        st.markdown("### Power Analysis")
+        with st.container():
+            display_power_time_series(customer_df, is_transformer_view=False)
+
+        # Voltage and Current Section
+        st.markdown("### Voltage and Current")
+        current_col, voltage_col = st.columns(2)
+        
+        with current_col:
+            st.markdown("#### Current")
+            display_current_time_series(customer_df, is_transformer_view=False)
+            
+        with voltage_col:
+            st.markdown("#### Voltage")
+            display_voltage_time_series(customer_df, is_transformer_view=False)
+
+    except Exception as e:
+        logger.error(f"Error in customer tab: {str(e)}")
+        st.error("Error displaying customer data. Please check the data format and try again.")
+
+def display_voltage_over_time(results_df: pd.DataFrame):
+    # Display voltage over time chart
+    if results_df is None or results_df.empty:
+        st.warning("No data available for voltage over time visualization.")
+        return
+
+    # Create figure
+    # Create mock data for three phases with smaller variations
+    timestamps = results_df['timestamp']
+    nominal_voltage = 400
+    
+    # Generate slightly different variations for each phase (reduced amplitude)
+    df_phases = pd.DataFrame({
+        'timestamp': timestamps,
+        'Phase R': nominal_voltage + np.sin(np.linspace(0, 2*np.pi, len(timestamps))) * 2,
+        'Phase Y': nominal_voltage + np.sin(np.linspace(2*np.pi/3, 8*np.pi/3, len(timestamps))) * 2,
+        'Phase B': nominal_voltage + np.sin(np.linspace(4*np.pi/3, 10*np.pi/3, len(timestamps))) * 2
+    })
+    
+    # Display threshold metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Upper Limit", f"{nominal_voltage * 1.05:.0f}V", "+5%", delta_color="inverse")
+    with col2:
+        st.metric("Nominal", f"{nominal_voltage:.0f}V")
+    with col3:
+        st.metric("Lower Limit", f"{nominal_voltage * 0.95:.0f}V", "-5%", delta_color="inverse")
+        
+    # Display the line chart
+    st.line_chart(
+        df_phases.set_index('timestamp'),
+        use_container_width=True,
+        height=250
     )
 
-    # Customer power distribution
-    latest_df = df[df['timestamp'] == df['timestamp'].max()]
-    fig.add_trace(
-        go.Box(
-            y=latest_df['power_kw'],
-            name="Power Distribution (kW)",
-            boxpoints='all',
-            jitter=0.3,
-            pointpos=-1.8
-        ),
-        row=1, col=1
-    )
+def display_loading_status(df: pd.DataFrame, size_kva: Optional[float] = None):
+    """Display loading condition status chart with thresholds.
+    
+    Args:
+        df: DataFrame containing transformer data with loading_percentage and load_range
+        size_kva: Transformer size in kVA
+    """
+    try:
+        if df is None or df.empty:
+            st.warning("No data available to display loading status")
+            return
 
-    # Power factor distribution
-    fig.add_trace(
-        go.Box(
-            y=latest_df['power_factor'],
-            name="Power Factor Distribution",
-            boxpoints='all',
-            jitter=0.3,
-            pointpos=-1.8
-        ),
-        row=1, col=2
-    )
-
-    # Total power over time
-    power_by_time = df.groupby('timestamp')['power_kw'].sum().reset_index()
-    fig.add_trace(
-        go.Scatter(
-            x=power_by_time['timestamp'],
-            y=power_by_time['power_kw'],
-            name="Total Power (kW)",
-            line=dict(color='red')
-        ),
-        row=2, col=1
-    )
-
-    # Average voltage over time
-    voltage_by_time = df.groupby('timestamp')['voltage_v'].mean().reset_index()
-    fig.add_trace(
-        go.Scatter(
-            x=voltage_by_time['timestamp'],
-            y=voltage_by_time['voltage_v'],
-            name="Avg Voltage (V)",
-            line=dict(color='purple')
-        ),
-        row=2, col=2
-    )
-
-    # Add hour indicator if specified
-    if selected_hour is not None:
-        for i in range(1, 3):
-            for j in range(1, 3):
-                fig.add_vline(
-                    x=df['timestamp'].iloc[0].replace(hour=selected_hour),
-                    line_dash="dash",
-                    line_color="gray",
-                    row=i,
-                    col=j
+        # Normalize data
+        df = normalize_timestamps(df)
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add loading percentage line
+        fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['loading_percentage'],
+            name='Loading %',
+            mode='lines+markers',
+            line=dict(color='#2E86C1', width=2),
+            hovertemplate='%{y:.1f}%<br>Range: %{text}<extra></extra>',
+            text=df['load_range'] if 'load_range' in df.columns else None
+        ))
+        
+        # Add threshold lines
+        thresholds = [
+            (120, 'Critical (>120%)', '#dc3545'),
+            (100, 'Overloaded (100%-120%)', '#fd7e14'),
+            (80, 'Warning (80%-100%)', '#ffc107'),
+            (50, 'Pre-Warning (50%-80%)', '#6f42c1')
+        ]
+        
+        for threshold, label, color in thresholds:
+            fig.add_hline(
+                y=threshold,
+                line=dict(color=color, width=1, dash='dash'),
+                annotation=dict(
+                    text=label,
+                    xref='x',  # Use x-axis reference for better positioning
+                    x=1.02,
+                    y=threshold,
+                    showarrow=False,
+                    font=dict(size=10, color=color)
                 )
-
-    # Update layout
-    fig.update_layout(
-        height=800,
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
+            )
+        
+        # Update layout
+        fig.update_layout(
+            height=400,
+            showlegend=True,
+            hovermode='x unified',
+            xaxis_title='Time',
+            yaxis_title='Loading (%)',
+            yaxis=dict(
+                range=[0, max(150, df['loading_percentage'].max() * 1.1)],
+                gridcolor='rgba(0,0,0,0.1)'
+            ),
+            plot_bgcolor='white',
+            margin=dict(l=50, r=150, t=50, b=50),  # Increased right margin for threshold labels
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(0,0,0,0.1)',
+                showline=True,
+                linecolor='rgba(0,0,0,0.2)'
+            )
         )
-    )
+        
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error in display_loading_status: {str(e)}")
+        st.error("Failed to display loading status chart")
 
-    # Display the figure
-    st.plotly_chart(fig, use_container_width=True)
+def parse_load_range(range_str: str) -> tuple:
+    """Parse load range string (e.g. '50%-80%') into tuple of floats."""
+    try:
+        lower, upper = range_str.replace('%', '').split('-')
+        return float(lower), float(upper)
+    except (ValueError, AttributeError) as e:
+        logger.error(f"Error parsing load range '{range_str}': {str(e)}")
+        return None, None
 
-    # Display customer table
-    create_section_banner("Customer Details")
-    st.dataframe(
-        latest_df[['customer_id', 'power_kw', 'power_factor', 'voltage_v', 'current_a']],
-        use_container_width=True
+def create_tile(title: str, value: str, background_color: str = "#F8F9FA"):
+    """Create a metric tile with consistent styling."""
+    st.markdown(
+        f"""
+        <div style="
+            background-color: {background_color};
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin: 5px 0;
+            height: 100%;
+            width: 100%;
+        ">
+            <p style="color: #666; margin: 0; font-size: 14px;">{title}</p>
+            <p style="color: #333; margin: 5px 0 0 0; font-size: 20px; font-weight: 500;">{value}</p>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
