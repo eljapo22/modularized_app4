@@ -46,6 +46,28 @@ def create_section_banner(title: str):
     """Create a section banner with professional styling"""
     st.header(title)
 
+def create_colored_banner(title: str):
+    """Create a banner using st.caption in a colored container"""
+    with st.container():
+        st.markdown(
+            f"""
+            <div style="
+                padding: 5px 15px 5px 15px;
+                border-radius: 5px;
+                background-color: #f0f2f6;
+                margin-bottom: 10px;
+            ">
+                <h4 style="
+                    color: #0E1117;
+                    margin: 0;
+                    font-size: 1rem;
+                    font-weight: 600;
+                ">{title}</h4>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
 def create_bordered_header(title: str):
     """Create a header with a professional border using Streamlit elements"""
     with st.container():
