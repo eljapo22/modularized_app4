@@ -10,26 +10,26 @@ def create_tile(title: str, value: str, is_clickable: bool = False):
     # Create unique key for this tile
     key = f"tile_{title.lower().replace(' ', '_')}"
     
+    # Create a button that will contain both title and value
     if is_clickable:
-        # For clickable tiles, use a button with container styling
         clicked = st.button(
-            label="",  # Empty label since we'll add content inside
+            label=f"{title}  \n{value}",  # Use markdown double space for line break
             key=key,
-            use_container_width=True
+            use_container_width=True,
+            type="secondary"
         )
-        
-        # Add content inside a container to preserve styling
-        with st.container():
-            st.caption(title)  # Small gray text for title
-            st.write(value)    # Larger text for value
-            
-        return clicked
     else:
-        # For non-clickable tiles, just show the content
-        with st.container():
-            st.caption(title)
-            st.write(value)
-        return False
+        # For non-clickable tiles, use a disabled button with the same style
+        st.button(
+            label=f"{title}  \n{value}",  # Use markdown double space for line break
+            key=key,
+            disabled=True,
+            use_container_width=True,
+            type="secondary"
+        )
+        clicked = False
+        
+    return clicked
 
 def create_section_title(title: str):
     """Create a section title with the same styling as tiles"""
