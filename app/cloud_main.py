@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
-from app.visualization.charts import display_transformer_data, display_customer_data
+from app.visualization.charts import display_transformer_tab, display_customer_tab
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -123,16 +123,16 @@ def main():
         customer_data = st.session_state.customer_data
         
         if transformer_data is not None:
-            # Display transformer data
-            st.header("Transformer Analysis")
-            display_transformer_data(transformer_data)
+            # Create tabs
+            transformer_tab, customer_tab = st.tabs(["Transformer Analysis", "Customer Analysis"])
             
-            # Display customer data if available
-            if customer_data is not None and not customer_data.empty:
-                st.header("Customer Analysis")
-                display_customer_data(customer_data)
-            else:
-                st.warning("No customer data available for this transformer")
+            # Transformer Analysis Tab
+            with transformer_tab:
+                display_transformer_tab(transformer_data)
+            
+            # Customer Analysis Tab
+            with customer_tab:
+                display_customer_tab(customer_data)
         else:
             st.warning("No transformer data available for the selected criteria.")
 
