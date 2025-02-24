@@ -6,6 +6,7 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 import logging
 from typing import List, Optional, Dict
+import time
 
 from app.config.database_config import (
     TRANSFORMER_DATA_QUERY,
@@ -47,6 +48,9 @@ class CloudDataService:
             # Cache for transformer IDs
             self._transformer_ids: Optional[List[str]] = None
             
+            # Cache for available feeders
+            self._available_feeders: Optional[List[str]] = None
+            
             # Dataset date range
             self.min_date = date(2024, 1, 1)
             self.max_date = date(2024, 6, 28)
@@ -58,10 +62,11 @@ class CloudDataService:
 
     def get_feeder_options(self) -> List[str]:
         """Get list of available feeders"""
-        logger.info("Retrieving feeder options...")
-        feeders = [f"Feeder {num}" for num in FEEDER_NUMBERS]
-        logger.info(f"Found {len(feeders)} feeders: {feeders}")
-        return feeders
+        if self._available_feeders is None:
+            logger.info("Getting feeder options...")
+            self._available_feeders = [f"Feeder {num}" for num in FEEDER_NUMBERS]
+            logger.info(f"Found {len(self._available_feeders)} feeders: {self._available_feeders}")
+        return self._available_feeders
 
     def get_load_options(self, feeder: str) -> List[str]:
         """Get list of available transformer IDs"""
@@ -143,8 +148,8 @@ class CloudDataService:
             logger.info(f"Fetching transformer data for {transformer_id}")
             logger.info(f"Date range: {start_date} to {end_date}")
             
-            # Extract feeder number
-            feeder_num = int(feeder.split()[-1])
+            # Extract feeder number from transformer ID (format: S1F2ATF001)
+            feeder_num = int(transformer_id[3])  # Position 3 is the feeder number
             if feeder_num not in FEEDER_NUMBERS:
                 logger.error(f"Invalid feeder number: {feeder_num}")
                 return None
@@ -153,11 +158,15 @@ class CloudDataService:
             table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
             logger.info(f"Using table: {table}")
             
+            # Convert dates to timestamps for the query
+            start_ts = datetime.combine(start_date, datetime.min.time)
+            end_ts = datetime.combine(end_date, datetime.max.time)
+            
             # Execute query
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
             results = execute_query(
                 query, 
-                params=(start_date, end_date, transformer_id)  # Fixed parameter order to match SQL query
+                params=(transformer_id, start_ts, end_ts)  # Match SQL parameter order
             )
             
             if not results:
@@ -256,15 +265,22 @@ class CloudDataService:
             logger.info(f"Fetching customer data for transformer {transformer_id}")
             logger.info(f"Date range: {start_date} to {end_date}")
             
+            # Extract feeder number from transformer ID (format: S1F2ATF001)
+            feeder_num = int(transformer_id[3])  # Position 3 is the feeder number
+            
             # Get table name
-            table = CUSTOMER_TABLE_TEMPLATE.format(1)  # Only Feeder 1 for now
+            table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             logger.info(f"Using table: {table}")
+            
+            # Convert dates to timestamps for the query
+            start_ts = datetime.combine(start_date, time.min)
+            end_ts = datetime.combine(end_date, time.max)
             
             # Execute query
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
                 query,
-                params=(start_date, end_date, transformer_id, start_date, end_date)  # Fixed parameter order to match SQL query
+                params=(start_ts, end_ts, transformer_id)  # Match SQL parameter order
             )
             
             if not results:
