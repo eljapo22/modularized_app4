@@ -7,6 +7,7 @@ import duckdb
 from typing import List, Dict, Any, Optional
 import streamlit as st
 import pandas as pd
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,40 @@ def query_data(query: str, params: Optional[List] = None) -> List[Dict[str, Any]
     except Exception as e:
         logger.error(f"query_data - Connection pool error: {str(e)}")
         return []
+
+def extract_feeder_number(feeder_str: str) -> int:
+    """
+    Extract feeder number from feeder string with robust error handling.
+    Handles various formats including 'Feeder 1', 'Feeder  1', etc.
+    
+    Args:
+        feeder_str: String containing feeder information
+        
+    Returns:
+        int: Feeder number (defaults to 1 if extraction fails)
+    """
+    try:
+        if not isinstance(feeder_str, str):
+            return 1  # Default to feeder 1
+            
+        # Strip all whitespace and normalize
+        feeder_str = feeder_str.strip()
+        
+        # Try regex pattern to extract digits after "Feeder"
+        matches = re.search(r'Feeder\s+(\d+)', feeder_str)
+        if matches:
+            return int(matches.group(1))
+            
+        # Fallback: try to find any digit in the string
+        digits = [c for c in feeder_str if c.isdigit()]
+        if digits:
+            return int(digits[0])
+            
+        # If all else fails, use default
+        return 1
+    except Exception as e:
+        logger.warning(f"Failed to extract feeder number from '{feeder_str}': {str(e)}")
+        return 1  # Default to feeder 1
 
 def close_pool():
     """Close the database connection pool"""

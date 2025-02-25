@@ -54,18 +54,23 @@ class DatabaseAdapter:
     def get_transformer_data(self, transformer_id: str, date_str: str) -> pd.DataFrame:
         """Get transformer data from specific feeder"""
         try:
-            logger.info(f"Getting transformer data for {transformer_id} on {date_str}")
+            logger.info(f"Getting transformer data for '{transformer_id}' on {date_str}")
             
-            # Better feeder number extraction with fallback
-            feeder_num = 1  # Default to feeder 1
+            # Extract feeder number from transformer ID
+            feeder_num = 1  # Default
+            
             try:
-                if isinstance(transformer_id, str) and len(transformer_id) > 3:
-                    # Try to get feeder number from 4th character in ID (e.g., S1F1ATF001)
-                    feeder_chars = [c for c in transformer_id if c.isdigit()]
-                    if feeder_chars:
-                        feeder_num = int(feeder_chars[0])
+                if isinstance(transformer_id, str):
+                    # Try to extract from S1F1ATF format
+                    import re
+                    match = re.search(r'F(\d+)', transformer_id)
+                    if match:
+                        feeder_num = int(match.group(1))
                     else:
-                        logger.warning(f"Could not extract feeder number from transformer ID: {transformer_id}")
+                        # Fallback to extracting any digit
+                        digits = [c for c in transformer_id if c.isdigit()]
+                        if digits:
+                            feeder_num = int(digits[0])
             except Exception as e:
                 logger.warning(f"Feeder number extraction failed: {str(e)}")
             
@@ -108,23 +113,31 @@ class DatabaseAdapter:
     def get_customer_data(self, customer_id: str, date_str: str) -> pd.DataFrame:
         """Get customer data for a specific date"""
         try:
-            logger.info(f"Getting customer data for {customer_id} on {date_str}")
+            logger.info(f"Getting customer data for '{customer_id}' on {date_str}")
             
-            # Better feeder number extraction with fallback
-            feeder_num = 1  # Default to feeder 1
+            # Extract transformer ID from customer ID
+            transformer_id = customer_id  # Default to using customer_id as transformer_id
+            if isinstance(customer_id, str) and 'C' in customer_id:
+                # If format like XXXCXXX, extract transformer part
+                transformer_id = customer_id.split('C')[0]
+                
+            # Extract feeder number from transformer ID
+            feeder_num = 1  # Default
+            
             try:
-                # Extract feeder from customer ID 
-                if isinstance(customer_id, str):
-                    # Try to get the transformer part (if customer ID format contains transformer ID)
-                    transformer_id = customer_id.split('C')[0] if 'C' in customer_id else customer_id
-                    # Try to get feeder number from digits in ID
-                    feeder_chars = [c for c in transformer_id if c.isdigit()]
-                    if feeder_chars:
-                        feeder_num = int(feeder_chars[0])
+                if isinstance(transformer_id, str):
+                    # Try to extract from S1F1ATF format
+                    import re
+                    match = re.search(r'F(\d+)', transformer_id)
+                    if match:
+                        feeder_num = int(match.group(1))
                     else:
-                        logger.warning(f"Could not extract feeder number from ID: {customer_id}")
+                        # Fallback to extracting any digit
+                        digits = [c for c in transformer_id if c.isdigit()]
+                        if digits:
+                            feeder_num = int(digits[0])
             except Exception as e:
-                logger.warning(f"Feeder number extraction failed: {str(e)}")
+                logger.warning(f"Could not extract feeder number: {str(e)}")
             
             # Use correct table name with quotes
             table_name = f'"Customer Feeder {feeder_num}"'

@@ -8,85 +8,58 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def validate_transformer_data(df: pd.DataFrame) -> Dict[str, bool]:
+def validate_transformer_data(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Validate transformer data for anomalies and patterns.
-    Returns a dictionary of validation flags.
+    Validate and clean transformer data.
+    
+    Args:
+        df: DataFrame containing transformer data
+        
+    Returns:
+        DataFrame with validated and cleaned data
     """
     if df is None or df.empty:
-        return {}
+        return pd.DataFrame()
         
-    validations = {}
+    # Make a copy to avoid modifying the original
+    df = df.copy()
     
-    try:
-        # Check for monotonic increase
-        power_increasing = df['power_kw'].is_monotonic_increasing
-        loading_increasing = df['loading_percentage'].is_monotonic_increasing
-        validations['monotonic_increase'] = power_increasing or loading_increasing
+    # Ensure timestamp column exists and is datetime
+    if 'timestamp' in df.columns and not pd.api.types.is_datetime64_dtype(df['timestamp']):
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         
-        if validations['monotonic_increase']:
-            logger.warning("Detected monotonic increase in power or loading values")
-            logger.info(f"Power trend: {'increasing' if power_increasing else 'varying'}")
-            logger.info(f"Loading trend: {'increasing' if loading_increasing else 'varying'}")
+    # Drop rows with null timestamps
+    if 'timestamp' in df.columns:
+        df = df.dropna(subset=['timestamp'])
+        
+    # Ensure required columns exist
+    required_columns = ['transformer_id', 'loading_percentage', 'power_kw']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        logger.warning(f"Missing required columns: {missing_columns}")
+        # Add missing columns with default values
+        for col in missing_columns:
+            df[col] = None
             
-        # Check for unusual rate of change
-        power_changes = df['power_kw'].diff()
-        loading_changes = df['loading_percentage'].diff()
-        
-        # Calculate statistics
-        power_change_stats = {
-            'mean': power_changes.mean(),
-            'std': power_changes.std(),
-            'max': power_changes.max()
-        }
-        loading_change_stats = {
-            'mean': loading_changes.mean(),
-            'std': loading_changes.std(),
-            'max': loading_changes.max()
-        }
-        
-        # Flag if changes are consistently positive
-        validations['consistent_increase'] = (
-            power_changes.mean() > 0 and 
-            power_changes.std() < abs(power_changes.mean())
-        )
-        
-        if validations['consistent_increase']:
-            logger.warning("Detected consistent increase pattern")
-            logger.info(f"Power change stats: {power_change_stats}")
-            logger.info(f"Loading change stats: {loading_change_stats}")
+    # Convert numeric columns to appropriate types
+    numeric_columns = {
+        'loading_percentage': float,
+        'power_kw': float,
+        'size_kva': float,
+        'current_a': float,
+        'voltage_v': float,
+        'power_factor': float
+    }
+    
+    for col, dtype in numeric_columns.items():
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
             
-        # Check for missing timestamps
-        time_diffs = df['timestamp'].diff()
-        expected_diff = pd.Timedelta(hours=1)  # Data is in 1-hour intervals
-        has_gaps = (time_diffs > expected_diff * 1.5).any()
-        validations['has_time_gaps'] = has_gaps
+    # Remove duplicates
+    if 'timestamp' in df.columns and 'transformer_id' in df.columns:
+        df = df.drop_duplicates(subset=['timestamp', 'transformer_id'], keep='first')
         
-        if has_gaps:
-            gaps = time_diffs[time_diffs > expected_diff * 1.5]
-            logger.warning(f"Found {len(gaps)} time gaps in data")
-            logger.info(f"Largest gap: {gaps.max()}")
-            
-        # Check for value ranges
-        validations['unusual_power_range'] = (
-            df['power_kw'].max() > df['power_kw'].mean() * 2 or
-            df['power_kw'].min() < 0
-        )
-        validations['unusual_loading_range'] = (
-            df['loading_percentage'].max() > 100 or
-            df['loading_percentage'].min() < 0
-        )
-        
-        if validations['unusual_power_range'] or validations['unusual_loading_range']:
-            logger.warning("Detected unusual value ranges")
-            logger.info(f"Power range: {df['power_kw'].min():.2f} to {df['power_kw'].max():.2f} kW")
-            logger.info(f"Loading range: {df['loading_percentage'].min():.2f}% to {df['loading_percentage'].max():.2f}%")
-            
-    except Exception as e:
-        logger.error(f"Error during data validation: {str(e)}")
-        return {}
-        
-    return validations
+    return df
 
 def analyze_trends(df: pd.DataFrame) -> Dict[str, float]:
     """

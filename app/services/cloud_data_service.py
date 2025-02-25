@@ -7,7 +7,7 @@ from datetime import datetime, date, timedelta
 import logging
 from typing import List, Optional, Dict, Tuple
 from app.core.database_adapter import DatabaseAdapter
-from app.utils.db_utils import execute_query
+from app.utils.db_utils import execute_query, extract_feeder_number
 
 logger = logging.getLogger(__name__)
 
@@ -76,17 +76,10 @@ class CloudDataService:
     def get_transformer_options(self, feeder_id: str) -> List[str]:
         """Get list of transformers for a specific feeder"""
         try:
-            logger.info(f"Retrieving transformer options for feeder {feeder_id}")
+            logger.info(f"Retrieving transformer options for feeder '{feeder_id}'")
             
-            # Better feeder number extraction with fallback
-            feeder_num = 1  # Default to feeder 1
-            if isinstance(feeder_id, str):
-                # Try to extract number from strings like "Feeder 1"
-                parts = feeder_id.split()
-                if len(parts) > 1 and parts[-1].isdigit():
-                    feeder_num = int(parts[-1])
-                else:
-                    logger.warning(f"Could not extract feeder number from '{feeder_id}', using default feeder 1")
+            # Extract feeder number using the robust function
+            feeder_num = extract_feeder_number(feeder_id)
              
             # Use correct table name with quotes   
             table_name = f'"Transformer Feeder {feeder_num}"'
@@ -123,18 +116,23 @@ class CloudDataService:
     def get_customer_options(self, transformer_id: str) -> List[str]:
         """Get list of customers for a specific transformer"""
         try:
-            logger.info(f"Retrieving customer options for transformer {transformer_id}")
+            logger.info(f"Retrieving customer options for transformer '{transformer_id}'")
             
-            # Better feeder number extraction with fallback
-            feeder_num = 1  # Default to feeder 1
+            # Extract feeder number from transformer ID
+            feeder_num = 1  # Default
+            
             try:
-                if isinstance(transformer_id, str) and len(transformer_id) > 3:
-                    # Try to get feeder number from 4th character in ID (e.g., S1F1ATF001)
-                    feeder_chars = [c for c in transformer_id if c.isdigit()]
-                    if feeder_chars:
-                        feeder_num = int(feeder_chars[0])
+                if isinstance(transformer_id, str):
+                    # Try to extract from S1F1ATF format
+                    import re
+                    match = re.search(r'F(\d+)', transformer_id)
+                    if match:
+                        feeder_num = int(match.group(1))
                     else:
-                        logger.warning(f"Could not extract feeder number from transformer ID: {transformer_id}")
+                        # Fallback to extracting any digit
+                        digits = [c for c in transformer_id if c.isdigit()]
+                        if digits:
+                            feeder_num = int(digits[0])
             except Exception as e:
                 logger.warning(f"Feeder number extraction failed: {str(e)}")
             
@@ -188,17 +186,10 @@ class CloudDataService:
     ) -> Optional[pd.DataFrame]:
         """Get transformer data for a date range."""
         try:
-            logger.info(f"Fetching transformer data from {start_date} to {end_date} for feeder {feeder}")
+            logger.info(f"Fetching transformer data from {start_date} to {end_date} for feeder '{feeder}'")
             
-            # Better feeder number extraction with fallback
-            feeder_num = 1  # Default to feeder 1
-            if isinstance(feeder, str):
-                # Try to extract number from strings like "Feeder 1"
-                parts = feeder.split()
-                if len(parts) > 1 and parts[-1].isdigit():
-                    feeder_num = int(parts[-1])
-                else:
-                    logger.warning(f"Could not extract feeder number from '{feeder}', using default feeder 1")
+            # Extract feeder number using the robust function
+            feeder_num = extract_feeder_number(feeder)
             
             # Use correct table name with quotes
             table_name = f'"Transformer Feeder {feeder_num}"'
@@ -239,13 +230,51 @@ class CloudDataService:
                 logger.debug(f"Parameters: {params}")
                 return None
                 
-            # Process data
-            results['timestamp'] = pd.to_datetime(results['timestamp'])
-            results.set_index('timestamp', inplace=True)
+            # Validate and clean the data
+            from app.utils.data_validation import validate_transformer_data
+            results = validate_transformer_data(results)
             
-            logger.info(f"Retrieved {len(results)} records")
-            return results
+            # Process data if not empty after validation
+            if not results.empty:
+                if 'timestamp' in results.columns:
+                    results['timestamp'] = pd.to_datetime(results['timestamp'])
+                    results.set_index('timestamp', inplace=True)
+                
+                logger.info(f"Retrieved {len(results)} records")
+                return results
+            else:
+                logger.warning("No valid data after validation")
+                return None
                 
         except Exception as e:
             logger.error(f"Error in get_transformer_data_range: {str(e)}")
+            return None
+
+    def _select_alert_point(self, results_df: pd.DataFrame) -> Optional[pd.Series]:
+        """Select the point to alert on"""
+        try:
+            # Find the row with maximum loading
+            if 'loading_percentage' not in results_df.columns:
+                logger.error("'loading_percentage' column not found in results")
+                return None
+                
+            # Find max loading safely
+            max_loading_idx = results_df['loading_percentage'].idxmax()
+            max_loading_row = results_df.loc[max_loading_idx]
+            
+            # Get the loading value (safely convert to float first)
+            max_loading_value = float(max_loading_row['loading_percentage'])
+            
+            # Log the max loading found (avoid using f-string with Series directly)
+            logger.info(f"Found max loading: {max_loading_value:.1f}% at {max_loading_idx}")
+            
+            # Only alert if loading is high enough
+            if max_loading_value >= 80:
+                return max_loading_row
+            else:
+                logger.info(f"Max loading {max_loading_value:.1f}% below alert threshold (80%)")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error selecting alert point: {str(e)}")
             return None
