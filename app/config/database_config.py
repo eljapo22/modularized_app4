@@ -7,6 +7,7 @@ import duckdb
 import logging
 import pandas as pd
 from datetime import datetime, date
+import streamlit as st
 
 # Get logger for this module
 logger = logging.getLogger(__name__)
@@ -171,9 +172,13 @@ def init_db_pool():
     global _connection
     try:
         # Connect to MotherDuck
-        token = os.getenv('MOTHERDUCK_TOKEN')
+        token = None
+        if hasattr(st, 'secrets'):
+            token = st.secrets.get('MOTHERDUCK_TOKEN')
         if not token:
-            raise ValueError("MOTHERDUCK_TOKEN environment variable not set")
+            token = os.getenv('MOTHERDUCK_TOKEN')
+        if not token:
+            raise ValueError("MotherDuck token not found in secrets or environment")
             
         _connection = duckdb.connect(f'md:ModApp4DB?motherduck_token={token}')
         return True
@@ -325,6 +330,8 @@ def get_customer_data(transformer_id: str, start_date: date, end_date: date, fee
         # Execute query with all required parameters
         query = CUSTOMER_DATA_QUERY.format(customer_table=customer_table, reading_table=reading_table)
         params = (
+            start_date,  # First timestamp for hours CTE
+            end_date,    # Second timestamp for hours CTE
             transformer_id,  # For customer table JOIN
             start_date,  # For WHERE clause start
             end_date     # For WHERE clause end
