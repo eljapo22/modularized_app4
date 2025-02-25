@@ -87,10 +87,10 @@ def main():
         # Set initial values from alert parameters
         initial_hour = int(hour_param) if hour_param else None
         initial_date = datetime.fromisoformat(start_date_param).date() if start_date_param else None
-        end_date = datetime.fromisoformat(end_date_param).date() if end_date_param else None
+        initial_end_date = datetime.fromisoformat(end_date_param).date() if end_date_param else None
         initial_feeder = int(feeder_param) if feeder_param else None
 
-        logger.info(f"Initial Values: Date={initial_date}, End Date={end_date}, Hour={initial_hour}, Feeder={initial_feeder}, Transformer={alert_transformer}")
+        logger.info(f"Initial Values: Date={initial_date}, End Date={initial_end_date}, Hour={initial_hour}, Feeder={initial_feeder}, Transformer={alert_transformer}")
 
         # Get feeder from transformer ID if coming from alert
         initial_feeder = int(alert_transformer[2]) if alert_transformer and len(alert_transformer) >= 3 else initial_feeder
@@ -99,7 +99,7 @@ def main():
         if 'initialized' not in st.session_state:
             st.session_state.initialized = True
             st.session_state.initial_date = initial_date
-            st.session_state.initial_end_date = end_date
+            st.session_state.initial_end_date = initial_end_date
             st.session_state.initial_hour = initial_hour
             if alert_transformer:
                 st.session_state.alert_transformer = alert_transformer

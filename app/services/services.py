@@ -1,31 +1,29 @@
-"""
-Combined services for the Transformer Loading Analysis Application
-"""
-
 # Standard library imports
 import logging
-import streamlit as st
-from email.mime.text import MIMEText
+from datetime import datetime, date, timedelta
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, date, time, timedelta
+from email.mime.text import MIMEText
 import smtplib
-from typing import List, Optional, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Any
 
 # Third-party imports
 import pandas as pd
+import streamlit as st
 
 # Local imports
 from app.config.database_config import (
+    TRANSFORMER_TABLE_TEMPLATE,
     TRANSFORMER_DATA_QUERY,
+    FEEDER_NUMBERS,
+    init_db_pool,
+    execute_query,
     TRANSFORMER_DATA_RANGE_QUERY,
     CUSTOMER_DATA_QUERY,
     TRANSFORMER_LIST_QUERY,
     CUSTOMER_AGGREGATION_QUERY
 )
 from app.config.table_config import (
-    TRANSFORMER_TABLE_TEMPLATE,
     CUSTOMER_TABLE_TEMPLATE,
-    FEEDER_NUMBERS,
     DECIMAL_PLACES
 )
 from app.utils.db_utils import (
@@ -42,29 +40,9 @@ from app.models.data_models import (
 # Initialize logger
 logger = logging.getLogger(__name__)
 
-# Alert helper functions
-def get_alert_status(loading_pct: float) -> tuple[str, str]:
-    """Get alert status and color based on loading percentage"""
-    if loading_pct >= 120:
-        return 'Critical', '#dc3545'
-    elif loading_pct >= 100:
-        return 'Overloaded', '#fd7e14'
-    elif loading_pct >= 80:
-        return 'Warning', '#ffc107'
-    elif loading_pct >= 50:
-        return 'Pre-Warning', '#6f42c1'
-    else:
-        return 'Normal', '#198754'
-
-def get_status_emoji(status: str) -> str:
-    """Get emoji for status"""
-    return {
-        'Critical': '🔴',
-        'Overloaded': '🟠',
-        'Warning': '🟡',
-        'Pre-Warning': '🟣',
-        'Normal': '🟢'
-    }.get(status, '⚪')
+"""
+Combined services for the Transformer Loading Analysis Application
+"""
 
 class CloudDataService:
     """Service class for handling data operations in the cloud environment"""
@@ -532,3 +510,26 @@ class CloudAlertService:
             logger.error(f"Error checking and sending alerts: {str(e)}")
             st.error(f"❌ Failed to send alert: {str(e)}")
             return False
+
+def get_alert_status(loading_pct: float) -> tuple[str, str]:
+    """Get alert status and color based on loading percentage"""
+    if loading_pct >= 120:
+        return 'Critical', '#dc3545'
+    elif loading_pct >= 100:
+        return 'Overloaded', '#fd7e14'
+    elif loading_pct >= 80:
+        return 'Warning', '#ffc107'
+    elif loading_pct >= 50:
+        return 'Pre-Warning', '#6f42c1'
+    else:
+        return 'Normal', '#198754'
+
+def get_status_emoji(status: str) -> str:
+    """Get emoji for status"""
+    return {
+        'Critical': '🔴',
+        'Overloaded': '🟠',
+        'Warning': '🟡',
+        'Pre-Warning': '🟣',
+        'Normal': '🟢'
+    }.get(status, '⚪')
