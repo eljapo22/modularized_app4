@@ -246,8 +246,8 @@ def display_transformer_data(results_df: pd.DataFrame):
     
     # Loading Status at the top
     st.markdown("""
-        <div style='padding: 6px; border: 1px solid #e6e6e6; border-radius: 3px; margin: 8px 0px; background-color: #f8f9fa'>
-            <h3 style='margin: 0px; color: #333333; font-size: 18px'>Loading Status</h3>
+        <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
+            <h3 style='margin: 0px; color: #262626; font-size: 18px'>Loading Status</h3>
         </div>
     """, unsafe_allow_html=True)
     display_loading_status(df)
