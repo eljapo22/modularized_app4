@@ -60,6 +60,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+logger = logging.getLogger(__name__)
+
 @log_performance
 def main():
     """Main application function for cloud environment"""
@@ -80,6 +82,8 @@ def main():
         end_date_param = params.get("end_date", [None])[0]
         hour_param = params.get("hour", [None])[0]
         feeder_param = params.get("feeder", [None])[0]
+
+        logger.info(f"URL Parameters: view={alert_view}, id={alert_transformer}, hour={hour_param}, feeder={feeder_param}")
 
         # Set initial values from alert parameters
         if alert_time:
@@ -107,6 +111,8 @@ def main():
             initial_end_date = initial_date + timedelta(days=30)
             initial_hour = datetime.now().hour
             initial_feeder = 1
+
+        logger.info(f"Initial Values: Date={initial_date}, End Date={initial_end_date}, Hour={initial_hour}, Feeder={initial_feeder}, Transformer={alert_transformer}")
 
         # Get feeder from transformer ID if coming from alert
         initial_feeder = int(alert_transformer[2]) if alert_transformer and len(alert_transformer) >= 3 else initial_feeder
@@ -181,6 +187,7 @@ def main():
 
         # Automatically trigger search if coming from alert link
         if alert_view or search_clicked:
+            logger.info(f"Fetching data for Transformer={selected_transformer}, Feeder={selected_feeder}, Date={selected_start_date}, Hour={selected_hour}")
             with st.spinner("Loading data..."):
                 # Get and display transformer data
                 transformer_data = data_service.get_transformer_data(
