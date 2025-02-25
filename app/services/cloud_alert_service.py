@@ -5,7 +5,7 @@ import logging
 import streamlit as st
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pandas as pd
 from typing import Optional, List, Dict, Tuple
 import smtplib
@@ -95,10 +95,14 @@ class CloudAlertService:
         if hasattr(start_date, 'dtype') and start_date.dtype == 'int64':
             start_date = pd.Timestamp(start_date).date()
             
+        # Set end date to 30 days after start date
+        end_date = start_date + timedelta(days=30)
+            
         params = {
             'view': 'alert',
             'id': transformer_id,
-            'start': start_date.isoformat() if start_date else None,
+            'start_date': start_date.isoformat() if start_date else None,
+            'end_date': end_date.isoformat() if end_date else None,
             'alert_time': alert_time.isoformat() if alert_time else None
         }
         # Remove None values

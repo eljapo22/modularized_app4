@@ -5,7 +5,7 @@ Cloud-specific entry point for the Transformer Loading Analysis Application
 import streamlit as st
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
 from app.visualization.charts import display_transformer_dashboard
@@ -68,15 +68,18 @@ def main():
         alert_view = params.get("view") == "alert"
         alert_transformer = params.get("id")
         alert_time = params.get("alert_time")
-        start_date_param = params.get("start")
+        start_date_param = params.get("start_date")
+        end_date_param = params.get("end_date")
 
         # Set initial values from alert parameters
-        if start_date_param and alert_time:
+        if start_date_param and end_date_param and alert_time:
             initial_date = datetime.fromisoformat(start_date_param).date()
+            initial_end_date = datetime.fromisoformat(end_date_param).date()
             alert_datetime = datetime.fromisoformat(alert_time)
             initial_hour = alert_datetime.hour
         else:
             initial_date = datetime.now().date()
+            initial_end_date = initial_date + timedelta(days=30)
             initial_hour = datetime.now().hour
 
         # Get feeder from transformer ID if coming from alert
@@ -86,6 +89,7 @@ def main():
         if 'initialized' not in st.session_state:
             st.session_state.initialized = True
             st.session_state.initial_date = initial_date
+            st.session_state.initial_end_date = initial_end_date
             st.session_state.initial_hour = initial_hour
             if alert_transformer:
                 st.session_state.alert_transformer = alert_transformer
@@ -99,9 +103,16 @@ def main():
             
             # Date selection
             selected_date = st.date_input(
-                "Select Date",
+                "Select Start Date",
                 value=st.session_state.initial_date,
                 key="date_selector"
+            )
+            
+            # End Date selection
+            selected_end_date = st.date_input(
+                "Select End Date",
+                value=st.session_state.initial_end_date,
+                key="end_date_selector"
             )
             
             # Hour selection
@@ -158,6 +169,7 @@ def main():
                         alert_service.check_and_send_alerts(
                             transformer_data,
                             start_date=selected_date,
+                            end_date=selected_end_date,
                             alert_time=alert_time
                         )
 
