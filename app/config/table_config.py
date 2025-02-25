@@ -54,7 +54,8 @@ DECIMAL_PLACES = {
     'current_a': 2,
     'power_kw': 2,
     'power_kva': 2,
-    'power_factor': 3
+    'power_factor': 3,
+    'voltage_v': 1  # Add voltage with 1 decimal place
 }
 
 # Table names - with proper quoting for SQL
