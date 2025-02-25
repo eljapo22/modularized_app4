@@ -21,7 +21,7 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status chart showing daily peak values."""
+    """Display loading status chart showing peak values."""
     if results_df is None or results_df.empty:
         st.warning("No data available for loading status chart")
         return
@@ -29,14 +29,6 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create a copy and ensure timestamp handling
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
-    # Get daily peak values
-    df['date'] = df['timestamp'].dt.date
-    daily_peaks = df.groupby('date').agg({
-        'loading_percentage': 'max',
-        'power_kw': 'max',
-        'timestamp': 'first'  # Keep one timestamp for reference
-    }).reset_index()
     
     # Create the scatter plot
     fig = go.Figure()
@@ -52,10 +44,10 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # First add a line plot for the trend
     fig.add_trace(go.Scatter(
-        x=daily_peaks['date'],
-        y=daily_peaks['loading_percentage'],
+        x=df['timestamp'],
+        y=df['loading_percentage'],
         mode='lines',
-        name='Peak Loading',
+        name='Loading Trend',
         line=dict(
             color='rgba(128,128,128,0.3)',
             width=1.5
@@ -64,22 +56,25 @@ def display_loading_status(results_df: pd.DataFrame):
     ))
     
     # Then add colored scatter points for each category
-    for min_load, max_load, name, color in reversed(categories):  # Process in reverse order to handle overlaps correctly
-        mask = (daily_peaks['loading_percentage'] >= min_load) & (daily_peaks['loading_percentage'] < max_load)
-        category_data = daily_peaks[mask]
+    for min_load, max_load, name, color in reversed(categories):
+        mask = (df['loading_percentage'] >= min_load) & (df['loading_percentage'] < max_load)
+        category_data = df[mask]
         
         if not category_data.empty:
+            # Debug logging
+            st.write(f"Category {name}: {len(category_data)} points, Range: {min_load}-{max_load}")
+            
             # Create hover text
             hover_text = [
-                f"Peak Loading: {row['loading_percentage']:.1f}%<br>" +
-                f"Peak Power: {row['power_kw']:.1f} kW<br>" +
-                f"Date: {row['date']}"
+                f"Loading: {row['loading_percentage']:.1f}%<br>" +
+                f"Power: {row['power_kw']:.1f} kW<br>" +
+                f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M')}"
                 for _, row in category_data.iterrows()
             ]
             
             # Add scatter plot for this category
             fig.add_trace(go.Scatter(
-                x=category_data['date'],
+                x=category_data['timestamp'],
                 y=category_data['loading_percentage'],
                 mode='markers',
                 name=name,
@@ -108,8 +103,8 @@ def display_loading_status(results_df: pd.DataFrame):
 
     # Update layout
     fig.update_layout(
-        xaxis_title="Date",
-        yaxis_title="Peak Loading Percentage (%)",
+        xaxis_title="Time",
+        yaxis_title="Loading Percentage (%)",
         showlegend=True,
         height=400,
         template="plotly_white",
@@ -119,8 +114,8 @@ def display_loading_status(results_df: pd.DataFrame):
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
-            tickformat='%Y-%m-%d',
-            dtick='D3',
+            tickformat='%Y-%m-%d %H:%M',
+            dtick='D1',
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
@@ -129,7 +124,7 @@ def display_loading_status(results_df: pd.DataFrame):
         yaxis=dict(
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
-            range=[0, max(150, daily_peaks['loading_percentage'].max() * 1.1)]
+            range=[0, max(150, df['loading_percentage'].max() * 1.1)]
         ),
         legend=dict(
             yanchor="top",
