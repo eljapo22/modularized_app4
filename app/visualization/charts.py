@@ -35,11 +35,11 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Create threshold lines in the exact order we want them to appear
     chart_data = pd.DataFrame(index=df.index)
-    chart_data['Loading'] = df['loading_percentage']
-    chart_data['120% (Critical)'] = 120
-    chart_data['100% (Overloaded)'] = 100
-    chart_data['80% (Warning)'] = 80
-    chart_data['50% (Pre-Warning)'] = 50
+    chart_data['🟢 Normal'] = df['loading_percentage'].where(df['loading_percentage'] < 50)
+    chart_data['🟣 Pre-Warning'] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80))
+    chart_data['🟡 Warning'] = df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100))
+    chart_data['🟠 Overloaded'] = df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120))
+    chart_data['🔴 Critical'] = df['loading_percentage'].where(df['loading_percentage'] >= 120)
     
     # Create the chart with threshold lines and loading in specific order
     st.line_chart(
@@ -47,11 +47,11 @@ def display_loading_status(results_df: pd.DataFrame):
         height=400,
         use_container_width=True,
         color=[
-            '#32cd32',  # Loading - Lime green
-            STATUS_COLORS['Critical'],  # Critical - Red
-            STATUS_COLORS['Overloaded'],  # Overloaded - Orange
-            STATUS_COLORS['Warning'],  # Warning - Gold
-            STATUS_COLORS['Pre-Warning']  # Pre-Warning - Purple
+            'rgb(0, 255, 0)',      # Normal - Green
+            'rgb(147, 112, 219)',  # Pre-Warning - Purple
+            'rgb(255, 255, 0)',    # Warning - Yellow
+            'rgb(255, 165, 0)',    # Overloaded - Orange
+            'rgb(255, 0, 0)'       # Critical - Red
         ]
     )
 
