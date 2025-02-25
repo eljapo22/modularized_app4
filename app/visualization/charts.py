@@ -33,118 +33,98 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create the scatter plot
     fig = go.Figure()
     
-    # Define categories in priority order (highest to lowest)
-    categories = [
-        (120, float('inf'), 'Critical', 'rgb(255, 0, 0)'),  # Red
-        (100, 120, 'Overloaded', 'rgb(255, 140, 0)'),  # Orange
-        (80, 100, 'Warning', 'rgb(255, 255, 0)'),  # Yellow
-        (50, 80, 'Pre-Warning', 'rgb(147, 112, 219)'),  # Purple
-        (-float('inf'), 50, 'Normal', 'rgb(0, 255, 0)')  # Green
-    ]
+    # Categorize points based on loading percentage
+    df['category'] = 'Normal'
+    df.loc[df['loading_percentage'] >= 120, 'category'] = 'Critical'
+    df.loc[(df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120), 'category'] = 'Overloaded'
+    df.loc[(df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100), 'category'] = 'Warning'
+    df.loc[(df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80), 'category'] = 'Pre-Warning'
     
-    # Add colored scatter points for each category
-    for min_load, max_load, name, color in categories:  
-        mask = (df['loading_percentage'] >= min_load) & (df['loading_percentage'] < max_load)
+    # Define colors for each category
+    colors = {
+        'Critical': 'rgb(255, 0, 0)',      # Red
+        'Overloaded': 'rgb(255, 140, 0)',  # Orange
+        'Warning': 'rgb(255, 255, 0)',     # Yellow
+        'Pre-Warning': 'rgb(147, 112, 219)', # Purple
+        'Normal': 'rgb(0, 255, 0)'         # Green
+    }
+    
+    # Add scatter plot for each category
+    for category in ['Critical', 'Overloaded', 'Warning', 'Pre-Warning', 'Normal']:
+        mask = df['category'] == category
         category_data = df[mask]
         
-        if not category_data.empty:
-            # Create hover text
-            hover_text = [
-                f"Loading: {row['loading_percentage']:.1f}%<br>" +
-                f"Power: {row['power_kw']:.1f} kW<br>" +
-                f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M')}"
-                for _, row in category_data.iterrows()
-            ]
-            
-            # Add scatter plot for this category
-            fig.add_trace(go.Scatter(
-                x=category_data['timestamp'],
-                y=category_data['loading_percentage'],
-                mode='markers+lines',  
-                name=f"{name} ({len(category_data)} points)",
-                marker=dict(
-                    color=color,
-                    size=8,
-                    line=dict(
-                        color='rgba(255,255,255,0.8)',
-                        width=1
-                    ),
-                    opacity=0.8
-                ),
-                line=dict(
-                    color=color,
-                    width=1,
-                    dash='dot'  
-                ),
-                text=hover_text,
-                hoverinfo='text'
-            ))
-        else:
-            # Add empty trace to ensure category shows in legend
-            fig.add_trace(go.Scatter(
-                x=[],
-                y=[],
-                mode='markers+lines',
-                name=f"{name} (0 points)",
-                marker=dict(color=color, size=8),
-                line=dict(color=color, width=1, dash='dot'),
-                showlegend=True
-            ))
-
+        # Create hover text
+        hover_text = [
+            f"Loading: {row['loading_percentage']:.1f}%<br>" +
+            f"Power: {row['power_kw']:.1f} kW<br>" +
+            f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M')}"
+            for _, row in category_data.iterrows()
+        ]
+        
+        # Add scatter plot
+        fig.add_trace(go.Scatter(
+            x=category_data['timestamp'],
+            y=category_data['loading_percentage'],
+            mode='markers',
+            name=f"{category} ({len(category_data)} points)",
+            marker=dict(
+                color=colors[category],
+                size=10,
+                line=dict(color='white', width=1)
+            ),
+            text=hover_text,
+            hoverinfo='text'
+        ))
+    
     # Update layout
     fig.update_layout(
+        title="Loading Status",
         xaxis_title="Time",
         yaxis_title="Loading Percentage (%)",
         showlegend=True,
         height=400,
         template="plotly_white",
-        margin=dict(l=40, r=10, t=10, b=60),
-        paper_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=40, r=10, t=40, b=60),
         plot_bgcolor='white',
-        font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
-            tickformat='%Y-%m-%d',  
-            dtick='D2',  
+            tickformat='%Y-%m-%d',
+            dtick='D2',
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',
-            showgrid=True,
-            rangeslider=dict(visible=False)
+            showgrid=True
         ),
         yaxis=dict(
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
             range=[0, max(150, df['loading_percentage'].max() * 1.1)],
-            dtick=20  
+            dtick=20
         ),
         legend=dict(
             yanchor="top",
             y=0.99,
             xanchor="right",
             x=0.99,
-            bgcolor='rgba(255,255,255,0.9)',  
+            bgcolor='rgba(255,255,255,0.9)',
             bordercolor='rgba(128,128,128,0.3)',
-            borderwidth=1,
-            itemsizing='constant'  
+            borderwidth=1
         )
     )
-
-    # Add threshold lines
-    thresholds = [120, 100, 80, 50]
-    threshold_colors = ['rgb(255, 0, 0)', 'rgb(255, 140, 0)', 'rgb(255, 255, 0)', 'rgb(147, 112, 219)']
     
-    for threshold, color in zip(thresholds, threshold_colors):
+    # Add threshold lines
+    thresholds = [(120, 'Critical'), (100, 'Overloaded'), (80, 'Warning'), (50, 'Pre-Warning')]
+    for threshold, category in thresholds:
         fig.add_hline(
             y=threshold,
             line=dict(
-                color=color,
+                color=colors[category],
                 width=1,
                 dash="dash"
             ),
-            opacity=0.7,
-            layer='below'
+            opacity=0.5
         )
-
+    
     # Display the plot
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
