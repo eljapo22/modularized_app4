@@ -63,20 +63,21 @@ def main():
         create_banner("Transformer Loading Analysis Dashboard")
         
         # Handle URL parameters from alert links
-        params = st.query_params
-        alert_view = params.get("view") == "alert"
-        alert_transformer = params.get("id")
-        alert_time = params.get("alert_time")
+        params = st.experimental_get_query_params()
+        alert_view = params.get("view", [""])[0] == "alert"
+        alert_transformer = params.get("id", [""])[0] if "id" in params else None
+        alert_time = params.get("alert_time", [""])[0] if "alert_time" in params else None
         
+        # Set initial values from alert parameters
         if alert_time:
             alert_datetime = datetime.fromisoformat(alert_time)
             initial_date = alert_datetime.date()
             initial_hour = alert_datetime.hour
         else:
             initial_date = datetime.now().date()
-            initial_hour = 12
+            initial_hour = datetime.now().hour
             
-        # Create sidebar
+        # Create sidebar with search criteria
         with st.sidebar:
             st.markdown("## Analysis Parameters")
             
@@ -97,37 +98,42 @@ def main():
             )
             
             # Get feeder from transformer ID if coming from alert
-            initial_feeder = int(alert_transformer[2]) if alert_transformer else 1
+            initial_feeder = int(alert_transformer[2]) if alert_transformer and len(alert_transformer) >= 3 else 1
             
             # Feeder selection
             selected_feeder = st.selectbox(
                 "Select Feeder",
                 options=[1, 2, 3, 4],
-                value=initial_feeder,
+                index=initial_feeder - 1,
                 key="feeder_selector"
             )
             
             # Transformer selection
             transformers = data_service.get_transformer_ids(selected_feeder)
+            transformer_index = transformers.index(alert_transformer) if alert_transformer in transformers else 0
             selected_transformer = st.selectbox(
                 "Select Transformer",
                 options=transformers,
-                value=alert_transformer if alert_transformer in transformers else transformers[0],
+                index=transformer_index,
                 key="transformer_selector"
             )
             
             # Alert button
             st.markdown("---")
             st.markdown("## Alerts")
-            if st.button("Search & Alert", key="alert_button"):
-                with st.spinner("Sending alerts..."):
+            search_clicked = st.button("Search & Alert", key="alert_button")
+            
+            # Automatically trigger search if coming from alert link
+            if alert_view or search_clicked:
+                with st.spinner("Loading data..."):
                     alert_service.process_alerts(
                         selected_date,
                         selected_hour,
                         selected_feeder,
                         selected_transformer
                     )
-                st.success("Alerts sent successfully!")
+                if search_clicked:  # Only show success message if manually clicked
+                    st.success("Alerts sent successfully!")
         
         # Create main content area with tabs
         tab1, tab2 = st.tabs(["📊 Dashboard", "📋 Data"])
