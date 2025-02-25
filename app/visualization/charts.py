@@ -21,7 +21,7 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status chart."""
+    """Display loading status chart showing daily peak values."""
     if results_df is None or results_df.empty:
         st.warning("No data available for loading status chart")
         return
@@ -29,7 +29,14 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create a copy and ensure timestamp handling
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df = df.sort_values('timestamp')
+    
+    # Get daily peak values
+    df['date'] = df['timestamp'].dt.date
+    daily_peaks = df.groupby('date').agg({
+        'loading_percentage': 'max',
+        'power_kw': 'max',
+        'timestamp': 'first'  # Keep one timestamp for reference
+    }).reset_index()
     
     # Create the scatter plot
     fig = go.Figure()
@@ -43,42 +50,49 @@ def display_loading_status(results_df: pd.DataFrame):
         (0, 50, 'Normal', 'rgb(0, 255, 0)')
     ]
     
-    # First add a line plot for all data to show progression
+    # First add a line plot for the trend
     fig.add_trace(go.Scatter(
-        x=df['timestamp'],
-        y=df['loading_percentage'],
-        mode='lines',
-        name='Loading Trend',
+        x=daily_peaks['date'],
+        y=daily_peaks['loading_percentage'],
+        mode='lines+markers',
+        name='Peak Loading',
         line=dict(
-            color='rgba(128,128,128,0.3)',
-            width=1
+            color='rgba(128,128,128,0.5)',
+            width=2
+        ),
+        marker=dict(
+            size=10,
+            line=dict(
+                color='rgba(255,255,255,0.8)',
+                width=1
+            )
         ),
         showlegend=False
     ))
     
     # Then add colored scatter points for each category
     for min_load, max_load, name, color in categories:
-        mask = (df['loading_percentage'] >= min_load) & (df['loading_percentage'] < max_load)
-        category_data = df[mask]
+        mask = (daily_peaks['loading_percentage'] >= min_load) & (daily_peaks['loading_percentage'] < max_load)
+        category_data = daily_peaks[mask]
         
         if not category_data.empty:
             # Create hover text
             hover_text = [
-                f"Loading: {row['loading_percentage']:.1f}%<br>" +
-                f"Power: {row['power_kw']:.1f} kW<br>" +
-                f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M')}"
+                f"Peak Loading: {row['loading_percentage']:.1f}%<br>" +
+                f"Peak Power: {row['power_kw']:.1f} kW<br>" +
+                f"Date: {row['date']}"
                 for _, row in category_data.iterrows()
             ]
             
             # Add scatter plot for this category
             fig.add_trace(go.Scatter(
-                x=category_data['timestamp'],
+                x=category_data['date'],
                 y=category_data['loading_percentage'],
                 mode='markers',
                 name=name,
                 marker=dict(
                     color=color,
-                    size=8,
+                    size=12,
                     line=dict(
                         color='rgba(255,255,255,0.8)',
                         width=1
@@ -90,35 +104,29 @@ def display_loading_status(results_df: pd.DataFrame):
             ))
 
     # Update layout
-    min_time = df['timestamp'].min()
-    max_time = df['timestamp'].max()
-    
     fig.update_layout(
-        xaxis_title="Time",
-        yaxis_title="Loading Percentage (%)",
+        xaxis_title="Date",
+        yaxis_title="Peak Loading Percentage (%)",
         showlegend=True,
         height=400,
         template="plotly_white",
-        margin=dict(l=40, r=10, t=10, b=60),  # Increased bottom margin for labels
+        margin=dict(l=40, r=10, t=10, b=40),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='white',
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
-            tickformat='%H:%M',
-            dtick=7200000,  # 2 hours in milliseconds for less crowded ticks
+            tickformat='%Y-%m-%d',
+            dtick='D1',  # Daily ticks
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
-            range=[min_time, max_time],
-            rangeslider=dict(visible=False),
-            tickmode='auto',
-            nticks=12  # Limit number of ticks for better readability
+            rangeslider=dict(visible=False)
         ),
         yaxis=dict(
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
-            range=[0, max(150, df['loading_percentage'].max() * 1.1)]  # Ensure we see all data plus threshold lines
+            range=[0, max(150, daily_peaks['loading_percentage'].max() * 1.1)]
         ),
         legend=dict(
             yanchor="top",

@@ -67,11 +67,24 @@ def main():
             st.markdown("## Analysis Parameters")
             
             # Date selection
-            selected_date = st.date_input(
-                "Select Date",
-                value=datetime.now().date(),
-                key="date_selector"
-            )
+            min_date, max_date = data_service.get_available_dates()
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input(
+                    "Start Date",
+                    value=min_date,
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="start_date_selector"
+                )
+            with col2:
+                end_date = st.date_input(
+                    "End Date",
+                    value=max_date,
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="end_date_selector"
+                )
             
             # Hour selection
             selected_hour = st.number_input(
@@ -103,7 +116,7 @@ def main():
             if st.button("Search & Alert", key="alert_button"):
                 with st.spinner("Sending alerts..."):
                     alert_service.process_alerts(
-                        selected_date,
+                        start_date,
                         selected_hour,
                         selected_feeder,
                         selected_transformer
@@ -118,8 +131,8 @@ def main():
             display_transformer_dashboard(
                 data_service,
                 selected_transformer,
-                selected_date,
-                selected_hour,
+                start_date,
+                end_date,
                 selected_feeder
             )
         
@@ -128,8 +141,6 @@ def main():
             create_section_banner("Raw Data")
             
             # Get and display transformer data
-            start_date = selected_date
-            end_date = selected_date
             transformer_data = data_service.get_transformer_data_range(
                 start_date,
                 end_date,
@@ -144,7 +155,7 @@ def main():
             # Get and display customer data
             customer_data = data_service.get_customer_data(
                 selected_transformer,
-                selected_date,
+                start_date,
                 selected_hour
             )
             if customer_data is not None:
