@@ -205,60 +205,90 @@ def display_power_consumption(results_df: pd.DataFrame):
         logger.error(f"Error displaying power consumption chart: {str(e)}")
         st.error("Error displaying power consumption chart")
 
-def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.DataFrame = None):
-    # Display the transformer analysis dashboard
+def display_transformer_dashboard(
+    transformer_df: pd.DataFrame,
+    customer_df: pd.DataFrame = None
+):
+    """
+    Display comprehensive transformer dashboard
+   
+    Args:
+        transformer_df: Transformer data DataFrame
+        customer_df: Optional customer data DataFrame
+    """
+    # Validate input data
     if transformer_df is None or transformer_df.empty:
-        st.warning("No data available for transformer dashboard.")
+        st.warning("No transformer data available for dashboard.")
         return
 
-    # Show customer analysis if tile was clicked
-    if 'show_customer_analysis' in st.session_state and st.session_state.show_customer_analysis:
-        # Clear the flag immediately to prevent re-entry
-        del st.session_state['show_customer_analysis']
-        if customer_df is not None:
-            display_customer_tab(customer_df)
-            return
-        else:
-            st.warning("No customer data available for this transformer.")
+    try:
+        # Ensure timestamp is datetime
+        if 'timestamp' not in transformer_df.columns:
+            logger.error("No timestamp column in transformer data")
+            st.error("Invalid transformer data: Missing timestamp column")
             return
 
-    # Create metrics row
-    cols = st.columns(4)
-    
-    # Current transformer info
-    latest = transformer_df.iloc[-1]
-    with cols[0]:
-        create_tile(
-            "Transformer ID",
-            latest.get('transformer_id', 'N/A'),
-            is_clickable=False
-        )
-    with cols[1]:
-        # Get number of unique customers
-        customer_count = len(customer_df['customer_id'].unique()) if customer_df is not None else 'N/A'
-        if create_tile(
-            "Customers",
-            str(customer_count),
-            is_clickable=True
-        ):
-            # Show customer analysis
-            st.session_state.show_customer_analysis = True
-            st.rerun()
-    with cols[2]:
-        create_tile(
-            "Latitude",
-            f"{latest.get('latitude', 'N/A')}",
-            is_clickable=False
-        )
-    with cols[3]:
-        create_tile(
-            "Longitude",
-            f"{latest.get('longitude', 'N/A')}",
-            is_clickable=False
-        )
+        transformer_df['timestamp'] = pd.to_datetime(transformer_df['timestamp'])
+       
+        # Log diagnostic information
+        logger.info(f"Transformer Data - Shape: {transformer_df.shape}")
+        logger.info(f"Transformer Data - Columns: {transformer_df.columns}")
+        logger.info(f"Timestamp Range: {transformer_df['timestamp'].min()} to {transformer_df['timestamp'].max()}")
+       
+        # Get latest record for metrics
+        latest = transformer_df.iloc[-1]
+       
+        # Customer count (with additional safety checks)
+        customer_count = 'N/A'
+        if customer_df is not None and not customer_df.empty:
+            if 'customer_id' in customer_df.columns:
+                customer_count = len(customer_df['customer_id'].unique())
+            else:
+                logger.warning("Customer data does not have 'customer_id' column")
+       
+        # Create columns for metrics
+        cols = st.columns(4)
+       
+        with cols[0]:
+            create_tile(
+                "Transformer ID",
+                str(latest.get('transformer_id', 'N/A')),
+                is_clickable=False
+            )
+       
+        with cols[1]:
+            create_tile(
+                "Customers",
+                str(customer_count),
+                is_clickable=True
+            )
+       
+        with cols[2]:
+            create_tile(
+                "Size (kVA)",
+                f"{latest.get('size_kva', 'N/A'):.0f}",
+                is_clickable=False
+            )
+       
+        with cols[3]:
+            create_tile(
+                "Loading %",
+                f"{latest.get('loading_percentage', 'N/A'):.1f}%",
+                is_clickable=False
+            )
 
-    # Display transformer data
-    display_transformer_data(transformer_df)
+        # Display transformer data visualizations22
+        display_transformer_data(transformer_df)
+
+    except KeyError as ke:
+        logger.error(f"Key error in dashboard display: {str(ke)}")
+        st.error(f"Missing required column: {str(ke)}")
+    except ValueError as ve:
+        logger.error(f"Value error in dashboard display: {str(ve)}")
+        st.error(f"Invalid data format: {str(ve)}")
+    except Exception as e:
+        logger.error(f"Unexpected dashboard display error: {str(e)}")
+        st.error(f"Failed to display transformer dashboard: {str(e)}")
 
 def display_customer_tab(df: pd.DataFrame):
     # Display customer analysis tab

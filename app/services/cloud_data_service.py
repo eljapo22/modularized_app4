@@ -30,15 +30,71 @@ class CloudDataService:
             logger.error(f"Error getting transformer data: {str(e)}")
             return pd.DataFrame()
             
-    def get_customer_data(self, customer_id: str, date_str: str) -> pd.DataFrame:
-        """Get customer data for a specific date"""
+    def get_customer_data(
+        self, 
+        transformer_id: str, 
+        start_date: Union[date, datetime], 
+        end_date: Union[date, datetime] = None
+    ) -> pd.DataFrame:
+        """Get customer data for a specific transformer"""
         try:
-            data = self.db.get_customer_data(customer_id, date_str)
-            if data.empty:
-                logger.warning(f"No data found for customer {customer_id} on {date_str}")
-            return data
+            # If no end date provided, use start date
+            if end_date is None:
+                end_date = start_date
+            
+            # Ensure dates are datetime
+            if isinstance(start_date, date):
+                start_date = datetime.combine(start_date, datetime.min.time())
+            if isinstance(end_date, date):
+                end_date = datetime.combine(end_date, datetime.max.time())
+            
+            logger.info(f"Retrieving customer data for transformer {transformer_id}")
+            logger.info(f"Date range: {start_date} to {end_date}")
+            
+            # Extract feeder number from transformer ID
+            try:
+                import re
+                match = re.search(r'F(\d+)', transformer_id)
+                feeder_num = int(match.group(1)) if match else 1
+            except Exception as e:
+                logger.warning(f"Feeder extraction failed: {str(e)}")
+                feeder_num = 1
+            
+            # Use correct table name with quotes
+            table_name = f'"Customer Feeder {feeder_num}"'
+            
+            # Comprehensive query
+            query = f"""
+            SELECT 
+                timestamp,
+                customer_id,
+                transformer_id,
+                CAST(power_kw AS DECIMAL(5,2)) as power_kw,
+                CAST(current_a AS DECIMAL(5,2)) as current_a,
+                CAST(voltage_v AS DECIMAL(5,1)) as voltage_v,
+                CAST(power_kva AS DECIMAL(5,2)) as power_kva
+            FROM {table_name}
+            WHERE transformer_id = ? 
+            AND timestamp BETWEEN ? AND ?
+            ORDER BY timestamp
+            """
+            
+            # Execute query
+            results = execute_query(query, (transformer_id, start_date, end_date))
+            
+            if results is None or len(results) == 0:
+                logger.warning(f"No customer data found for transformer {transformer_id}")
+                return pd.DataFrame()
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(results)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            logger.info(f"Retrieved {len(df)} customer records")
+            return df
+            
         except Exception as e:
-            logger.error(f"Error getting customer data: {str(e)}")
+            logger.error(f"Comprehensive error in get_customer_data: {str(e)}")
             return pd.DataFrame()
             
     def get_feeder_options(self) -> List[str]:
