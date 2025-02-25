@@ -27,12 +27,6 @@ from app.config.database_config import (
     init_db_pool,
     execute_query
 )
-from app.utils.data_validation import validate_transformer_data, analyze_trends
-from app.models.data_models import (
-    TransformerData,
-    CustomerData,
-    AlertData
-)
 
 # Initialize logger with module name
 logger = logging.getLogger(__name__)

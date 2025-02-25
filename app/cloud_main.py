@@ -41,7 +41,8 @@ def main():
     try:
         # Initialize services
         logger.info("Initializing services...")
-        consolidated_service = CloudDataService()
+        data_service = CloudDataService()
+        alert_service = CloudAlertService()
         
         # Sidebar for controls
         with st.sidebar:
@@ -73,7 +74,7 @@ def main():
             
             # Feeder selection
             st.subheader("Feeder Selection")
-            feeders = consolidated_service.get_feeder_options()
+            feeders = data_service.get_feeder_options()
             feeder = st.selectbox(
                 "Select Feeder",
                 options=feeders,
@@ -82,7 +83,7 @@ def main():
             
             # Transformer selection
             st.subheader("Transformer Selection")
-            transformers = consolidated_service.get_load_options(feeder) if feeder else []
+            transformers = data_service.get_load_options(feeder) if feeder else []
             transformer_id = st.selectbox(
                 "Select Transformer",
                 options=transformers,
@@ -94,7 +95,7 @@ def main():
                 st.session_state.search_clicked = True
                 
                 # Get transformer data
-                transformer_data = consolidated_service.get_transformer_data_range(
+                transformer_data = data_service.get_transformer_data_range(
                     start_date=start_date,
                     end_date=end_date,
                     feeder=feeder,
@@ -102,7 +103,7 @@ def main():
                 )
                 
                 # Get customer data
-                customer_data = consolidated_service.get_customer_data(
+                customer_data = data_service.get_customer_data(
                     transformer_id=transformer_id,
                     start_date=start_date,
                     end_date=end_date
@@ -110,7 +111,7 @@ def main():
                 
                 if transformer_data is not None:
                     # Process alerts
-                    CloudAlertService().check_and_send_alerts(
+                    alert_service.check_and_send_alerts(
                         results_df=transformer_data,
                         start_date=start_date,
                         end_date=end_date,
