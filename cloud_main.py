@@ -166,10 +166,20 @@ def main():
                 if transformer_data is not None:
                     # If search button was clicked, check for alerts
                     if search_clicked:
+                        # Get data for the entire date range
+                        date_range_data = data_service.get_transformer_data_by_range(
+                            selected_transformer,
+                            selected_start_date,
+                            selected_end_date,
+                            selected_hour
+                        )
+                        
                         # Create alert time from selected date and hour
                         alert_time = datetime.combine(selected_start_date, datetime.min.time().replace(hour=selected_hour))
+                        
+                        # Send alert with the full date range data
                         alert_service.check_and_send_alerts(
-                            transformer_data,
+                            date_range_data,
                             start_date=selected_start_date,
                             end_date=selected_end_date,
                             alert_time=alert_time
