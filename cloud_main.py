@@ -77,42 +77,20 @@ def main():
         params = st.experimental_get_query_params()
         alert_view = params.get("view", [""])[0] == "alert"
         alert_transformer = params.get("id", [None])[0]
-        alert_time = params.get("alert_time", [None])[0]
         start_date_param = params.get("start_date", [None])[0]
         end_date_param = params.get("end_date", [None])[0]
         hour_param = params.get("hour", [None])[0]
         feeder_param = params.get("feeder", [None])[0]
 
-        logger.info(f"URL Parameters: view={alert_view}, id={alert_transformer}, hour={hour_param}, feeder={feeder_param}")
+        logger.info(f"URL Parameters: view={alert_view}, id={alert_transformer}, start_date={start_date_param}, end_date={end_date_param}, hour={hour_param}, feeder={feeder_param}")
 
         # Set initial values from alert parameters
-        if alert_time:
-            # Parse alert time first
-            alert_datetime = datetime.fromisoformat(alert_time)
-            initial_hour = int(hour_param) if hour_param else alert_datetime.hour
-            
-            # Use start_date from URL if provided, otherwise use alert time
-            if start_date_param:
-                initial_date = datetime.fromisoformat(start_date_param).date()
-            else:
-                initial_date = alert_datetime.date()
-                
-            # Use end_date from URL if provided, otherwise default to 30 days
-            if end_date_param:
-                initial_end_date = datetime.fromisoformat(end_date_param).date()
-            else:
-                initial_end_date = initial_date + timedelta(days=30)
-                
-            # Use feeder from URL if provided, otherwise default to 1
-            initial_feeder = int(feeder_param) if feeder_param else 1
-        else:
-            # No alert time, use current time
-            initial_date = datetime.now().date()
-            initial_end_date = initial_date + timedelta(days=30)
-            initial_hour = datetime.now().hour
-            initial_feeder = 1
+        initial_hour = int(hour_param) if hour_param else None
+        initial_date = datetime.fromisoformat(start_date_param).date() if start_date_param else None
+        end_date = datetime.fromisoformat(end_date_param).date() if end_date_param else None
+        initial_feeder = int(feeder_param) if feeder_param else None
 
-        logger.info(f"Initial Values: Date={initial_date}, End Date={initial_end_date}, Hour={initial_hour}, Feeder={initial_feeder}, Transformer={alert_transformer}")
+        logger.info(f"Initial Values: Date={initial_date}, End Date={end_date}, Hour={initial_hour}, Feeder={initial_feeder}, Transformer={alert_transformer}")
 
         # Get feeder from transformer ID if coming from alert
         initial_feeder = int(alert_transformer[2]) if alert_transformer and len(alert_transformer) >= 3 else initial_feeder
@@ -121,7 +99,7 @@ def main():
         if 'initialized' not in st.session_state:
             st.session_state.initialized = True
             st.session_state.initial_date = initial_date
-            st.session_state.initial_end_date = initial_end_date
+            st.session_state.initial_end_date = end_date
             st.session_state.initial_hour = initial_hour
             if alert_transformer:
                 st.session_state.alert_transformer = alert_transformer
@@ -216,6 +194,7 @@ def main():
                 # If search button was clicked, check for alerts
                 if search_clicked:
                     # Get data for the entire date range
+                    logger.info(f"Fetching data for date range: {selected_start_date} to {selected_end_date}, hour={selected_hour}")
                     date_range_data = data_service.get_transformer_data_by_range(
                         selected_transformer,
                         selected_start_date,
@@ -233,11 +212,13 @@ def main():
                         'hour': str(selected_hour),
                         'feeder': str(selected_feeder)
                     }
+                    logger.info(f"Setting URL parameters: {url_params}")
                     
                     # Update query parameters to match sidebar
                     st.experimental_set_query_params(**url_params)
                     
                     # Send alert with the sidebar selections
+                    logger.info("Sending alert with search parameters")
                     alert_service.check_and_send_alerts(
                         date_range_data,
                         start_date=selected_start_date,
