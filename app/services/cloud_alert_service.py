@@ -112,19 +112,8 @@ class CloudAlertService:
                 params['hour'] = str(hour)
             elif alert_time:
                 params['hour'] = str(alert_time.hour)
-        if 'feeder' not in params:
-            if feeder is not None:
-                params['feeder'] = str(feeder)
-            elif transformer_id and len(transformer_id) >= 2:
-                # Extract feeder from transformer ID (e.g., S1F1ATF001 -> 1)
-                try:
-                    # Find the F and take the number after it
-                    f_index = transformer_id.find('F')
-                    if f_index != -1 and f_index + 1 < len(transformer_id):
-                        feeder_num = int(transformer_id[f_index + 1])
-                        params['feeder'] = str(feeder_num)
-                except (ValueError, IndexError):
-                    logger.warning(f"Could not extract feeder from transformer ID: {transformer_id}")
+        if 'feeder' not in params and feeder is not None:
+            params['feeder'] = str(feeder)
             
         # Create query string
         query_string = '&'.join(f"{k}={v}" for k, v in params.items())
