@@ -171,17 +171,17 @@ class CloudDataService:
             
             if not results:
                 logger.warning(f"No data found for transformer {transformer_id} between {start_date} and {end_date}")
-                return None
+                return pd.DataFrame()  # Return empty DataFrame instead of None
                 
             df = pd.DataFrame(results)
             return validate_transformer_data(df)
             
         except ValueError as ve:
             logger.error(str(ve))
-            return None
+            return pd.DataFrame()  # Return empty DataFrame on error
         except Exception as e:
             logger.error(f"Error getting transformer data range: {str(e)}")
-            return None
+            return pd.DataFrame()  # Return empty DataFrame on error
 
     def get_customer_data(
         self,
@@ -410,54 +410,54 @@ class CloudAlertService:
     ):
         """Check loading conditions and send alert if needed"""
         try:
-            if not self.email_enabled:
-                st.warning("Email alerts are disabled. Check Gmail app password configuration.")
-                return
+            # Ensure results_df is a DataFrame
+            if not isinstance(results_df, pd.DataFrame):
+                results_df = pd.DataFrame(results_df) if results_df else pd.DataFrame()
                 
             if results_df.empty:
-                st.warning("No data available for alert analysis")
+                logger.warning("No data available for alerts")
                 return
                 
             # Get the point to alert on
             alert_point = self._select_alert_point(results_df)
-            loading_pct = alert_point['loading_percentage']
-            
+            if alert_point is None:
+                logger.warning("No suitable alert point found")
+                return
+                
             # Get status and color
-            status, color = self._get_status_color(loading_pct)
+            status, color = self._get_status_color(alert_point['loading_percentage'])
             
-            # Create email if loading is above warning threshold
-            if loading_pct >= 80:  # Warning threshold
-                # Create deep link
-                deep_link = self._create_deep_link(
-                    start_date=start_date or date.today(),
-                    end_date=end_date or date.today(),
-                    transformer_id=alert_point['transformer_id'],
-                    hour=hour,
-                    feeder=feeder
-                )
-                
-                # Create email content
-                html_content = self._create_email_content(
-                    data=alert_point,
-                    status=status,
-                    color=color,
-                    deep_link=deep_link
-                )
-                
-                # Create message
-                msg = MIMEMultipart('alternative')
-                msg['Subject'] = f"Transformer Alert: {status} Loading Detected"
-                msg['From'] = self.email
-                msg['To'] = recipient or self.email
-                msg.attach(MIMEText(html_content, 'html'))
-                
-                # Send email
-                if self._send_email(msg):
-                    st.success(f"Alert sent: {status} loading detected")
-                else:
-                    st.error("Failed to send alert email")
+            # Create deep link
+            deep_link = self._create_deep_link(
+                start_date=start_date,
+                end_date=end_date,
+                transformer_id=alert_point['transformer_id'],
+                hour=hour,
+                feeder=feeder
+            )
+            
+            # Create and send email
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"Transformer Alert: {status}"
+            msg['From'] = self.email
+            msg['To'] = recipient or self.email
+            
+            # Create email content
+            html = self._create_email_content(
+                data=alert_point,
+                status=status,
+                color=color,
+                deep_link=deep_link
+            )
+            
+            msg.attach(MIMEText(html, 'html'))
+            
+            if self.email_enabled:
+                self._send_email(msg)
+                st.success(f"Alert sent: {status}")
             else:
-                st.info(f"No alerts needed. Current status: {status}")
+                logger.warning("Email alerts are disabled")
+                st.warning("Email alerts are disabled")
                 
         except Exception as e:
             logger.error(f"Error in check_and_send_alerts: {str(e)}")

@@ -109,58 +109,70 @@ def display_power_consumption(results_df: pd.DataFrame):
         st.error("Error displaying power consumption chart")
 
 def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.DataFrame = None):
-    # Display the transformer analysis dashboard
-    if transformer_df is None or transformer_df.empty:
-        st.warning("No data available for transformer dashboard.")
-        return
-
-    # Show customer analysis if tile was clicked
-    if 'show_customer_analysis' in st.session_state and st.session_state.show_customer_analysis:
-        st.session_state.show_customer_analysis = False  # Reset for next time
-        if customer_df is not None:
-            display_customer_tab(customer_df)
-            return
-        else:
-            st.warning("No customer data available for this transformer.")
+    """Display the transformer analysis dashboard"""
+    try:
+        # Ensure transformer_df is a DataFrame
+        if not isinstance(transformer_df, pd.DataFrame):
+            transformer_df = pd.DataFrame(transformer_df) if transformer_df else pd.DataFrame()
+            
+        if transformer_df.empty:
+            st.warning("No data available for transformer dashboard.")
             return
 
-    # Create metrics row
-    cols = st.columns(4)
-    
-    # Current transformer info
-    latest = transformer_df.iloc[-1]
-    with cols[0]:
-        create_tile(
-            "Transformer ID",
-            latest.get('transformer_id', 'N/A'),
-            is_clickable=False
-        )
-    with cols[1]:
-        # Get number of unique customers
-        customer_count = len(customer_df['customer_id'].unique()) if customer_df is not None else 'N/A'
-        if create_tile(
-            "Customers",
-            str(customer_count),
-            is_clickable=True
-        ):
-            # Show customer analysis
-            st.session_state.show_customer_analysis = True
-            st.rerun()
-    with cols[2]:
-        create_tile(
-            "Latitude",
-            f"{latest.get('latitude', 'N/A')}",
-            is_clickable=False
-        )
-    with cols[3]:
-        create_tile(
-            "Longitude",
-            f"{latest.get('longitude', 'N/A')}",
-            is_clickable=False
-        )
+        # Show customer analysis if tile was clicked
+        if 'show_customer_analysis' in st.session_state and st.session_state.show_customer_analysis:
+            st.session_state.show_customer_analysis = False  # Reset for next time
+            if customer_df is not None:
+                # Ensure customer_df is a DataFrame
+                if not isinstance(customer_df, pd.DataFrame):
+                    customer_df = pd.DataFrame(customer_df)
+                display_customer_tab(customer_df)
+                return
+            else:
+                st.warning("No customer data available for this transformer.")
+                return
 
-    # Display transformer data
-    display_transformer_data(transformer_df)
+        # Create metrics row
+        cols = st.columns(4)
+        
+        # Current transformer info
+        latest = transformer_df.iloc[-1]
+        with cols[0]:
+            create_tile(
+                "Transformer ID",
+                latest.get('transformer_id', 'N/A'),
+                is_clickable=False
+            )
+        with cols[1]:
+            # Get number of unique customers
+            customer_count = len(customer_df['customer_id'].unique()) if customer_df is not None else 'N/A'
+            if create_tile(
+                "Customers",
+                str(customer_count),
+                is_clickable=True
+            ):
+                # Show customer analysis
+                st.session_state.show_customer_analysis = True
+                st.rerun()
+        with cols[2]:
+            create_tile(
+                "Latitude",
+                f"{latest.get('latitude', 'N/A')}",
+                is_clickable=False
+            )
+        with cols[3]:
+            create_tile(
+                "Longitude",
+                f"{latest.get('longitude', 'N/A')}",
+                is_clickable=False
+            )
+
+        # Display transformer data
+        display_transformer_data(transformer_df)
+
+    except Exception as e:
+        logger.error(f"Error displaying transformer dashboard: {str(e)}")
+        st.error("Error displaying transformer dashboard")
 
 def display_customer_tab(df: pd.DataFrame):
     # Display customer analysis tab
