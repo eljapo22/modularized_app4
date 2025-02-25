@@ -21,7 +21,7 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status chart with threshold lines."""
+    """Display loading status chart."""
     if results_df is None or results_df.empty:
         st.warning("No data available for loading status chart")
         return
@@ -33,65 +33,10 @@ def display_loading_status(results_df: pd.DataFrame):
     # Sort by timestamp and handle any duplicate timestamps by taking the max loading percentage
     df = df.sort_values('timestamp')
     df = df.groupby('timestamp')['loading_percentage'].max().reset_index()
+    df = df.set_index('timestamp')
 
-    # Create the figure
-    fig = go.Figure()
-
-    # Add the main loading percentage line
-    fig.add_trace(go.Scatter(
-        x=df['timestamp'],
-        y=df['loading_percentage'],
-        mode='lines',
-        name='Loading %',
-        line=dict(color='black', width=2)
-    ))
-
-    # Define threshold levels and their colors
-    thresholds = [
-        (120, 'Critical', '#ff0000'),
-        (100, 'Overloaded', '#ffa500'),
-        (80, 'Warning', '#ffff00'),
-        (50, 'Pre-Warning', '#9370db')
-    ]
-
-    # Add threshold lines
-    for y, label, color in thresholds:
-        fig.add_hline(
-            y=y,
-            line_dash="dash",
-            line_color=color,
-            line_width=1,
-            name=f"{label} ({y}%)"
-        )
-
-    # Update layout
-    fig.update_layout(
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=-0.4,
-            xanchor="center",
-            x=0.5
-        ),
-        height=400,
-        margin=dict(l=0, r=0, t=30, b=100),
-        yaxis=dict(
-            title="Loading Percentage (%)",
-            zeroline=False,
-            showgrid=False,
-            range=[0, max(150, df['loading_percentage'].max() * 1.1)]
-        ),
-        xaxis=dict(
-            title="Time",
-            showgrid=False,
-            type='date'
-        ),
-        plot_bgcolor="white"
-    )
-
-    # Display the chart
-    st.plotly_chart(fig, use_container_width=True)
+    # Create the chart
+    st.line_chart(df['loading_percentage'])
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
