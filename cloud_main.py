@@ -11,6 +11,7 @@ from app.services.cloud_alert_service import CloudAlertService
 from app.visualization.charts import display_transformer_dashboard
 from app.utils.ui_components import create_tile, create_banner, create_section_banner
 from app.utils.performance import log_performance
+import plotly.express as px
 
 # Configure page - must be first Streamlit command
 st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
@@ -63,19 +64,28 @@ def main():
         create_banner("Transformer Loading Analysis Dashboard")
         
         # Handle URL parameters from alert links
-        params = st.experimental_get_query_params()
-        alert_view = params.get("view", [""])[0] == "alert"
-        alert_transformer = params.get("id", [""])[0] if "id" in params else None
-        alert_time = params.get("alert_time", [""])[0] if "alert_time" in params else None
-        
-        # Set initial values from alert parameters
-        if alert_time:
-            alert_datetime = datetime.fromisoformat(alert_time)
-            initial_date = alert_datetime.date()
-            initial_hour = alert_datetime.hour
-        else:
-            initial_date = datetime.now().date()
-            initial_hour = datetime.now().hour
+        params = st.query_params
+        alert_view = params.get("view") == "alert"
+        alert_transformer = params.get("id")
+        alert_time = params.get("alert_time")
+
+        # Store the alert parameters in session state to persist across reruns
+        if 'initialized' not in st.session_state:
+            st.session_state.initialized = True
+            if alert_time:
+                st.session_state.alert_datetime = datetime.fromisoformat(alert_time)
+                st.session_state.initial_date = st.session_state.alert_datetime.date()
+                st.session_state.initial_hour = st.session_state.alert_datetime.hour
+            else:
+                st.session_state.initial_date = datetime.now().date()
+                st.session_state.initial_hour = datetime.now().hour
+
+            if alert_transformer:
+                st.session_state.alert_transformer = alert_transformer
+                st.session_state.initial_feeder = int(alert_transformer[2]) if len(alert_transformer) >= 3 else 1
+            else:
+                st.session_state.alert_transformer = None
+                st.session_state.initial_feeder = 1
             
         # Create sidebar with search criteria
         with st.sidebar:
@@ -84,7 +94,7 @@ def main():
             # Date selection
             selected_date = st.date_input(
                 "Select Date",
-                value=initial_date,
+                value=st.session_state.initial_date,
                 key="date_selector"
             )
             
@@ -93,24 +103,25 @@ def main():
                 "Select Hour (0-23)",
                 min_value=0,
                 max_value=23,
-                value=initial_hour,
+                value=st.session_state.initial_hour,
                 key="hour_selector"
             )
-            
-            # Get feeder from transformer ID if coming from alert
-            initial_feeder = int(alert_transformer[2]) if alert_transformer and len(alert_transformer) >= 3 else 1
             
             # Feeder selection
             selected_feeder = st.selectbox(
                 "Select Feeder",
                 options=[1, 2, 3, 4],
-                index=initial_feeder - 1,
+                index=st.session_state.initial_feeder - 1,
                 key="feeder_selector"
             )
             
             # Transformer selection
             transformers = data_service.get_transformer_ids(selected_feeder)
-            transformer_index = transformers.index(alert_transformer) if alert_transformer in transformers else 0
+            if st.session_state.alert_transformer in transformers:
+                transformer_index = transformers.index(st.session_state.alert_transformer)
+            else:
+                transformer_index = 0
+                
             selected_transformer = st.selectbox(
                 "Select Transformer",
                 options=transformers,
@@ -122,19 +133,42 @@ def main():
             st.markdown("---")
             st.markdown("## Alerts")
             search_clicked = st.button("Search & Alert", key="alert_button")
-            
-            # Automatically trigger search if coming from alert link
-            if alert_view or search_clicked:
-                with st.spinner("Loading data..."):
-                    alert_service.process_alerts(
-                        selected_date,
-                        selected_hour,
-                        selected_feeder,
-                        selected_transformer
-                    )
-                if search_clicked:  # Only show success message if manually clicked
-                    st.success("Alerts sent successfully!")
-        
+
+        # Automatically trigger search if coming from alert link
+        if alert_view or search_clicked:
+            with st.spinner("Loading data..."):
+                # Get and display transformer data
+                transformer_data = data_service.get_transformer_data(
+                    selected_transformer,
+                    selected_date,
+                    selected_hour
+                )
+
+                if transformer_data is not None:
+                    # Loading Status
+                    st.subheader("Loading Status")
+                    fig_loading = px.line(transformer_data, x='timestamp', y='loading_percentage')
+                    st.plotly_chart(fig_loading, use_container_width=True)
+
+                    # Power Consumption
+                    st.subheader("Power Consumption")
+                    fig_power = px.line(transformer_data, x='timestamp', y='power_consumption')
+                    st.plotly_chart(fig_power, use_container_width=True)
+
+                    # Current and Voltage
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.subheader("Current")
+                        fig_current = px.line(transformer_data, x='timestamp', y='current')
+                        st.plotly_chart(fig_current, use_container_width=True)
+                    with col2:
+                        st.subheader("Voltage")
+                        fig_voltage = px.line(transformer_data, x='timestamp', y='voltage')
+                        st.plotly_chart(fig_voltage, use_container_width=True)
+
+            if search_clicked:  # Only show success message if manually clicked
+                st.success("Search completed!")
+
         # Create main content area with tabs
         tab1, tab2 = st.tabs(["📊 Dashboard", "📋 Data"])
         
@@ -154,10 +188,10 @@ def main():
             
             # Get and display transformer data
             transformer_data = data_service.get_transformer_data(
+                selected_transformer,
                 selected_date,
                 selected_hour,
-                selected_feeder,
-                selected_transformer
+                selected_feeder
             )
             if transformer_data is not None:
                 st.dataframe(transformer_data)
