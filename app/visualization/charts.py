@@ -146,16 +146,15 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.
                 is_clickable=False
             )
         with cols[1]:
-            # Get number of unique customers
-            customer_count = len(customer_df['customer_id'].unique()) if customer_df is not None else 'N/A'
-            if create_tile(
+            # Get number of unique customers if customer_df exists and has data
+            customer_count = 0
+            if customer_df is not None and not customer_df.empty and 'customer_id' in customer_df.columns:
+                customer_count = len(customer_df['customer_id'].unique())
+            create_tile(
                 "Customers",
                 str(customer_count),
-                is_clickable=True
-            ):
-                # Show customer analysis
-                st.session_state.show_customer_analysis = True
-                st.rerun()
+                is_clickable=False  # Disable click since we don't have customer data
+            )
         
         # Add coordinates if available, otherwise use mock values
         lat = latest.get('latitude')
