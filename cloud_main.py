@@ -62,6 +62,20 @@ def main():
         # Create header banner
         create_banner("Transformer Loading Analysis Dashboard")
         
+        # Handle URL parameters from alert links
+        params = st.query_params
+        alert_view = params.get("view") == "alert"
+        alert_transformer = params.get("id")
+        alert_time = params.get("alert_time")
+        
+        if alert_time:
+            alert_datetime = datetime.fromisoformat(alert_time)
+            initial_date = alert_datetime.date()
+            initial_hour = alert_datetime.hour
+        else:
+            initial_date = datetime.now().date()
+            initial_hour = 12
+            
         # Create sidebar
         with st.sidebar:
             st.markdown("## Analysis Parameters")
@@ -69,7 +83,7 @@ def main():
             # Date selection
             selected_date = st.date_input(
                 "Select Date",
-                value=datetime.now().date(),
+                value=initial_date,
                 key="date_selector"
             )
             
@@ -78,14 +92,18 @@ def main():
                 "Select Hour (0-23)",
                 min_value=0,
                 max_value=23,
-                value=12,
+                value=initial_hour,
                 key="hour_selector"
             )
+            
+            # Get feeder from transformer ID if coming from alert
+            initial_feeder = int(alert_transformer[2]) if alert_transformer else 1
             
             # Feeder selection
             selected_feeder = st.selectbox(
                 "Select Feeder",
                 options=[1, 2, 3, 4],
+                value=initial_feeder,
                 key="feeder_selector"
             )
             
@@ -94,6 +112,7 @@ def main():
             selected_transformer = st.selectbox(
                 "Select Transformer",
                 options=transformers,
+                value=alert_transformer if alert_transformer in transformers else transformers[0],
                 key="transformer_selector"
             )
             
