@@ -113,7 +113,14 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.
     try:
         # Ensure transformer_df is a DataFrame
         if not isinstance(transformer_df, pd.DataFrame):
-            transformer_df = pd.DataFrame(transformer_df) if transformer_df else pd.DataFrame()
+            if isinstance(transformer_df, dict):
+                # If single row dict, wrap in list to create proper DataFrame
+                if not any(isinstance(v, (list, tuple)) for v in transformer_df.values()):
+                    transformer_df = pd.DataFrame([transformer_df])
+                else:
+                    transformer_df = pd.DataFrame(transformer_df)
+            else:
+                transformer_df = pd.DataFrame()
             
         if transformer_df.empty:
             st.warning("No data available for transformer dashboard.")
@@ -125,7 +132,14 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.
             if customer_df is not None:
                 # Ensure customer_df is a DataFrame
                 if not isinstance(customer_df, pd.DataFrame):
-                    customer_df = pd.DataFrame(customer_df)
+                    if isinstance(customer_df, dict):
+                        # If single row dict, wrap in list
+                        if not any(isinstance(v, (list, tuple)) for v in customer_df.values()):
+                            customer_df = pd.DataFrame([customer_df])
+                        else:
+                            customer_df = pd.DataFrame(customer_df)
+                    else:
+                        customer_df = pd.DataFrame()
                 display_customer_tab(customer_df)
                 return
             else:

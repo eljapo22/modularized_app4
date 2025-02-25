@@ -412,7 +412,14 @@ class CloudAlertService:
         try:
             # Ensure results_df is a DataFrame
             if not isinstance(results_df, pd.DataFrame):
-                results_df = pd.DataFrame(results_df) if results_df else pd.DataFrame()
+                if isinstance(results_df, dict):
+                    # If single row dict, wrap in list to create proper DataFrame
+                    if not any(isinstance(v, (list, tuple)) for v in results_df.values()):
+                        results_df = pd.DataFrame([results_df])
+                    else:
+                        results_df = pd.DataFrame(results_df)
+                else:
+                    results_df = pd.DataFrame()
                 
             if results_df.empty:
                 logger.warning("No data available for alerts")

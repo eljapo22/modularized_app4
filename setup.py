@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="transformer_analysis",
+    name="app",  # Changed from transformer_analysis to match import
     version="0.1.0",
     packages=find_packages(),
     include_package_data=True,
