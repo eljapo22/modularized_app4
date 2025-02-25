@@ -7,8 +7,8 @@ import logging
 import pandas as pd
 from datetime import datetime, timedelta
 
-from app.services.data_service import DataService
-from app.services.alert_service import AlertService
+from app.services.cloud_data_service import CloudDataService
+from app.services.cloud_alert_service import CloudAlertService
 from app.visualization.charts import display_transformer_dashboard
 
 # Configure logging
@@ -24,8 +24,8 @@ def main():
     st.title("Transformer Loading Analysis")
     
     # Initialize services
-    data_service = DataService()
-    alert_service = AlertService()
+    data_service = CloudDataService()
+    alert_service = CloudAlertService()
     
     # Sidebar for controls
     with st.sidebar:
