@@ -87,31 +87,26 @@ class CloudAlertService:
             logger.error(f"Error selecting alert point: {str(e)}")
             return None
 
-    def _create_deep_link(self, start_date: date, end_date: date, alert_time: datetime, transformer_id: str) -> str:
+    def _create_deep_link(self, start_date: date, end_date: date, alert_time: datetime, transformer_id: str, hour: int = None, feeder: int = None) -> str:
         """Create deep link back to app with context"""
-        # Convert numpy.int64 to datetime if needed
-        if hasattr(alert_time, 'dtype') and alert_time.dtype == 'int64':
-            alert_time = pd.Timestamp(alert_time).to_pydatetime()
-        if hasattr(start_date, 'dtype') and start_date.dtype == 'int64':
-            start_date = pd.Timestamp(start_date).date()
-        if hasattr(end_date, 'dtype') and end_date.dtype == 'int64':
-            end_date = pd.Timestamp(end_date).date()
+        # Get current URL parameters
+        params = dict(st.query_params)
+        
+        # Update with any missing parameters
+        if 'view' not in params:
+            params['view'] = 'alert'
+        if 'id' not in params:
+            params['id'] = transformer_id
+        if 'start_date' not in params:
+            params['start_date'] = start_date.isoformat()
+        if 'end_date' not in params:
+            params['end_date'] = end_date.isoformat()
+        if 'hour' not in params:
+            params['hour'] = str(hour) if hour is not None else str(alert_time.hour)
+        if 'feeder' not in params:
+            params['feeder'] = str(feeder) if feeder is not None else str(int(transformer_id[2]))
             
-        # Default to 30 day range if not provided
-        if not start_date:
-            start_date = alert_time.date()
-        if not end_date:
-            end_date = start_date + timedelta(days=30)
-            
-        params = {
-            'view': 'alert',
-            'id': transformer_id,
-            'start_date': start_date.isoformat(),
-            'end_date': end_date.isoformat(),
-            'alert_time': alert_time.isoformat() if alert_time else None
-        }
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
+        # Create query string
         query_string = '&'.join(f"{k}={v}" for k, v in params.items())
         return f"{self.app_url}?{query_string}"
 
@@ -194,6 +189,8 @@ class CloudAlertService:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         alert_time: Optional[datetime] = None,
+        hour: Optional[int] = None,
+        feeder: Optional[int] = None,
         recipient: str = None
     ) -> bool:
         """Check loading conditions and send alert if needed"""
@@ -233,16 +230,21 @@ class CloudAlertService:
                 if alert_time is None:
                     alert_time = alert_point.name
                 
-                # Log the date range we're using
-                logger.info(f"Using date range: {start_date} to {end_date}")
-                st.write(f"**Date Range:** {start_date} to {end_date}")
+                # Log the search parameters
+                logger.info(f"Using search parameters - Date Range: {start_date} to {end_date}, Hour: {hour}, Feeder: {feeder}")
+                st.write(f"**Search Parameters:**")
+                st.write(f"- Date Range: {start_date} to {end_date}")
+                st.write(f"- Hour: {hour}")
+                st.write(f"- Feeder: {feeder}")
                 
-                # Create deep link with search dates
+                # Create deep link with all search parameters
                 deep_link = self._create_deep_link(
-                    start_date,  # Use the search start date
-                    end_date,    # Use the search end date
-                    alert_time,  # Keep the alert time
-                    alert_point['transformer_id']
+                    start_date,
+                    end_date,
+                    alert_time,
+                    alert_point['transformer_id'],
+                    hour=hour,
+                    feeder=feeder
                 )
                 logger.info(f"Created deep link: {deep_link}")
                 

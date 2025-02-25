@@ -172,7 +172,8 @@ def main():
                 transformer_data = data_service.get_transformer_data(
                     selected_transformer,
                     selected_start_date,
-                    selected_hour
+                    selected_hour,
+                    selected_feeder
                 )
 
                 if transformer_data is not None:
@@ -187,15 +188,27 @@ def main():
                             selected_feeder
                         )
                         
-                        # Create alert time from selected date and hour
-                        alert_time = datetime.combine(selected_start_date, datetime.min.time().replace(hour=selected_hour))
+                        # Create URL parameters from sidebar selections
+                        url_params = {
+                            'view': 'alert',
+                            'id': selected_transformer,
+                            'start_date': selected_start_date.isoformat(),
+                            'end_date': selected_end_date.isoformat(),
+                            'hour': selected_hour,
+                            'feeder': selected_feeder
+                        }
                         
-                        # Send alert with the full date range data and search dates
+                        # Update query parameters to match sidebar
+                        st.query_params.update(url_params)
+                        
+                        # Send alert with the sidebar selections
                         alert_service.check_and_send_alerts(
                             date_range_data,
-                            start_date=selected_start_date,  # Pass the actual search start date
-                            end_date=selected_end_date,      # Pass the actual search end date
-                            alert_time=alert_time           # Keep the alert time
+                            start_date=selected_start_date,
+                            end_date=selected_end_date,
+                            alert_time=datetime.combine(selected_start_date, datetime.min.time().replace(hour=selected_hour)),
+                            hour=selected_hour,
+                            feeder=selected_feeder
                         )
 
                     # Loading Status
