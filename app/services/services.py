@@ -15,8 +15,6 @@ import streamlit as st
 
 # Local imports
 from app.config.database_config import (
-    TRANSFORMER_TABLE_TEMPLATE,
-    CUSTOMER_TABLE_TEMPLATE,
     TRANSFORMER_DATA_QUERY,
     TRANSFORMER_DATA_RANGE_QUERY,
     CUSTOMER_DATA_QUERY,
@@ -53,18 +51,11 @@ class CloudDataService:
     
     def __init__(self):
         """Initialize the service"""
-        self._available_feeders = None
-        self._transformer_options = {}
-        init_db_pool()
         logger.info("CloudDataService initialized")
     
     def get_feeder_options(self) -> List[str]:
         """Get list of available feeders"""
-        if self._available_feeders is None:
-            logger.info("Getting feeder options...")
-            self._available_feeders = [f"Feeder {num}" for num in FEEDER_NUMBERS]
-            logger.info(f"Found {len(self._available_feeders)} feeders: {self._available_feeders}")
-        return self._available_feeders
+        return [f"Feeder {num}" for num in FEEDER_NUMBERS]
 
     def get_transformer_ids(self, feeder_num: int) -> List[str]:
         """Get list of transformer IDs for a specific feeder"""
@@ -129,8 +120,8 @@ class CloudDataService:
             if feeder_num not in FEEDER_NUMBERS:
                 raise ValueError(f"Invalid feeder number: {feeder_num}")
                 
-            # Table name already includes quotes
-            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
+            # Use the correct table name format
+            table = f'"Transformer Feeder {feeder_num}"'
             logger.debug(f"Querying table: {table}")
             query = TRANSFORMER_DATA_QUERY.format(table_name=table)
             results = execute_query(query, (transformer_id, query_date, hour))
@@ -160,7 +151,11 @@ class CloudDataService:
             
             # Get feeder number from feeder string
             feeder_num = int(feeder.split()[-1])
-            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
+            if feeder_num not in FEEDER_NUMBERS:
+                raise ValueError(f"Invalid feeder number: {feeder_num}")
+                
+            # Use the correct table name format
+            table = f'"Transformer Feeder {feeder_num}"'
             
             # Convert dates to timestamps for the query
             start_ts = datetime.combine(start_date, datetime.min.time())
@@ -188,39 +183,68 @@ class CloudDataService:
     def get_customer_data(
         self,
         transformer_id: str,
-        start_date: date,
-        end_date: date
-    ) -> Optional[pd.DataFrame]:
-        """Get customer data for a transformer and date range"""
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        feeder: Optional[int] = None
+    ) -> Optional[CustomerData]:
+        """Get customer data for a specific transformer"""
         try:
-            if not all([transformer_id, start_date, end_date]):
+            if not transformer_id:
+                logger.error("No transformer ID provided")
                 return None
+                
+            # Extract feeder number from transformer ID if not provided
+            if feeder is None and transformer_id.startswith('S1F'):
+                try:
+                    feeder = int(transformer_id[3])
+                except (IndexError, ValueError):
+                    logger.warning(f"Could not extract feeder number from transformer ID: {transformer_id}")
+                    return None
             
-            # Extract feeder number from transformer ID
-            feeder_num = int(transformer_id.split('F')[1][0])
-            if feeder_num not in FEEDER_NUMBERS:
-                raise ValueError(f"Invalid feeder number: {feeder_num}")
+            if feeder not in FEEDER_NUMBERS:
+                logger.error(f"Invalid feeder number: {feeder}")
+                return None
+                
+            table = f'"Customer Feeder {feeder}"'
             
-            # Get table name
-            table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
-            
-            # Convert dates to timestamps
-            start_ts = datetime.combine(start_date, datetime.min.time())
-            end_ts = datetime.combine(end_date, datetime.max.time())
-            
-            # Query data
-            query = CUSTOMER_DATA_QUERY.format(table_name=table)
-            results = execute_query(query, (transformer_id, start_ts, end_ts))
+            # Build query with date range if provided
+            if start_date and end_date:
+                query = CUSTOMER_DATA_QUERY.format(
+                    table_name=table,
+                    transformer_id=transformer_id,
+                    start_date=start_date.isoformat(),
+                    end_date=end_date.isoformat()
+                )
+            else:
+                query = CUSTOMER_DATA_QUERY.format(
+                    table_name=table,
+                    transformer_id=transformer_id,
+                    start_date='2024-01-01',
+                    end_date='2024-06-28'
+                )
+                
+            results = execute_query(query)
             
             if not results:
-                logger.warning(
-                    f"No customer data found for transformer {transformer_id} "
-                    f"between {start_date} and {end_date}"
-                )
+                logger.warning(f"No customer data found for transformer {transformer_id}")
                 return None
-            
+                
+            # Convert results to CustomerData model
             df = pd.DataFrame(results)
-            return df
+            
+            return CustomerData(
+                index_level_0=df['index_level_0'].tolist(),
+                current_a=df['current_a'].tolist(),
+                customer_id=df['customer_id'].tolist(),
+                hour=df['hour'].tolist(),
+                power_factor=df['power_factor'].tolist(),
+                power_kva=df['power_kva'].tolist(),
+                power_kw=df['power_kw'].tolist(),
+                size_kva=df['size_kva'].tolist(),
+                timestamp=df['timestamp'].tolist(),
+                transformer_id=df['transformer_id'].tolist(),
+                voltage_v=df['voltage_v'].tolist()
+            )
             
         except Exception as e:
             logger.error(f"Error getting customer data: {str(e)}")
