@@ -4,15 +4,23 @@ Cloud-specific entry point for the Transformer Loading Analysis Application
 
 import streamlit as st
 import pandas as pd
+from datetime import datetime, timedelta
 import logging
 import traceback
-from datetime import datetime, timedelta
-from services.cloud_data_service import CloudDataService
-from services.cloud_alert_service import CloudAlertService
-from visualization.charts import display_transformer_dashboard
-from utils.ui_components import create_tile, create_banner, create_section_banner
-from utils.performance import log_performance
 import plotly.express as px
+import sys
+from pathlib import Path
+
+# Add the app directory to Python path
+app_dir = str(Path(__file__).parent)
+if app_dir not in sys.path:
+    sys.path.append(app_dir)
+
+from app.services.cloud_data_service import CloudDataService
+from app.services.cloud_alert_service import CloudAlertService
+from app.visualization.charts import display_transformer_dashboard
+from app.utils.ui_components import create_tile, create_banner, create_section_banner
+from app.utils.performance import log_performance
 
 # Configure page - must be first Streamlit command
 st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
