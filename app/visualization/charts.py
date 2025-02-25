@@ -29,98 +29,24 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create a copy of the dataframe
     df = results_df.copy()
     
-    # Ensure timestamp is datetime and loading_percentage is numeric
+    # Ensure timestamp is datetime
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df['loading_percentage'] = pd.to_numeric(df['loading_percentage'], errors='coerce')
+    df = df.set_index('timestamp')
     
-    # Drop any rows with NaN values
-    df = df.dropna(subset=['timestamp', 'loading_percentage'])
+    # Create threshold lines
+    df['120% (Critical)'] = 120
+    df['100% (Overloaded)'] = 100
+    df['80% (Warning)'] = 80
+    df['50% (Pre-Warning)'] = 50
     
-    if df.empty:
-        st.warning("No valid data points available after cleaning")
-        return
+    # Add the loading percentage
+    df['Loading'] = df['loading_percentage']
     
-    # Create figure
-    fig = go.Figure()
-    
-    # Add the main loading percentage line
-    fig.add_trace(go.Scatter(
-        x=df['timestamp'],
-        y=df['loading_percentage'],
-        name='Loading',
-        line=dict(color='#1f77b4', width=2)  # Default blue color, slightly thicker
-    ))
-    
-    # Add horizontal threshold lines with improved formatting
-    thresholds = [
-        (120, 'Critical', 'Critical (≥120%)'),
-        (100, 'Overloaded', 'Overloaded (≥100%)'),
-        (80, 'Warning', 'Warning (≥80%)'),
-        (50, 'Pre-Warning', 'Pre-Warning (≥50%)')
-    ]
-    
-    for value, status, label in thresholds:
-        fig.add_hline(
-            y=value,
-            line=dict(
-                color=STATUS_COLORS[status],
-                dash='dash',
-                width=1.5
-            ),
-            annotation=dict(
-                text=label,
-                xref='paper',
-                x=1.02,
-                showarrow=False,
-                font=dict(
-                    color=STATUS_COLORS[status],
-                    size=10
-                )
-            )
-        )
-    
-    # Update layout with improved formatting
-    fig.update_layout(
-        height=400,
-        margin=dict(l=0, r=120, t=30, b=0),  # Increased right margin for threshold labels
-        showlegend=True,
-        xaxis=dict(
-            title=None,
-            showgrid=True,
-            gridcolor='rgba(128, 128, 128, 0.2)',
-            tickformat='%Y-%m-%d %H:%M'
-        ),
-        yaxis=dict(
-            title='Loading Percentage',
-            showgrid=True,
-            gridcolor='rgba(128, 128, 128, 0.2)',
-            range=[0, max(130, df['loading_percentage'].max() * 1.1)],
-            ticksuffix='%'
-        ),
-        plot_bgcolor='white',
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        )
+    # Create the chart with threshold lines and loading
+    st.line_chart(
+        df[['120% (Critical)', '100% (Overloaded)', '80% (Warning)', '50% (Pre-Warning)', 'Loading']],
+        height=400
     )
-    
-    # Display the plot
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Add color-coded legend below the chart
-    legend_html = f"""
-        <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 0.5rem;">
-            <span style="color: {STATUS_COLORS['Critical']}">●</span> Critical (≥120%)
-            <span style="color: {STATUS_COLORS['Overloaded']}">●</span> Overloaded (≥100%)
-            <span style="color: {STATUS_COLORS['Warning']}">●</span> Warning (≥80%)
-            <span style="color: {STATUS_COLORS['Pre-Warning']}">●</span> Pre-Warning (≥50%)
-            <span style="color: {STATUS_COLORS['Normal']}">●</span> Normal (<50%)
-        </div>
-    """
-    st.markdown(legend_html, unsafe_allow_html=True)
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
