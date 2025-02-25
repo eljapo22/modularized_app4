@@ -177,7 +177,8 @@ def main():
                             selected_transformer,
                             selected_start_date,
                             selected_end_date,
-                            selected_hour
+                            selected_hour,
+                            selected_feeder
                         )
                         
                         # Create alert time from selected date and hour

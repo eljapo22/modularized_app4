@@ -252,22 +252,36 @@ class CloudDataService:
         transformer_id: str,
         start_date: date,
         end_date: date,
-        hour: int
+        hour: int,
+        feeder: Optional[int] = None
     ) -> Optional[pd.DataFrame]:
         """Get transformer data for a specific date range and hour"""
         try:
             logger.info(f"Fetching data for transformer {transformer_id} from {start_date} to {end_date} at hour {hour}")
             
-            # Create query parameters
-            params = {
-                'transformer_id': transformer_id,
-                'start_date': start_date,
-                'end_date': end_date,
-                'hour': hour
-            }
+            # Get feeder number from transformer ID if not provided
+            if feeder is None and transformer_id:
+                feeder = int(transformer_id[2]) if len(transformer_id) >= 3 else 1
+                
+            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder)
             
-            # Execute query
-            results = execute_query(TRANSFORMER_DATA_RANGE_QUERY, params)
+            # Create timestamps for the query
+            start_ts = datetime.combine(start_date, time.min.replace(hour=hour))
+            end_ts = datetime.combine(end_date, time.min.replace(hour=hour))
+            
+            # Execute query with hour filter
+            query = f"""
+                SELECT *
+                FROM "{table}"
+                WHERE transformer_id = %s
+                AND timestamp >= %s
+                AND timestamp <= %s
+                AND EXTRACT(hour FROM timestamp) = %s
+                ORDER BY timestamp
+            """
+            params = (transformer_id, start_ts, end_ts, hour)
+            
+            results = execute_query(query, params)
             
             if not results:
                 logger.warning(f"No data found for transformer {transformer_id} in date range")
