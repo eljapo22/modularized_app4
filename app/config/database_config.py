@@ -26,7 +26,7 @@ SELECT
     t."load_range"
 FROM hours
 LEFT JOIN {table_name} t ON t."timestamp" = hours.hour AND t."transformer_id" = ?
-WHERE t."loading_percentage" IS NOT NULL  # Only include rows with actual data
+WHERE t."loading_percentage" IS NOT NULL  -- Only include rows with actual data
 ORDER BY hours.hour
 """
 
@@ -46,7 +46,7 @@ FROM {table_name} t
 WHERE t."transformer_id" = ?
   AND t."timestamp" >= ?
   AND t."timestamp" <= ?
-  AND t."loading_percentage" IS NOT NULL  # Only include rows with actual data
+  AND t."loading_percentage" IS NOT NULL  -- Only include rows with actual data
 ORDER BY t."timestamp"
 """
 
