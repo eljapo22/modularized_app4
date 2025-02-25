@@ -35,8 +35,45 @@ def display_loading_status(results_df: pd.DataFrame):
     df = df.groupby('timestamp')['loading_percentage'].max().reset_index()
     df = df.set_index('timestamp')
 
-    # Create the chart
-    st.line_chart(df['loading_percentage'])
+    # Create columns for layout
+    col1, col2 = st.columns([7, 3])
+
+    with col1:
+        # Create the main chart
+        st.line_chart(df['loading_percentage'], height=400)
+
+    with col2:
+        # Display threshold levels with colored indicators
+        st.markdown("### Threshold Levels")
+        
+        # Define thresholds with their colors
+        thresholds = [
+            ("Critical (≥120%)", "#ff0000"),
+            ("Overloaded (≥100%)", "#ffa500"),
+            ("Warning (≥80%)", "#ffff00"),
+            ("Pre-Warning (≥50%)", "#9370db"),
+            ("Normal (<50%)", "#00ff00")
+        ]
+        
+        # Create colored boxes with threshold labels
+        for label, color in thresholds:
+            st.markdown(
+                f"""
+                <div style="
+                    padding: 10px;
+                    border-radius: 5px;
+                    margin: 5px 0;
+                    background-color: {color};
+                    color: {'black' if color in ['#ffff00', '#00ff00'] else 'white'};
+                    opacity: 0.8;
+                    font-size: 0.9em;
+                    text-align: center;
+                ">
+                    {label}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
