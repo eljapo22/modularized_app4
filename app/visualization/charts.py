@@ -21,7 +21,7 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status chart."""
+    """Display loading status chart with threshold lines."""
     if results_df is None or results_df.empty:
         st.warning("No data available for loading status chart")
         return
@@ -33,10 +33,65 @@ def display_loading_status(results_df: pd.DataFrame):
     # Sort by timestamp and handle any duplicate timestamps by taking the max loading percentage
     df = df.sort_values('timestamp')
     df = df.groupby('timestamp')['loading_percentage'].max().reset_index()
-    df = df.set_index('timestamp')
 
-    # Create the chart
-    st.line_chart(df['loading_percentage'])
+    # Create the figure
+    fig = go.Figure()
+
+    # Add the main loading percentage line
+    fig.add_trace(go.Scatter(
+        x=df['timestamp'],
+        y=df['loading_percentage'],
+        mode='lines',
+        name='Loading %',
+        line=dict(color='black', width=2)
+    ))
+
+    # Define threshold levels and their colors
+    thresholds = [
+        (120, 'Critical', '#ff0000'),
+        (100, 'Overloaded', '#ffa500'),
+        (80, 'Warning', '#ffff00'),
+        (50, 'Pre-Warning', '#9370db')
+    ]
+
+    # Add threshold lines
+    for y, label, color in thresholds:
+        fig.add_hline(
+            y=y,
+            line_dash="dash",
+            line_color=color,
+            line_width=1,
+            name=f"{label} ({y}%)"
+        )
+
+    # Update layout
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.4,
+            xanchor="center",
+            x=0.5
+        ),
+        height=400,
+        margin=dict(l=0, r=0, t=30, b=100),
+        yaxis=dict(
+            title="Loading Percentage (%)",
+            zeroline=False,
+            showgrid=False,
+            range=[0, max(150, df['loading_percentage'].max() * 1.1)]
+        ),
+        xaxis=dict(
+            title="Time",
+            showgrid=False,
+            type='date'
+        ),
+        plot_bgcolor="white"
+    )
+
+    # Display the chart
+    st.plotly_chart(fig, use_container_width=True)
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
@@ -89,24 +144,6 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
     # Create voltage chart
     st.line_chart(
         results_df['voltage_v'],
-        use_container_width=True
-    )
-
-def display_power_factor_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
-    """Display power factor time series visualization."""
-    if results_df is None or results_df.empty:
-        st.warning("No data available for power factor visualization.")
-        return
-        
-    # Ensure timestamp is datetime and set as index
-    results_df = results_df.copy()
-    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
-    results_df = results_df.sort_values('timestamp')  # Sort by timestamp
-    results_df = results_df.set_index('timestamp')
-    
-    # Create power factor chart
-    st.line_chart(
-        results_df['power_factor'],
         use_container_width=True
     )
 
@@ -200,7 +237,6 @@ def display_customer_tab(df: pd.DataFrame):
     # Round values according to spec
     customer_df['power_kw'] = customer_df['power_kw'].round(3)  # x.xxx
     customer_df['current_a'] = customer_df['current_a'].round(3)  # x.xxx
-    customer_df['power_factor'] = customer_df['power_factor'].round(3)  # x.xxx
     customer_df['voltage_v'] = customer_df['voltage_v'].round(1)  # xxx.x
 
     # Display customer metrics in tiles
@@ -215,20 +251,20 @@ def display_customer_tab(df: pd.DataFrame):
         )
     with cols[1]:
         create_tile(
-            "Power Factor",
-            f"{latest['power_factor']:.{DECIMAL_PLACES['power_factor']}f}",
-            is_clickable=True
-        )
-    with cols[2]:
-        create_tile(
             "Power (kW)",
             f"{latest['power_kw']:.{DECIMAL_PLACES['power_kw']}f}",
             is_clickable=True
         )
-    with cols[3]:
+    with cols[2]:
         create_tile(
             "Power (kVA)",
             f"{latest['power_kva']:.{DECIMAL_PLACES['power_kva']}f}",
+            is_clickable=True
+        )
+    with cols[3]:
+        create_tile(
+            "Voltage (V)",
+            f"{latest['voltage_v']:.{DECIMAL_PLACES['voltage_v']}f}",
             is_clickable=True
         )
     
@@ -248,7 +284,7 @@ def display_customer_tab(df: pd.DataFrame):
     # Display customer table
     st.markdown("### Customer Details")
     st.dataframe(
-        customer_df[['timestamp', 'power_kw', 'power_factor', 'voltage_v', 'current_a']].sort_values('timestamp', ascending=False),
+        customer_df[['timestamp', 'power_kw', 'current_a', 'voltage_v']].sort_values('timestamp', ascending=False),
         use_container_width=True
     )
 
@@ -282,10 +318,6 @@ def display_transformer_data(results_df: pd.DataFrame):
     with col2:
         st.subheader("Voltage")
         st.line_chart(df['voltage_v'])
-    
-    # Power Factor at the bottom
-    st.subheader("Power Factor")
-    st.line_chart(df['power_factor'])
 
 def display_customer_data(results_df: pd.DataFrame):
     """Display customer data visualizations."""
