@@ -28,16 +28,12 @@ def display_loading_status(results_df: pd.DataFrame):
 
     # Create a copy of the dataframe and ensure proper time handling
     df = results_df.copy()
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
-    # Sort by timestamp and handle any duplicate timestamps by taking the max loading percentage
     df = df.sort_values('timestamp')
-    df = df.groupby('timestamp')['loading_percentage'].max().reset_index()
     
     # Create hover text with detailed information
     hover_text = df.apply(
         lambda row: f"Loading: {row['loading_percentage']:.1f}%<br>" +
-                   f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}", 
+                   f"Time: {row['timestamp']}", 
         axis=1
     )
     
