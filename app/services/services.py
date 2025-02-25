@@ -44,6 +44,8 @@ class CloudDataService:
     def __init__(self):
         """Initialize the service"""
         logger.info("CloudDataService initialized")
+        # Cache for transformer IDs
+        self._transformer_ids_cache = {}
     
     def get_feeder_options(self) -> List[str]:
         """Get list of available feeders"""
@@ -51,6 +53,10 @@ class CloudDataService:
 
     def get_transformer_ids(self, feeder_num: int) -> List[str]:
         """Get list of transformer IDs for a specific feeder"""
+        # Check cache first
+        if feeder_num in self._transformer_ids_cache:
+            return self._transformer_ids_cache[feeder_num]
+            
         try:
             logger.info(f"Retrieving transformer IDs for feeder {feeder_num}...")
             if feeder_num not in FEEDER_NUMBERS:
@@ -69,12 +75,16 @@ class CloudDataService:
                     transformer_ids = [r['transformer_id'] for r in results]
                     logger.info(f"Found {len(transformer_ids)} transformers")
                     logger.debug(f"Transformer IDs: {transformer_ids}")
-                    return sorted(transformer_ids)
+                    # Cache the results
+                    self._transformer_ids_cache[feeder_num] = sorted(transformer_ids)
+                    return self._transformer_ids_cache[feeder_num]
                 else:
                     logger.warning(f"No transformers found for feeder {feeder_num}")
                     # Return a default list of transformers for this feeder
                     default_ids = [f"S1F{feeder_num}ATF{i:03d}" for i in range(1, 11)]
                     logger.info(f"Using default transformer IDs: {default_ids}")
+                    # Cache the default IDs
+                    self._transformer_ids_cache[feeder_num] = default_ids
                     return default_ids
                 
             except Exception as e:
@@ -82,6 +92,8 @@ class CloudDataService:
                 # Return a default list of transformers for this feeder
                 default_ids = [f"S1F{feeder_num}ATF{i:03d}" for i in range(1, 11)]
                 logger.info(f"Using default transformer IDs: {default_ids}")
+                # Cache the default IDs
+                self._transformer_ids_cache[feeder_num] = default_ids
                 return default_ids
                 
         except Exception as e:
