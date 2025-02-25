@@ -33,18 +33,69 @@ def display_loading_status(results_df: pd.DataFrame):
     # Sort by timestamp and handle any duplicate timestamps by taking the max loading percentage
     df = df.sort_values('timestamp')
     df = df.groupby('timestamp')['loading_percentage'].max().reset_index()
-    df = df.set_index('timestamp')
     
-    # Create DataFrame with loading data and threshold lines
-    chart_df = pd.DataFrame(index=df.index)
-    # Order columns to control legend order (first to last)
-    chart_df['[1]Critical (120%)'] = 120
-    chart_df['[2]Overloaded (100%)'] = 100
-    chart_df['[3]Warning (80%)'] = 80
-    chart_df['[0]Loading'] = df['loading_percentage']  # Prefix with [0] to get blue color
-
-    # Create the chart with all lines
-    st.line_chart(chart_df)
+    # Create hover text with detailed information
+    hover_text = df.apply(
+        lambda row: f"Loading: {row['loading_percentage']:.1f}%<br>" +
+                   f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}", 
+        axis=1
+    )
+    
+    # Create the scatter plot
+    fig = go.Figure()
+    
+    # Add scatter plot for each loading category
+    categories = [
+        (120, float('inf'), ' Critical', 'rgb(255, 0, 0)'),
+        (100, 120, 'Overloaded', 'rgb(255, 165, 0)'),
+        (80, 100, 'Warning', 'rgb(255, 255, 0)'),
+        (50, 80, 'Pre-Warning', 'rgb(147, 112, 219)'),
+        (0, 50, 'Normal', 'rgb(0, 255, 0)')
+    ]
+    
+    for min_load, max_load, name, color in categories:
+        mask = (df['loading_percentage'] >= min_load) & (df['loading_percentage'] < max_load)
+        category_data = df[mask]
+        
+        if not category_data.empty:
+            fig.add_trace(go.Scatter(
+                x=category_data['timestamp'],
+                y=category_data['loading_percentage'],
+                mode='markers',
+                name=name,
+                marker=dict(
+                    color=color,
+                    size=8,
+                    line=dict(
+                        color='black',
+                        width=1
+                    )
+                ),
+                text=hover_text[mask],
+                hoverinfo='text',
+                showlegend=True
+            ))
+    
+    # Update layout
+    fig.update_layout(
+        xaxis_title="Time",
+        yaxis_title="Loading Percentage (%)",
+        showlegend=True,
+        height=400,
+        template="plotly_white",
+        margin=dict(l=0, r=0, t=0, b=0),
+        font=dict(color='#2f4f4f')
+    )
+    
+    # Add horizontal lines for thresholds
+    for threshold, _, _, color in categories[:-1]:  # Skip the last category (Normal)
+        fig.add_hline(
+            y=threshold,
+            line=dict(color=color, width=1, dash="dash")
+        )
+    
+    # Display the plot
+    st.plotly_chart(fig, use_container_width=True)
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
