@@ -479,10 +479,10 @@ class CloudAlertService:
                 return False
 
             logger.info(f"Alert point selected: {alert_point.name}")
-            logger.info(f"Loading percentage: {alert_point['loading_percentage']:.1f}%")
+            logger.info(f"Loading percentage: {alert_point['loading_pct']:.1f}%")
 
             # Get status and color
-            status, color = self._get_status_color(alert_point['loading_percentage'])
+            status, color = self._get_status_color(alert_point['loading_pct'])
             logger.info(f"Alert status: {status}")
 
             # Create deep link back to app
