@@ -6,7 +6,7 @@ import numpy as np
 import logging
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from app.services.cloud_data_service import CloudDataService
+from app.services.services import CloudDataService
 from app.utils.ui_components import create_tile, create_colored_banner, create_bordered_header
 from app.config.constants import STATUS_COLORS, CHART_COLORS
 from app.config.table_config import DECIMAL_PLACES
