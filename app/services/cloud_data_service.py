@@ -5,7 +5,7 @@ Data service implementation for MotherDuck
 import pandas as pd
 from datetime import datetime, date, timedelta
 import logging
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Union
 from app.core.database_adapter import DatabaseAdapter
 from app.utils.db_utils import execute_query, extract_feeder_number
 
