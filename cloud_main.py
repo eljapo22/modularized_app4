@@ -151,6 +151,16 @@ def main():
                 )
 
                 if transformer_data is not None:
+                    # If search button was clicked, check for alerts
+                    if search_clicked:
+                        # Create alert time from selected date and hour
+                        alert_time = datetime.combine(selected_date, datetime.min.time().replace(hour=selected_hour))
+                        alert_service.check_and_send_alerts(
+                            transformer_data,
+                            start_date=selected_date,
+                            alert_time=alert_time
+                        )
+
                     # Loading Status
                     st.subheader("Loading Status")
                     fig_loading = px.line(transformer_data, x='timestamp', y='loading_percentage')
