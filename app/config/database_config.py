@@ -32,46 +32,32 @@ DECIMAL_PLACES = {
 
 # Query templates with different precision for transformer vs customer data
 TRANSFORMER_DATA_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    hours.hour as "timestamp",
-    COALESCE(t."voltage_v", LAG(t."voltage_v") OVER (ORDER BY hours.hour)) as "voltage_v",
+    t."timestamp",
+    t."voltage_v",
     t."size_kva",
-    CAST(COALESCE(t."loading_percentage", LAG(t."loading_percentage") OVER (ORDER BY hours.hour)) AS DECIMAL(3,0)) as "loading_percentage",
-    CAST(COALESCE(t."current_a", LAG(t."current_a") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
-    CAST(COALESCE(t."power_kw", LAG(t."power_kw") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
-    CAST(COALESCE(t."power_kva", LAG(t."power_kva") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kva",
-    CAST(COALESCE(t."power_factor", LAG(t."power_factor") OVER (ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
-    t."transformer_id",
-    t."load_range"
-FROM hours
-LEFT JOIN {table_name} t ON t."timestamp" = hours.hour AND t."transformer_id" = ?
-ORDER BY hours.hour
+    CAST(t."loading_percentage" AS DECIMAL(3,0)) as "loading_percentage",
+    CAST(t."current_a" AS DECIMAL(5,2)) as "current_a",
+    CAST(t."power_kw" AS DECIMAL(5,2)) as "power_kw",
+    CAST(t."power_kva" AS DECIMAL(5,2)) as "power_kva",
+    CAST(t."power_factor" AS DECIMAL(4,3)) as "power_factor",
+    t."transformer_id"
+FROM {table_name} t
+WHERE t."transformer_id" = ?
+  AND t."timestamp"::DATE BETWEEN ?::DATE AND ?::DATE
+ORDER BY t."timestamp"
 """
 
 TRANSFORMER_DATA_RANGE_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    hours.hour as "timestamp",
+    t."timestamp",
     t."transformer_id",
-    CAST(COALESCE(t."power_kw", LAG(t."power_kw") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
-    CAST(COALESCE(t."loading_percentage", LAG(t."loading_percentage") OVER (ORDER BY hours.hour)) AS DECIMAL(3,0)) as "loading_percentage"
-FROM hours
-LEFT JOIN {table_name} t ON t."timestamp" = hours.hour AND t."transformer_id" = ?
-WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
-ORDER BY hours.hour
+    CAST(t."power_kw" AS DECIMAL(5,2)) as "power_kw",
+    CAST(t."loading_percentage" AS DECIMAL(3,0)) as "loading_percentage"
+FROM {table_name} t
+WHERE t."transformer_id" = ?
+  AND t."timestamp"::DATE BETWEEN ?::DATE AND ?::DATE
+ORDER BY t."timestamp"
 """
 
 TRANSFORMER_LIST_QUERY = """
@@ -133,25 +119,18 @@ ORDER BY hours.hour::DATE, c."customer_id"
 """
 
 CUSTOMER_DATA_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    hours.hour as "timestamp",
+    cr."timestamp",
     c."customer_id",
-    CAST(COALESCE(cr."power_kw", LAG(cr."power_kw") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
-    CAST(COALESCE(cr."current_a", LAG(cr."current_a") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
-    CAST(COALESCE(cr."power_factor", LAG(cr."power_factor") OVER (ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
+    CAST(cr."power_kw" AS DECIMAL(5,2)) as "power_kw",
+    CAST(cr."current_a" AS DECIMAL(5,2)) as "current_a",
+    CAST(cr."power_factor" AS DECIMAL(4,3)) as "power_factor",
     c."service_type"
-FROM hours
-LEFT JOIN {customer_table} c ON c."transformer_id" = ?
-LEFT JOIN {reading_table} cr ON cr."customer_id" = c."customer_id" AND cr."timestamp" = hours.hour
-WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
-ORDER BY hours.hour, c."customer_id"
+FROM {customer_table} c
+LEFT JOIN {reading_table} cr ON cr."customer_id" = c."customer_id"
+WHERE c."transformer_id" = ?
+  AND cr."timestamp"::DATE BETWEEN ?::DATE AND ?::DATE
+ORDER BY cr."timestamp", c."customer_id"
 """
 
 # Query to get feeder names
@@ -222,15 +201,13 @@ def get_transformer_data(transformer_id: str, query_date: date, hour: int = None
         # Use the correct table name format
         table = f'"Transformer Feeder {feeder}"'
         
-        # Build query parameters
-        if hour is not None:
-            query_time = datetime.combine(query_date, datetime.min.time().replace(hour=hour))
-        else:
-            query_time = datetime.combine(query_date, datetime.min.time())
-            
         # Execute query
         query = TRANSFORMER_DATA_QUERY.format(table_name=table)
-        results = execute_query(query, (transformer_id, query_time))
+        results = execute_query(query, (
+            transformer_id,  # For WHERE transformer_id
+            query_date,     # For WHERE date range start
+            query_date      # For WHERE date range end
+        ))
         
         if not results:
             logger.warning(f"No data found for transformer {transformer_id}")
@@ -264,11 +241,9 @@ def get_transformer_data_range(transformer_id: str, start_date: date, end_date: 
         # Execute query with all required parameters
         query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
         params = (
-            start_date,  # First timestamp for hours CTE
-            end_date,    # Second timestamp for hours CTE
-            transformer_id,  # For JOIN condition
-            start_date,  # For WHERE clause start
-            end_date     # For WHERE clause end
+            transformer_id,  # For WHERE transformer_id
+            start_date,     # For WHERE date range start
+            end_date       # For WHERE date range end
         )
         
         results = execute_query(query, params)
@@ -330,9 +305,9 @@ def get_customer_data(transformer_id: str, start_date: date, end_date: date, fee
         # Execute query with all required parameters
         query = CUSTOMER_DATA_QUERY.format(customer_table=customer_table, reading_table=reading_table)
         params = (
-            start_date,  # For hours CTE
-            end_date,    # For hours CTE
-            transformer_id  # For customer table JOIN
+            transformer_id,  # For WHERE transformer_id
+            start_date,     # For WHERE date range start
+            end_date       # For WHERE date range end
         )
         
         results = execute_query(query, params)
