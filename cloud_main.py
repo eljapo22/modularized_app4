@@ -190,12 +190,12 @@ def main():
                         # Create alert time from selected date and hour
                         alert_time = datetime.combine(selected_start_date, datetime.min.time().replace(hour=selected_hour))
                         
-                        # Send alert with the full date range data
+                        # Send alert with the full date range data and search dates
                         alert_service.check_and_send_alerts(
                             date_range_data,
-                            start_date=selected_start_date,
-                            end_date=selected_end_date,
-                            alert_time=alert_time
+                            start_date=selected_start_date,  # Pass the actual search start date
+                            end_date=selected_end_date,      # Pass the actual search end date
+                            alert_time=alert_time           # Keep the alert time
                         )
 
                     # Loading Status

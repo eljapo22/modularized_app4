@@ -232,18 +232,16 @@ class CloudAlertService:
                 # Use alert point time if no explicit alert time
                 if alert_time is None:
                     alert_time = alert_point.name
-                    
-                # Use alert time for date range if not provided
-                if start_date is None:
-                    start_date = alert_time.date()
-                if end_date is None:
-                    end_date = start_date + timedelta(days=30)
                 
-                # Create deep link with date range
+                # Log the date range we're using
+                logger.info(f"Using date range: {start_date} to {end_date}")
+                st.write(f"**Date Range:** {start_date} to {end_date}")
+                
+                # Create deep link with search dates
                 deep_link = self._create_deep_link(
-                    start_date,
-                    end_date,
-                    alert_time,
+                    start_date,  # Use the search start date
+                    end_date,    # Use the search end date
+                    alert_time,  # Keep the alert time
                     alert_point['transformer_id']
                 )
                 logger.info(f"Created deep link: {deep_link}")
