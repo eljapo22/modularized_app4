@@ -1,82 +1,53 @@
 """
-Database adapter layer to support both local DuckDB and MotherDuck connections
+Database adapter layer for MotherDuck connections
 """
 
-import os
 import streamlit as st
 import duckdb
-from abc import ABC, abstractmethod
-from typing import Optional, Union, List
+from typing import Optional, List
 import pandas as pd
+import logging
 
-class DatabaseAdapter(ABC):
-    """Abstract base class for database operations"""
-    
-    @abstractmethod
-    def connect(self) -> duckdb.DuckDBPyConnection:
-        """Establish database connection"""
-        pass
-        
-    @abstractmethod
-    def query_data(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
-        """Execute query and return results"""
-        pass
-        
-    @abstractmethod
-    def get_transformer_data(self, transformer_id: str, date_str: str) -> pd.DataFrame:
-        """Get transformer data using implementation-specific method"""
-        pass
+logger = logging.getLogger(__name__)
 
-class LocalDuckDBAdapter(DatabaseAdapter):
-    """Adapter for local DuckDB with parquet files"""
-    
-    def connect(self) -> duckdb.DuckDBPyConnection:
-        con = duckdb.connect(database=':memory:', read_only=False)
-        con.execute("SET enable_progress_bar=false")
-        con.execute("SET errors_as_json=true")
-        return con
-        
-    def query_data(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
-        con = self.connect()
-        if params:
-            return con.execute(query, params).fetchdf()
-        return con.execute(query).fetchdf()
-        
-    def get_transformer_data(self, transformer_id: str, date_str: str) -> pd.DataFrame:
-        base_path = os.path.join("C:", "Users", "JohnApostolo", "CascadeProjects", 
-                                "processed_data", "transformer_analysis", "hourly")
-        query = """
-        SELECT *
-        FROM read_parquet(?)
-        WHERE transformer_id = ?
-        AND DATE(timestamp) = DATE(?)
-        """
-        return self.query_data(query, [f"{base_path}/{date_str}.parquet", transformer_id, date_str])
-
-class MotherDuckAdapter(DatabaseAdapter):
+class DatabaseAdapter:
     """Adapter for MotherDuck cloud database"""
     
     def __init__(self):
+        """Initialize the database adapter with MotherDuck connection"""
         self.db_name = "ModApp4DB"
         self.feeders = range(1, 5)
+        # Use the cached connection from database.py
+        from app.core.database import get_database_connection
+        self.conn = get_database_connection()
+        logger.info("DatabaseAdapter initialized with MotherDuck connection")
 
-    def connect(self) -> duckdb.DuckDBPyConnection:
-        token = st.secrets["motherduck_token"]
-        con = duckdb.connect(f'md:{self.db_name}?motherduck_token={token}')
-        con.execute("SET enable_progress_bar=false")
-        con.execute("SET errors_as_json=true")
-        return con
-        
     def query_data(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
-        con = self.connect()
-        if params:
-            return con.execute(query, params).fetchdf()
-        return con.execute(query).fetchdf()
-        
+        """Execute query and return results"""
+        try:
+            if params:
+                result = self.conn.execute(query, params).fetchdf()
+            else:
+                result = self.conn.execute(query).fetchdf()
+            
+            # Convert timestamp columns to datetime
+            for col in result.columns:
+                if 'timestamp' in col.lower():
+                    result[col] = pd.to_datetime(result[col])
+                    
+            return result
+        except Exception as e:
+            logger.error(f"Query error: {str(e)}")
+            logger.error(f"Query: {query}")
+            logger.error(f"Parameters: {params}")
+            raise
+
     def get_transformer_data(self, transformer_id: str, date_str: str) -> pd.DataFrame:
-        """Get transformer data from all feeders"""
-        results = []
-        for feeder in self.feeders:
+        """Get transformer data from specific feeder"""
+        try:
+            # Extract feeder number from transformer ID (e.g., S1F1ATF001 -> 1)
+            feeder = int(transformer_id[3])  # Position 3 is the feeder number
+            
             query = f"""
             SELECT 
                 timestamp,
@@ -93,85 +64,56 @@ class MotherDuckAdapter(DatabaseAdapter):
             WHERE transformer_id = ?
             AND DATE(timestamp) = DATE(?)
             """
-            df = self.query_data(query, [transformer_id, date_str])
-            if not df.empty:
-                results.append(df)
-        
-        return pd.concat(results) if results else pd.DataFrame()
+            
+            result = self.query_data(query, [transformer_id, date_str])
+            
+            # Remove duplicates if any exist
+            if 'timestamp' in result.columns:
+                before_count = len(result)
+                result = result.drop_duplicates(subset=['timestamp', 'transformer_id'], keep='first')
+                after_count = len(result)
+                
+                if before_count > after_count:
+                    logger.info(f"Removed {before_count - after_count} duplicate rows")
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error in get_transformer_data: {str(e)}")
+            return pd.DataFrame()  # Return empty DataFrame on error
 
     def get_customer_data(self, customer_id: str, date_str: str) -> pd.DataFrame:
-        """Get customer data from all feeders"""
-        results = []
-        for feeder in self.feeders:
+        """Get customer data for a specific date"""
+        try:
+            # Extract feeder from customer ID (format matches transformer ID pattern)
+            transformer_id = customer_id.split('C')[0]  # Get transformer part of customer ID
+            feeder = int(transformer_id[3])  # Same position as in transformer ID
+            
             query = f"""
             SELECT 
                 timestamp,
-                hour,
                 customer_id,
                 transformer_id,
                 power_kw,
                 power_factor,
                 power_kva,
                 current_a,
-                size_kva,
                 voltage_v
             FROM customer_feeder_{feeder}
             WHERE customer_id = ?
             AND DATE(timestamp) = DATE(?)
             """
-            df = self.query_data(query, [customer_id, date_str])
-            if not df.empty:
-                results.append(df)
-        
-        return pd.concat(results) if results else pd.DataFrame()
-
-    def get_transformer_customers(self, transformer_id: str, date_str: str) -> pd.DataFrame:
-        """Get all customers for a specific transformer"""
-        results = []
-        for feeder in self.feeders:
-            query = f"""
-            SELECT DISTINCT
-                c.customer_id,
-                c.transformer_id,
-                t.size_kva as transformer_size_kva,
-                t.loading_percentage
-            FROM customer_feeder_{feeder} c
-            JOIN transformer_feeder_{feeder} t 
-                ON c.transformer_id = t.transformer_id
-                AND DATE(c.timestamp) = DATE(t.timestamp)
-            WHERE c.transformer_id = ?
-            AND DATE(c.timestamp) = DATE(?)
-            """
-            df = self.query_data(query, [transformer_id, date_str])
-            if not df.empty:
-                results.append(df)
-        
-        return pd.concat(results) if results else pd.DataFrame()
-
-    def get_feeder_stats(self, date_str: str) -> pd.DataFrame:
-        """Get statistics for all feeders"""
-        results = []
-        for feeder in self.feeders:
-            query = f"""
-            SELECT 
-                'Feeder {feeder}' as feeder_name,
-                COUNT(DISTINCT transformer_id) as transformer_count,
-                AVG(loading_percentage) as avg_loading,
-                MAX(loading_percentage) as max_loading,
-                COUNT(CASE WHEN loading_percentage >= 120 THEN 1 END) as critical_count,
-                COUNT(CASE WHEN loading_percentage >= 100 AND loading_percentage < 120 THEN 1 END) as overloaded_count,
-                COUNT(CASE WHEN loading_percentage >= 80 AND loading_percentage < 100 THEN 1 END) as warning_count
-            FROM transformer_feeder_{feeder}
-            WHERE DATE(timestamp) = DATE(?)
-            GROUP BY DATE(timestamp)
-            """
-            df = self.query_data(query, [date_str])
-            if not df.empty:
-                results.append(df)
-        
-        return pd.concat(results) if results else pd.DataFrame()
+            
+            result = self.query_data(query, [customer_id, date_str])
+            
+            # Remove duplicates
+            if 'timestamp' in result.columns:
+                result = result.drop_duplicates(subset=['timestamp', 'customer_id'], keep='first')
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error in get_customer_data: {str(e)}")
+            return pd.DataFrame()
 
 def get_db_adapter() -> DatabaseAdapter:
-    """Factory function to get the appropriate database adapter"""
-    use_motherduck = st.session_state.get('use_motherduck', False)
-    return MotherDuckAdapter() if use_motherduck else LocalDuckDBAdapter()
+    """Factory function to get the database adapter"""
+    return DatabaseAdapter()

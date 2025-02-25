@@ -1,11 +1,13 @@
 """
-Database connection and management for the Transformer Loading Analysis Application
+Database connection management for MotherDuck
 """
 
 import os
 import streamlit as st
 import duckdb
-from app.config.cloud_config import use_motherduck
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SuppressOutput:
     """Context manager to suppress DuckDB output"""
@@ -20,38 +22,32 @@ class SuppressOutput:
 
 @st.cache_resource
 def get_database_connection():
-    """Get a cached database connection"""
+    """Get a cached MotherDuck database connection"""
     try:
-        if use_motherduck():
-            # Get MotherDuck token from secrets
-            token = st.secrets.get('MOTHERDUCK_TOKEN')
-            if not token:
-                st.error("MotherDuck token not found in secrets")
-                return None
-                
-            # Set token in environment as recommended by MotherDuck
-            os.environ["motherduck_token"] = token
+        # Get MotherDuck token from secrets
+        token = st.secrets.get('MOTHERDUCK_TOKEN')
+        if not token:
+            st.error("MotherDuck token not found in secrets")
+            return None
             
-            # Create connection and load extension
-            con = duckdb.connect(':memory:')
-            con.execute("INSTALL motherduck")
-            con.execute("LOAD motherduck")
-            
-            # Attach MotherDuck database
-            con.execute("ATTACH 'md:ModApp4DB' as motherduck")
-            con.execute("USE motherduck")
-            
-            # Configure connection
-            con.execute("SET enable_progress_bar=false")
-            con.execute("SET errors_as_json=true")
-            
-            return con
-        else:
-            # Use local in-memory DuckDB
-            con = duckdb.connect(database=':memory:', read_only=False)
-            con.execute("SET enable_progress_bar=false")
-            con.execute("SET errors_as_json=true")
-            return con
+        # Set token in environment as recommended by MotherDuck
+        os.environ["motherduck_token"] = token
+        
+        # Create connection and load extension
+        con = duckdb.connect(':memory:')
+        con.execute("INSTALL motherduck")
+        con.execute("LOAD motherduck")
+        
+        # Attach MotherDuck database
+        con.execute("ATTACH 'md:ModApp4DB' as motherduck")
+        con.execute("USE motherduck")
+        
+        # Configure connection
+        con.execute("SET enable_progress_bar=false")
+        con.execute("SET errors_as_json=true")
+        
+        logger.info("Successfully connected to MotherDuck database")
+        return con
     except Exception as e:
-        st.error(f"Database connection failed: {str(e)}")
+        logger.error(f"Database connection failed: {str(e)}")
         return None
