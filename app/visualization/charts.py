@@ -58,25 +58,41 @@ def display_loading_status(results_df: pd.DataFrame):
     ]
 
     for threshold, label, color in thresholds:
-        fig.add_hline(
-            y=threshold,
-            line=dict(color=color, width=1, dash='dash'),
-            annotation=dict(
-                text=f'{label} ≥ {threshold}%',
-                xref='paper',
-                x=1.02,
-                y=threshold,
-                showarrow=False,
-                font=dict(size=10)
+        # Add horizontal line
+        fig.add_shape(
+            type="line",
+            x0=0,
+            x1=1,
+            y0=threshold,
+            y1=threshold,
+            xref="paper",
+            yref="y",
+            line=dict(
+                color=color,
+                width=1,
+                dash="dash",
             )
+        )
+        # Add label
+        fig.add_annotation(
+            text=f"{label} ≥ {threshold}%",
+            xref="paper",
+            yref="y",
+            x=1.02,
+            y=threshold,
+            showarrow=False,
+            font=dict(size=10)
         )
 
     # Update layout
     fig.update_layout(
-        title='Loading Status',
-        title_x=0.5,  # Center the title
-        xaxis_title='Time',
-        yaxis_title='Loading Percentage (%)',
+        title=dict(text="Loading Status", x=0.5),
+        xaxis=dict(title="Time", showgrid=True),
+        yaxis=dict(
+            title="Loading Percentage (%)",
+            showgrid=True,
+            range=[0, max(125, df['loading_percentage'].max() * 1.1)]
+        ),
         height=500,
         showlegend=False,
         margin=dict(r=150)  # Add right margin for threshold labels
