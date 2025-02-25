@@ -57,6 +57,9 @@ class DatabaseAdapter:
             # Extract feeder number from transformer ID (e.g., S1F1ATF001 -> 1)
             feeder = int(transformer_id[3])  # Position 3 is the feeder number
             
+            # Use correct table name with quotes
+            table_name = f'"Transformer Feeder {feeder}"'
+            
             query = f"""
             SELECT 
                 timestamp,
@@ -69,7 +72,7 @@ class DatabaseAdapter:
                 current_a,
                 power_kva,
                 load_range
-            FROM transformer_feeder_{feeder}
+            FROM {table_name}
             WHERE transformer_id = ?
             AND DATE(timestamp) = DATE(?)
             """
@@ -97,6 +100,9 @@ class DatabaseAdapter:
             transformer_id = customer_id.split('C')[0]  # Get transformer part of customer ID
             feeder = int(transformer_id[3])  # Same position as in transformer ID
             
+            # Use correct table name with quotes
+            table_name = f'"Customer Feeder {feeder}"'
+            
             query = f"""
             SELECT 
                 timestamp,
@@ -107,7 +113,7 @@ class DatabaseAdapter:
                 power_kva,
                 current_a,
                 voltage_v
-            FROM customer_feeder_{feeder}
+            FROM {table_name}
             WHERE customer_id = ?
             AND DATE(timestamp) = DATE(?)
             """

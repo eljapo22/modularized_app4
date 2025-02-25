@@ -50,13 +50,13 @@ class CloudDataService:
             feeders = ["Feeder 1", "Feeder 2", "Feeder 3", "Feeder 4"]
             
             try:
-                # Try to query database
+                # Try to query database using correct table names
                 query = """
                 SELECT DISTINCT 
                     'Feeder ' || SUBSTRING(table_name, 19, 1) as feeder
                 FROM information_schema.tables 
                 WHERE table_schema = 'main'
-                AND table_name LIKE 'transformer_feeder_%'
+                AND table_name LIKE 'Transformer Feeder %'
                 ORDER BY feeder
                 """
                 
@@ -82,10 +82,13 @@ class CloudDataService:
                 feeder_num = int(feeder_num)
             except:
                 feeder_num = 1
-                
+             
+            # Use correct table name with quotes   
+            table_name = f'"Transformer Feeder {feeder_num}"'
+            
             query = f"""
             SELECT DISTINCT transformer_id
-            FROM transformer_feeder_{feeder_num}
+            FROM {table_name}
             ORDER BY transformer_id
             """
             
@@ -123,10 +126,13 @@ class CloudDataService:
                     feeder_num = 1
             except:
                 feeder_num = 1
+            
+            # Use correct table name with quotes
+            table_name = f'"Customer Feeder {feeder_num}"'
                 
             query = f"""
             SELECT DISTINCT customer_id
-            FROM customer_feeder_{feeder_num}
+            FROM {table_name}
             WHERE transformer_id = ?
             ORDER BY customer_id
             """
@@ -176,6 +182,9 @@ class CloudDataService:
             # Extract feeder number
             feeder_num = int(feeder.split()[-1]) if isinstance(feeder, str) and 'Feeder' in feeder else 1
             
+            # Use correct table name with quotes
+            table_name = f'"Transformer Feeder {feeder_num}"'
+            
             # Build query
             query = f"""
             SELECT 
@@ -189,7 +198,7 @@ class CloudDataService:
                 CAST(power_kw AS DECIMAL(5,2)) as power_kw,
                 CAST(power_kva AS DECIMAL(5,2)) as power_kva,
                 CAST(power_factor AS DECIMAL(4,3)) as power_factor
-            FROM transformer_feeder_{feeder_num}
+            FROM {table_name}
             WHERE DATE(timestamp) BETWEEN ? AND ?
             """
             
