@@ -84,21 +84,24 @@ def display_loading_status(results_df: pd.DataFrame):
         mode='markers',
         marker=dict(
             color=colors,
-            size=8,
+            size=6,  # Slightly smaller markers
             line=dict(
-                color='black',
-                width=1
-            )
+                color='rgba(0,0,0,0.5)',  # Semi-transparent border
+                width=0.5
+            ),
+            opacity=0.8  # Slight transparency for better visibility
         ),
         text=hover_texts,
-        hoverinfo='text'
+        hoverinfo='text',
+        showlegend=False  # Hide this from legend
     ))
     
-    # Add legend entries manually
-    for _, _, name, color in categories:
+    # Add proper legend entries
+    for min_load, max_load, name, color in categories:
+        # Add a sample point for each category in the legend
         fig.add_trace(go.Scatter(
-            x=[None],
-            y=[None],
+            x=[timestamps[0]],  # Use first timestamp but make point invisible
+            y=[min_load],
             mode='markers',
             name=name,
             marker=dict(
@@ -107,9 +110,11 @@ def display_loading_status(results_df: pd.DataFrame):
                 line=dict(
                     color='black',
                     width=1
-                )
+                ),
+                opacity=1
             ),
-            showlegend=True
+            showlegend=True,
+            visible='legendonly'  # Only show in legend, not on plot
         ))
 
     # Update layout
@@ -119,13 +124,27 @@ def display_loading_status(results_df: pd.DataFrame):
         showlegend=True,
         height=400,
         template="plotly_white",
-        margin=dict(l=0, r=0, t=0, b=0),
+        margin=dict(l=0, r=0, t=30, b=0),  # Add small top margin
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
             tickformat='%Y-%m-%d %H:%M',
             dtick=3600000,  # 1 hour in milliseconds
-            tickangle=45
+            tickangle=45,
+            gridcolor='rgba(128,128,128,0.1)',  # Light grid lines
+            showgrid=True
+        ),
+        yaxis=dict(
+            gridcolor='rgba(128,128,128,0.1)',  # Light grid lines
+            showgrid=True
+        ),
+        plot_bgcolor='white',  # White background
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01,
+            bgcolor='rgba(255,255,255,0.8)'  # Semi-transparent white background
         )
     )
 
@@ -136,8 +155,13 @@ def display_loading_status(results_df: pd.DataFrame):
     for threshold, color in zip(thresholds, threshold_colors):
         fig.add_hline(
             y=threshold,
-            line=dict(color=color, width=1, dash="dash"),
-            opacity=0.5
+            line=dict(
+                color=color,
+                width=1,
+                dash="dash"
+            ),
+            opacity=0.7,  # More visible lines
+            layer='below'  # Place lines below the points
         )
 
     # Display the plot
