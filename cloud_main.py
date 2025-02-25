@@ -6,24 +6,31 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import logging
+import logging.handlers
 import traceback
 import plotly.express as px
 import sys
 from pathlib import Path
 
-# Configure logging
+# Configure logging before any other imports
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout)
-    ]
+    ],
+    force=True  # Override any existing configuration
 )
+
+# Create logger for this module
+logger = logging.getLogger(__name__)
+logger.info("Starting cloud application...")
 
 # Add the app directory to Python path
 app_dir = str(Path(__file__).parent)
 if app_dir not in sys.path:
     sys.path.append(app_dir)
+    logger.info(f"Added {app_dir} to Python path")
 
 from app.services.services import CloudDataService, CloudAlertService
 from app.visualization.charts import display_transformer_dashboard
@@ -68,8 +75,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-logger = logging.getLogger(__name__)
 
 @log_performance
 def main():
