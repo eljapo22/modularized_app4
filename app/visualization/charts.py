@@ -21,7 +21,7 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status chart with background threshold regions."""
+    """Display loading status chart with threshold lines."""
     if results_df is None or results_df.empty:
         st.warning("No data available for loading status chart")
         return
@@ -42,80 +42,44 @@ def display_loading_status(results_df: pd.DataFrame):
         line=dict(color='black', width=2)
     ))
 
-    # Add background shapes for each threshold level
-    shapes = [
-        # Critical region (>=120%)
-        dict(
-            type="rect",
-            xref="paper", yref="y",
-            x0=0, x1=1,
-            y0=120, y1=150,  # Extend a bit beyond max for visibility
-            fillcolor="rgba(255, 0, 0, 0.1)",
-            line_width=0,
-            layer="below"
-        ),
-        # Overloaded region (100-120%)
-        dict(
-            type="rect",
-            xref="paper", yref="y",
-            x0=0, x1=1,
-            y0=100, y1=120,
-            fillcolor="rgba(255, 165, 0, 0.1)",
-            line_width=0,
-            layer="below"
-        ),
-        # Warning region (80-100%)
-        dict(
-            type="rect",
-            xref="paper", yref="y",
-            x0=0, x1=1,
-            y0=80, y1=100,
-            fillcolor="rgba(255, 255, 0, 0.1)",
-            line_width=0,
-            layer="below"
-        ),
-        # Pre-Warning region (50-80%)
-        dict(
-            type="rect",
-            xref="paper", yref="y",
-            x0=0, x1=1,
-            y0=50, y1=80,
-            fillcolor="rgba(147, 112, 219, 0.1)",
-            line_width=0,
-            layer="below"
-        ),
-        # Normal region (0-50%)
-        dict(
-            type="rect",
-            xref="paper", yref="y",
-            x0=0, x1=1,
-            y0=0, y1=50,
-            fillcolor="rgba(0, 255, 0, 0.1)",
-            line_width=0,
-            layer="below"
-        )
+    # Define threshold levels and their colors
+    thresholds = [
+        (120, 'Critical', 'rgb(255, 0, 0)'),
+        (100, 'Overloaded', 'rgb(255, 165, 0)'),
+        (80, 'Warning', 'rgb(255, 255, 0)'),
+        (50, 'Pre-Warning', 'rgb(147, 112, 219)'),
+        (0, 'Normal', 'rgb(0, 255, 0)')
     ]
 
     # Add threshold lines
-    threshold_lines = [
-        dict(
-            type="line",
-            xref="paper", yref="y",
-            x0=0, x1=1,
-            y0=y, y1=y,
-            line=dict(color="rgba(0,0,0,0.2)", width=1, dash="dash"),
-            layer="below"
-        )
-        for y in [50, 80, 100, 120]
-    ]
-    shapes.extend(threshold_lines)
+    shapes = []
+    annotations = []
+    
+    for y, label, color in thresholds:
+        if y > 0:  # Don't add line for 0
+            shapes.append(dict(
+                type="line",
+                xref="paper", yref="y",
+                x0=0, x1=1,
+                y0=y, y1=y,
+                line=dict(color=color, width=1, dash="dash"),
+                layer="below"
+            ))
+            annotations.append(dict(
+                x=1.02, y=y,
+                xref="paper", yref="y",
+                text=f"{label} ({y}%)",
+                showarrow=False,
+                font=dict(size=10, color=color)
+            ))
 
     # Update layout
     fig.update_layout(
         shapes=shapes,
-        showlegend=True,
+        annotations=annotations,
+        showlegend=False,
         height=400,
-        margin=dict(l=0, r=0, t=30, b=0),
+        margin=dict(l=0, r=120, t=30, b=0),  # Increased right margin for labels
         yaxis=dict(
             title="Loading Percentage (%)",
             gridcolor="rgba(0,0,0,0.1)",
@@ -126,44 +90,7 @@ def display_loading_status(results_df: pd.DataFrame):
             title="Time",
             gridcolor="rgba(0,0,0,0.1)"
         ),
-        plot_bgcolor="white",
-        annotations=[
-            dict(
-                x=1.02, y=135,
-                xref="paper", yref="y",
-                text="Critical",
-                showarrow=False,
-                font=dict(size=10, color="rgba(255,0,0,0.7)")
-            ),
-            dict(
-                x=1.02, y=110,
-                xref="paper", yref="y",
-                text="Overloaded",
-                showarrow=False,
-                font=dict(size=10, color="rgba(255,165,0,0.7)")
-            ),
-            dict(
-                x=1.02, y=90,
-                xref="paper", yref="y",
-                text="Warning",
-                showarrow=False,
-                font=dict(size=10, color="rgba(255,255,0,0.7)")
-            ),
-            dict(
-                x=1.02, y=65,
-                xref="paper", yref="y",
-                text="Pre-Warning",
-                showarrow=False,
-                font=dict(size=10, color="rgba(147,112,219,0.7)")
-            ),
-            dict(
-                x=1.02, y=25,
-                xref="paper", yref="y",
-                text="Normal",
-                showarrow=False,
-                font=dict(size=10, color="rgba(0,255,0,0.7)")
-            )
-        ]
+        plot_bgcolor="white"
     )
 
     # Display the chart
