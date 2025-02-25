@@ -2,7 +2,7 @@
 Data models for transformer and customer data
 """
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 @dataclass
@@ -41,3 +41,18 @@ class AggregatedCustomerData:
     total_power_kw: float      # Sum of rounded power_kw values
     avg_power_factor: float
     total_current_a: float     # Sum of rounded current_a values
+
+@dataclass
+class AlertData:
+    """Data model for transformer loading alerts"""
+    transformer_id: str
+    timestamp: datetime
+    loading_percentage: float
+    status: str  # Critical, Overloaded, Warning, Pre-Warning, Normal
+    power_kw: float
+    current_a: float
+    voltage_v: float
+    size_kva: float
+    power_factor: float
+    feeder_num: Optional[int] = None
+    hour: Optional[int] = None
