@@ -34,9 +34,16 @@ def display_loading_status(results_df: pd.DataFrame):
     df = df.sort_values('timestamp')
     df = df.groupby('timestamp')['loading_percentage'].max().reset_index()
     df = df.set_index('timestamp')
+    
+    # Create DataFrame with loading data and threshold lines
+    chart_df = pd.DataFrame(index=df.index)
+    chart_df['Loading'] = df['loading_percentage']
+    chart_df['Critical'] = 120
+    chart_df['Overloaded'] = 100
+    chart_df['Warning'] = 80
 
-    # Create the chart
-    st.line_chart(df['loading_percentage'])
+    # Create the chart with all lines
+    st.line_chart(chart_df)
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
