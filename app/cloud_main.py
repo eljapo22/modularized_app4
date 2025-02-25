@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info("Starting cloud application...")
 
-from app.services.consolidated import ConsolidatedService
+from app.services.services import CloudDataService, CloudAlertService
 from app.visualization.charts import display_transformer_dashboard
 from app.utils.performance import log_performance
 
@@ -41,7 +41,7 @@ def main():
     try:
         # Initialize services
         logger.info("Initializing services...")
-        consolidated_service = ConsolidatedService()
+        consolidated_service = CloudDataService()
         
         # Sidebar for controls
         with st.sidebar:
@@ -110,7 +110,7 @@ def main():
                 
                 if transformer_data is not None:
                     # Process alerts
-                    consolidated_service.check_and_send_alerts(
+                    CloudAlertService().check_and_send_alerts(
                         results_df=transformer_data,
                         start_date=start_date,
                         end_date=end_date,
