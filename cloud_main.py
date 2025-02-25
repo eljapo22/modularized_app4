@@ -191,10 +191,10 @@ def main():
             with st.spinner("Loading data..."):
                 # Get and display transformer data
                 transformer_data = data_service.get_transformer_data(
-                    selected_transformer,
-                    selected_start_date,
-                    selected_hour,
-                    selected_feeder
+                    date=selected_start_date,
+                    hour=selected_hour,
+                    feeder=f"Feeder {selected_feeder}",
+                    transformer_id=selected_transformer
                 )
 
                 if transformer_data is not None:
@@ -275,10 +275,10 @@ def main():
             
             # Get and display transformer data
             transformer_data = data_service.get_transformer_data(
-                selected_transformer,
-                selected_start_date,
-                selected_hour,
-                selected_feeder
+                date=selected_start_date,
+                hour=selected_hour,
+                feeder=f"Feeder {selected_feeder}",
+                transformer_id=selected_transformer
             )
             if transformer_data is not None:
                 st.dataframe(transformer_data)
