@@ -26,9 +26,13 @@ def display_loading_status(results_df: pd.DataFrame):
         st.warning("No data available for loading status chart")
         return
 
-    # Create a copy of the dataframe
+    # Create a copy of the dataframe and ensure proper time handling
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
+    
+    # Sort by timestamp and handle any duplicate timestamps by taking the max loading percentage
+    df = df.sort_values('timestamp')
+    df = df.groupby('timestamp')['loading_percentage'].max().reset_index()
 
     # Create the figure
     fig = go.Figure()
@@ -44,11 +48,10 @@ def display_loading_status(results_df: pd.DataFrame):
 
     # Define threshold levels and their colors
     thresholds = [
-        (120, 'Critical', 'rgb(255, 0, 0)'),
-        (100, 'Overloaded', 'rgb(255, 165, 0)'),
-        (80, 'Warning', 'rgb(255, 255, 0)'),
-        (50, 'Pre-Warning', 'rgb(147, 112, 219)'),
-        (0, 'Normal', 'rgb(0, 255, 0)')
+        (120, 'Critical', '#ff0000'),
+        (100, 'Overloaded', '#ffa500'),
+        (80, 'Warning', '#ffff00'),
+        (50, 'Pre-Warning', '#9370db')
     ]
 
     # Add threshold lines
@@ -56,22 +59,21 @@ def display_loading_status(results_df: pd.DataFrame):
     annotations = []
     
     for y, label, color in thresholds:
-        if y > 0:  # Don't add line for 0
-            shapes.append(dict(
-                type="line",
-                xref="paper", yref="y",
-                x0=0, x1=1,
-                y0=y, y1=y,
-                line=dict(color=color, width=1, dash="dash"),
-                layer="below"
-            ))
-            annotations.append(dict(
-                x=1.02, y=y,
-                xref="paper", yref="y",
-                text=f"{label} ({y}%)",
-                showarrow=False,
-                font=dict(size=10, color=color)
-            ))
+        shapes.append(dict(
+            type="line",
+            xref="paper", yref="y",
+            x0=0, x1=1,
+            y0=y, y1=y,
+            line=dict(color=color, width=0.5, dash="dot"),
+            layer="below"
+        ))
+        annotations.append(dict(
+            x=1.02, y=y,
+            xref="paper", yref="y",
+            text=label,
+            showarrow=False,
+            font=dict(size=10, color=color)
+        ))
 
     # Update layout
     fig.update_layout(
@@ -79,18 +81,21 @@ def display_loading_status(results_df: pd.DataFrame):
         annotations=annotations,
         showlegend=False,
         height=400,
-        margin=dict(l=0, r=120, t=30, b=0),  # Increased right margin for labels
+        margin=dict(l=0, r=100, t=30, b=0),
         yaxis=dict(
             title="Loading Percentage (%)",
-            gridcolor="rgba(0,0,0,0.1)",
             zeroline=False,
+            showgrid=False,
             range=[0, max(150, df['loading_percentage'].max() * 1.1)]
         ),
         xaxis=dict(
             title="Time",
-            gridcolor="rgba(0,0,0,0.1)"
+            showgrid=False,
+            type='date',
+            tickformat='%Y-%m-%d'  # Show only date in x-axis
         ),
-        plot_bgcolor="white"
+        plot_bgcolor="white",
+        font=dict(size=12)
     )
 
     # Display the chart
@@ -105,6 +110,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     # Ensure timestamp is datetime and set as index
     results_df = results_df.copy()
     results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    results_df = results_df.sort_values('timestamp')  # Sort by timestamp
     results_df = results_df.set_index('timestamp')
     
     # Create power chart
@@ -122,6 +128,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     # Ensure timestamp is datetime and set as index
     results_df = results_df.copy()
     results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    results_df = results_df.sort_values('timestamp')  # Sort by timestamp
     results_df = results_df.set_index('timestamp')
     
     # Create current chart
@@ -139,6 +146,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
     # Ensure timestamp is datetime and set as index
     results_df = results_df.copy()
     results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    results_df = results_df.sort_values('timestamp')  # Sort by timestamp
     results_df = results_df.set_index('timestamp')
     
     # Create voltage chart
@@ -156,6 +164,7 @@ def display_power_factor_time_series(results_df: pd.DataFrame, is_transformer_vi
     # Ensure timestamp is datetime and set as index
     results_df = results_df.copy()
     results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
+    results_df = results_df.sort_values('timestamp')  # Sort by timestamp
     results_df = results_df.set_index('timestamp')
     
     # Create power factor chart
@@ -315,6 +324,7 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Ensure timestamp is datetime for all visualizations
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.sort_values('timestamp')  # Sort by timestamp
     
     # Loading Status at the top
     st.subheader("Loading Status")
@@ -350,6 +360,7 @@ def display_customer_data(results_df: pd.DataFrame):
     st.subheader("Power Consumption")
     df_power = results_df.copy()
     df_power['timestamp'] = pd.to_datetime(df_power['timestamp'])
+    df_power = df_power.sort_values('timestamp')  # Sort by timestamp
     df_power = df_power.set_index('timestamp')
     st.line_chart(df_power['power_kw'])
 
@@ -360,6 +371,7 @@ def display_customer_data(results_df: pd.DataFrame):
         st.subheader("Current")
         df_current = results_df.copy()
         df_current['timestamp'] = pd.to_datetime(df_current['timestamp'])
+        df_current = df_current.sort_values('timestamp')  # Sort by timestamp
         df_current = df_current.set_index('timestamp')
         st.line_chart(df_current['current_a'])
         
@@ -367,5 +379,6 @@ def display_customer_data(results_df: pd.DataFrame):
         st.subheader("Voltage")
         df_voltage = results_df.copy()
         df_voltage['timestamp'] = pd.to_datetime(df_voltage['timestamp'])
+        df_voltage = df_voltage.sort_values('timestamp')  # Sort by timestamp
         df_voltage = df_voltage.set_index('timestamp')
         st.line_chart(df_voltage['voltage_v'])
