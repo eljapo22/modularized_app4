@@ -37,10 +37,11 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Create DataFrame with loading data and threshold lines
     chart_df = pd.DataFrame(index=df.index)
-    chart_df['Loading'] = df['loading_percentage']
-    chart_df['Critical'] = 120
-    chart_df['Overloaded'] = 100
-    chart_df['Warning'] = 80
+    # Order columns to control legend order (first to last)
+    chart_df['[1]Critical (120%)'] = 120
+    chart_df['[2]Overloaded (100%)'] = 100
+    chart_df['[3]Warning (80%)'] = 80
+    chart_df['[0]Loading'] = df['loading_percentage']  # Prefix with [0] to get blue color
 
     # Create the chart with all lines
     st.line_chart(chart_df)
