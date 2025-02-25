@@ -3,14 +3,15 @@ Cloud-specific entry point for the Transformer Loading Analysis Application
 """
 
 import streamlit as st
+import pandas as pd
 import logging
 import traceback
 from datetime import datetime, timedelta
-from app.services.cloud_data_service import CloudDataService
-from app.services.cloud_alert_service import CloudAlertService
-from app.visualization.charts import display_transformer_dashboard
-from app.utils.ui_components import create_tile, create_banner, create_section_banner
-from app.utils.performance import log_performance
+from services.cloud_data_service import CloudDataService
+from services.cloud_alert_service import CloudAlertService
+from visualization.charts import display_transformer_dashboard
+from utils.ui_components import create_tile, create_banner, create_section_banner
+from utils.performance import log_performance
 import plotly.express as px
 
 # Configure page - must be first Streamlit command
@@ -64,12 +65,14 @@ def main():
         create_banner("Transformer Loading Analysis Dashboard")
         
         # Handle URL parameters from alert links
-        params = st.query_params
-        alert_view = params.get("view") == "alert"
-        alert_transformer = params.get("id")
-        alert_time = params.get("alert_time")
-        start_date_param = params.get("start_date")
-        end_date_param = params.get("end_date")
+        params = st.experimental_get_query_params()
+        alert_view = params.get("view", [""])[0] == "alert"
+        alert_transformer = params.get("id", [None])[0]
+        alert_time = params.get("alert_time", [None])[0]
+        start_date_param = params.get("start_date", [None])[0]
+        end_date_param = params.get("end_date", [None])[0]
+        hour_param = params.get("hour", [None])[0]
+        feeder_param = params.get("feeder", [None])[0]
 
         # Set initial values from alert parameters
         if alert_time:
@@ -199,7 +202,7 @@ def main():
                         }
                         
                         # Update query parameters to match sidebar
-                        st.query_params.update(url_params)
+                        st.experimental_set_query_params(**url_params)
                         
                         # Send alert with the sidebar selections
                         alert_service.check_and_send_alerts(

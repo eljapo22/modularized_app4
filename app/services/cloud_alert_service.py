@@ -90,7 +90,13 @@ class CloudAlertService:
     def _create_deep_link(self, start_date: date, end_date: date, alert_time: datetime, transformer_id: str, hour: int = None, feeder: int = None) -> str:
         """Create deep link back to app with context"""
         # Get current URL parameters
-        params = dict(st.query_params)
+        params = {}
+        try:
+            current_params = st.experimental_get_query_params()
+            params = {k: v[0] for k, v in current_params.items() if v}
+        except:
+            # If we can't get query params, create new ones
+            pass
         
         # Update with any missing parameters
         if 'view' not in params:
