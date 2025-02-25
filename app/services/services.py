@@ -38,7 +38,7 @@ from app.models.data_models import (
     AggregatedCustomerData
 )
 
-# Initialize logger
+# Initialize logger with module name
 logger = logging.getLogger(__name__)
 
 """

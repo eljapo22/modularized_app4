@@ -11,6 +11,15 @@ import plotly.express as px
 import sys
 from pathlib import Path
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
 # Add the app directory to Python path
 app_dir = str(Path(__file__).parent)
 if app_dir not in sys.path:
