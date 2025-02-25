@@ -43,35 +43,28 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Define categories in priority order (highest to lowest)
     categories = [
-        (120, float('inf'), 'Critical', 'rgb(255, 0, 0)'),
-        (100, 120, 'Overloaded', 'rgb(255, 165, 0)'),
-        (80, 100, 'Warning', 'rgb(255, 255, 0)'),
-        (50, 80, 'Pre-Warning', 'rgb(147, 112, 219)'),
-        (0, 50, 'Normal', 'rgb(0, 255, 0)')
+        (120, float('inf'), 'Critical', 'rgb(255, 0, 0)'),  # Red
+        (100, 120, 'Overloaded', 'rgb(255, 140, 0)'),  # Orange
+        (80, 100, 'Warning', 'rgb(255, 255, 0)'),  # Yellow
+        (50, 80, 'Pre-Warning', 'rgb(147, 112, 219)'),  # Purple
+        (-float('inf'), 50, 'Normal', 'rgb(0, 255, 0)')  # Green
     ]
     
     # First add a line plot for the trend
     fig.add_trace(go.Scatter(
         x=daily_peaks['date'],
         y=daily_peaks['loading_percentage'],
-        mode='lines+markers',
+        mode='lines',
         name='Peak Loading',
         line=dict(
-            color='rgba(128,128,128,0.5)',
-            width=2
-        ),
-        marker=dict(
-            size=10,
-            line=dict(
-                color='rgba(255,255,255,0.8)',
-                width=1
-            )
+            color='rgba(128,128,128,0.3)',
+            width=1.5
         ),
         showlegend=False
     ))
     
     # Then add colored scatter points for each category
-    for min_load, max_load, name, color in categories:
+    for min_load, max_load, name, color in reversed(categories):  # Process in reverse order to handle overlaps correctly
         mask = (daily_peaks['loading_percentage'] >= min_load) & (daily_peaks['loading_percentage'] < max_load)
         category_data = daily_peaks[mask]
         
@@ -92,15 +85,25 @@ def display_loading_status(results_df: pd.DataFrame):
                 name=name,
                 marker=dict(
                     color=color,
-                    size=12,
+                    size=10,
                     line=dict(
                         color='rgba(255,255,255,0.8)',
                         width=1
                     ),
-                    opacity=0.8
+                    opacity=0.9
                 ),
                 text=hover_text,
                 hoverinfo='text'
+            ))
+        else:
+            # Add empty trace to ensure category shows in legend
+            fig.add_trace(go.Scatter(
+                x=[],
+                y=[],
+                mode='markers',
+                name=name,
+                marker=dict(color=color, size=10),
+                showlegend=True
             ))
 
     # Update layout
@@ -110,14 +113,14 @@ def display_loading_status(results_df: pd.DataFrame):
         showlegend=True,
         height=400,
         template="plotly_white",
-        margin=dict(l=40, r=10, t=10, b=40),
+        margin=dict(l=40, r=10, t=10, b=60),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='white',
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
             tickformat='%Y-%m-%d',
-            dtick='D1',  # Daily ticks
+            dtick='D3',
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
@@ -131,15 +134,17 @@ def display_loading_status(results_df: pd.DataFrame):
         legend=dict(
             yanchor="top",
             y=0.99,
-            xanchor="left",
-            x=0.01,
-            bgcolor='rgba(255,255,255,0.8)'
+            xanchor="right",
+            x=0.99,
+            bgcolor='rgba(255,255,255,0.8)',
+            bordercolor='rgba(128,128,128,0.2)',
+            borderwidth=1
         )
     )
 
     # Add threshold lines
     thresholds = [120, 100, 80, 50]
-    threshold_colors = ['rgb(255, 0, 0)', 'rgb(255, 165, 0)', 'rgb(255, 255, 0)', 'rgb(147, 112, 219)']
+    threshold_colors = ['rgb(255, 0, 0)', 'rgb(255, 140, 0)', 'rgb(255, 255, 0)', 'rgb(147, 112, 219)']
     
     for threshold, color in zip(thresholds, threshold_colors):
         fig.add_hline(
