@@ -89,16 +89,19 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         return
         
     # Ensure timestamp is datetime and set as index
-    results_df = results_df.copy()
-    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
-    results_df = results_df.sort_values('timestamp')  # Sort by timestamp
-    results_df = results_df.set_index('timestamp')
+    df = results_df.copy()
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.sort_values('timestamp')
+    df = df.set_index('timestamp')
     
-    # Create voltage chart
-    st.line_chart(
-        results_df['voltage_v'],
-        use_container_width=True
-    )
+    # Create mock data for 3 phases based on actual voltage
+    voltage_data = pd.DataFrame(index=df.index)
+    voltage_data['[0]Phase A'] = df['voltage_v']  # Original data
+    voltage_data['[1]Phase B'] = df['voltage_v'] * 0.98  # Slightly lower
+    voltage_data['[2]Phase C'] = df['voltage_v'] * 1.02  # Slightly higher
+    
+    # Create voltage chart with all phases
+    st.line_chart(voltage_data)
 
 def display_power_consumption(results_df: pd.DataFrame):
     """Display power consumption visualization."""
