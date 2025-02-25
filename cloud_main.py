@@ -16,7 +16,7 @@ app_dir = str(Path(__file__).parent)
 if app_dir not in sys.path:
     sys.path.append(app_dir)
 
-from services import CloudDataService, CloudAlertService
+from app.services.services import CloudDataService, CloudAlertService
 from app.visualization.charts import display_transformer_dashboard
 from app.utils.ui_components import create_tile, create_banner, create_section_banner
 from app.utils.performance import log_performance
