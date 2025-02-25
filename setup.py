@@ -1,9 +1,9 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 setup(
     name="app",  # Changed from transformer_analysis to match import
     version="0.1.0",
-    packages=find_packages(),
+    packages=find_namespace_packages(include=['app*']),  # Changed to find_namespace_packages
     include_package_data=True,
     install_requires=[
         "streamlit>=1.24.0",

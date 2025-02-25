@@ -7,6 +7,7 @@ import smtplib
 from typing import Optional, List, Dict, Tuple, Any
 import traceback
 import sys
+import re
 
 # Third-party imports
 import pandas as pd
@@ -154,34 +155,52 @@ class CloudDataService:
         end_date: date,
         feeder: str,
         transformer_id: str
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame:
         """Get transformer data for a date range"""
         try:
-            # Extract feeder number from feeder string
-            feeder_num = int(feeder.split()[-1]) if isinstance(feeder, str) else feeder
-            if feeder_num not in FEEDER_NUMBERS:
-                raise ValueError(f"Invalid feeder number: Feeder {feeder_num}")
+            # Extract feeder number from feeder string and handle various formats
+            if isinstance(feeder, str):
+                match = re.search(r'\d+', feeder)
+                if match:
+                    feeder_num = int(match.group())
+                else:
+                    logger.error(f"Could not extract feeder number from: {feeder}")
+                    return pd.DataFrame()
+            elif isinstance(feeder, (int, float)):
+                feeder_num = int(feeder)
+            else:
+                logger.error(f"Invalid feeder type: {type(feeder)}")
+                return pd.DataFrame()
+            
+            query = """
+                SELECT 
+                    timestamp,
+                    transformer_id,
+                    power_kw,
+                    loading_percentage,
+                    latitude,
+                    longitude
+                FROM transformer_data 
+                WHERE feeder = ? 
+                AND transformer_id = ?
+                AND DATE(timestamp) BETWEEN ? AND ?
+                ORDER BY timestamp DESC
+            """
+            
+            params = (feeder_num, transformer_id, start_date, end_date)
+            
+            try:
+                df = pd.read_sql_query(query, self.conn, params=params)
+                if df.empty:
+                    logger.warning(f"No data found for transformer {transformer_id} on feeder {feeder_num}")
+                return df
+            except Exception as e:
+                logger.error(f"Database error: {str(e)}")
+                return pd.DataFrame()
                 
-            # Use the correct table name format
-            table = f'"Transformer Feeder {feeder_num}"'
-            logger.debug(f"Querying table: {table}")
-            
-            query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
-            results = execute_query(query, (transformer_id, start_date, end_date))
-            
-            if not results:
-                logger.warning(f"No data found for transformer {transformer_id} between {start_date} and {end_date}")
-                return pd.DataFrame()  # Return empty DataFrame instead of None
-                
-            df = pd.DataFrame(results)
-            return validate_transformer_data(df)
-            
-        except ValueError as ve:
-            logger.error(str(ve))
-            return pd.DataFrame()  # Return empty DataFrame on error
         except Exception as e:
-            logger.error(f"Error getting transformer data range: {str(e)}")
-            return pd.DataFrame()  # Return empty DataFrame on error
+            logger.error(f"Error in get_transformer_data_range: {str(e)}")
+            return pd.DataFrame()
 
     def get_customer_data(
         self,
@@ -423,6 +442,13 @@ class CloudAlertService:
                 
             if results_df.empty:
                 logger.warning("No data available for alerts")
+                return
+
+            # Validate required columns
+            required_columns = ['transformer_id', 'loading_percentage']
+            missing_columns = [col for col in required_columns if col not in results_df.columns]
+            if missing_columns:
+                logger.error(f"Missing required columns for alerts: {missing_columns}")
                 return
                 
             # Get the point to alert on

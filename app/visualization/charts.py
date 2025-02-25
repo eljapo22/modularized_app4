@@ -126,6 +126,14 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.
             st.warning("No data available for transformer dashboard.")
             return
 
+        # Ensure required columns exist
+        required_columns = ['timestamp', 'transformer_id', 'loading_percentage', 'latitude', 'longitude']
+        missing_columns = [col for col in required_columns if col not in transformer_df.columns]
+        if missing_columns:
+            logger.error(f"Missing required columns: {missing_columns}")
+            st.error(f"Data is missing required columns: {', '.join(missing_columns)}")
+            return
+
         # Show customer analysis if tile was clicked
         if 'show_customer_analysis' in st.session_state and st.session_state.show_customer_analysis:
             st.session_state.show_customer_analysis = False  # Reset for next time
