@@ -10,6 +10,10 @@ from datetime import datetime, timedelta
 import sys
 import traceback
 
+# Remove all existing handlers to avoid duplicates
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
 # Configure logging before any other imports
 logging.basicConfig(
     level=logging.INFO,
@@ -63,15 +67,6 @@ def main():
                 max_value=pd.to_datetime("2024-06-28").date()
             )
             
-            # Hour selection
-            st.subheader("Hour Selection")
-            hour = st.number_input(
-                "Hour (0-23)",
-                min_value=0,
-                max_value=23,
-                value=12
-            )
-            
             # Feeder selection
             st.subheader("Feeder Selection")
             feeders = data_service.get_feeder_options()
@@ -106,7 +101,8 @@ def main():
                 customer_data = data_service.get_customer_data(
                     transformer_id=transformer_id,
                     start_date=start_date,
-                    end_date=end_date
+                    end_date=end_date,
+                    feeder=feeder
                 )
                 
                 if transformer_data is not None:
@@ -115,7 +111,6 @@ def main():
                         results_df=transformer_data,
                         start_date=start_date,
                         end_date=end_date,
-                        hour=hour,
                         feeder=feeder
                     )
                     

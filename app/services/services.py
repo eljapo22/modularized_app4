@@ -1,6 +1,6 @@
 # Standard library imports
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
@@ -178,8 +178,8 @@ class CloudDataService:
             table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Convert dates to timestamps for the query
-            start_ts = datetime.combine(start_date, datetime.min.time)
-            end_ts = datetime.combine(end_date, datetime.max.time)
+            start_ts = datetime.combine(start_date, time.min)
+            end_ts = datetime.combine(end_date, time.max)
             
             # Execute query
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
@@ -215,8 +215,8 @@ class CloudDataService:
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Convert dates to timestamps
-            start_ts = datetime.combine(start_date, datetime.min.time)
-            end_ts = datetime.combine(end_date, datetime.max.time)
+            start_ts = datetime.combine(start_date, time.min)
+            end_ts = datetime.combine(end_date, time.max)
             
             # Execute query
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
@@ -252,8 +252,8 @@ class CloudDataService:
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Convert dates to timestamps
-            start_ts = datetime.combine(start_date, datetime.min.time)
-            end_ts = datetime.combine(end_date, datetime.max.time)
+            start_ts = datetime.combine(start_date, time.min)
+            end_ts = datetime.combine(end_date, time.max)
             
             # Execute query
             query = CUSTOMER_AGGREGATION_QUERY.format(table_name=table)
