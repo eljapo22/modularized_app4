@@ -3,11 +3,12 @@ Cloud-specific alert service for the Transformer Loading Analysis Application
 """
 import logging
 import streamlit as st
+import pandas as pd
+import numpy as np
+from datetime import datetime, date
+from typing import Optional, Dict, Tuple
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, date
-import pandas as pd
-from typing import Optional, List, Dict, Tuple
 import smtplib
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,10 @@ class CloudAlertService:
             return False
 
         try:
+            # Convert alert_time to datetime if it's a numpy.int64
+            if isinstance(alert_time, np.int64):
+                alert_time = pd.Timestamp(alert_time).to_pydatetime()
+            
             # Log the data we're checking
             logger.info(f"Checking {len(results_df)} data points from {results_df.index[0]} to {results_df.index[-1]}")
             logger.info(f"Current email settings - From: {self.email}, App password configured: {bool(self.app_password)}")
