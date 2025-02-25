@@ -66,6 +66,11 @@ def main():
         
         # Search & Alert button
         if st.button("Search & Alert"):
+            # Clear existing data from session state
+            for key in ['transformer_data', 'customer_data', 'current_transformer', 'current_feeder']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            
             st.session_state.search_clicked = True
             
             # Get transformer data

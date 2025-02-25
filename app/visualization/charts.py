@@ -36,6 +36,9 @@ def display_loading_status(results_df: pd.DataFrame):
         st.warning("Found duplicate timestamps in data:")
         st.write(duplicate_times.sort_values('timestamp')[['timestamp', 'loading_percentage']].head(10))
     
+    # Remove duplicates, keeping first occurrence
+    df = df.drop_duplicates(subset=['timestamp'], keep='first')
+    
     # Debug: Show value ranges
     st.write("Loading percentage range:", 
              f"Min: {df['loading_percentage'].min():.1f}%, ",
@@ -210,7 +213,8 @@ def display_transformer_dashboard(transformer_df: pd.DataFrame, customer_df: pd.
 
     # Show customer analysis if tile was clicked
     if 'show_customer_analysis' in st.session_state and st.session_state.show_customer_analysis:
-        st.session_state.show_customer_analysis = False  # Reset for next time
+        # Clear the flag immediately to prevent re-entry
+        del st.session_state['show_customer_analysis']
         if customer_df is not None:
             display_customer_tab(customer_df)
             return
