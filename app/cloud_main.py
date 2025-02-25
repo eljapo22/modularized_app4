@@ -13,6 +13,10 @@ from app.visualization.charts import display_transformer_dashboard
 
 # Configure logging
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 def main():
     st.set_page_config(
@@ -27,7 +31,8 @@ def main():
     try:
         data_service = CloudDataService()
     except Exception as e:
-        st.error(f"Error initializing services: {str(e)}")
+        st.error(f"Error initializing data service: {str(e)}")
+        logger.error(f"Data service initialization error: {str(e)}")
         data_service = CloudDataService()  # Try again
     
     try:
@@ -35,6 +40,7 @@ def main():
     except Exception as e:
         st.error(f"Error initializing alert service: {str(e)}")
         logger.error(f"Alert service initialization error: {str(e)}")
+        alert_service = None
     
     # Get available date range with fallback
     try:
@@ -63,7 +69,7 @@ def main():
             max_value=max_date
         )
         
-        # Feeder selection
+        # Feeder selection with comprehensive error handling
         st.subheader("Feeder Selection")
         try:
             feeders = data_service.get_feeder_options()
@@ -71,31 +77,39 @@ def main():
                 st.warning("No feeders found. Using default.")
                 feeders = ["Feeder 1"]
         except Exception as e:
-            logger.error(f"Error loading feeders: {str(e)}")
+            logger.error(f"Comprehensive feeder loading error: {str(e)}")
             feeders = ["Feeder 1"]
-            st.warning("Error loading feeders. Using default.")
-        
+            st.warning(f"Error loading feeders: {str(e)}. Using default.")
+
+        # Ensure a valid selection
         feeder = st.selectbox(
             "Select Feeder",
             options=feeders,
-            index=0 if feeders else None
+            index=0
         )
-        
-        # Transformer selection
+
+        # Transformer selection with comprehensive error handling
         st.subheader("Transformer Selection")
         try:
-            transformers = data_service.get_transformer_options(feeder) if feeder else []
-            if not transformers:
-                st.warning(f"No transformers found for {feeder}. Try another feeder.")
-        except Exception as e:
-            logger.error(f"Error loading transformers: {str(e)}")
-            transformers = []
-            st.warning("Error loading transformers.")
+            # Ensure feeder is a string and extract number if needed
+            feeder_str = str(feeder)
             
+            # Retrieve transformers
+            transformers = data_service.get_transformer_options(feeder_str)
+            
+            if not transformers:
+                st.warning(f"No transformers found for {feeder_str}. Try another feeder.")
+                transformers = [f"Transformer_{feeder_str}_001"]  # Fallback
+        except Exception as e:
+            logger.error(f"Comprehensive transformer loading error: {str(e)}")
+            transformers = [f"Transformer_{feeder}_001"]  # Fallback
+            st.warning(f"Error loading transformers: {str(e)}. Using default.")
+
+        # Ensure a valid transformer selection
         transformer_id = st.selectbox(
             "Select Transformer",
             options=transformers,
-            index=0 if transformers else None
+            index=0
         )
         
         # Search & Alert button
@@ -108,7 +122,7 @@ def main():
             st.session_state.search_clicked = True
             
             try:
-                # Get transformer data
+                # Get transformer data with detailed logging
                 transformer_data = data_service.get_transformer_data_range(
                     start_date=start_date,
                     end_date=end_date,
@@ -116,50 +130,85 @@ def main():
                     transformer_id=transformer_id
                 )
                 
-                # Get customer data - adapt parameters based on the actual method signature
-                try:
-                    # Use the correct parameter format for get_customer_data
-                    customer_data = data_service.get_customer_data(
-                        customer_id=transformer_id,
-                        date_str=start_date.strftime("%Y-%m-%d")
-                    )
-                except Exception as e:
-                    logger.warning(f"Error getting customer data: {str(e)}")
-                    customer_data = pd.DataFrame()
+                # Log detailed information about retrieved transformer data
+                if transformer_data is not None and not transformer_data.empty:
+                    logger.info(f"Transformer data retrieved successfully")
+                    logger.info(f"Data shape: {transformer_data.shape}")
+                    logger.info(f"Columns: {transformer_data.columns}")
+                    logger.info(f"Timestamp range: {transformer_data.index.min()} to {transformer_data.index.max()}")
+                else:
+                    logger.warning("No transformer data retrieved")
                 
-                if transformer_data is not None:
-                    # Process alerts
+                # Get customer data with comprehensive error handling
+                try:
+                    customer_data = data_service.get_customer_data(
+                        transformer_id=transformer_id,
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    
+                    # Log customer data details
+                    if customer_data is not None and not customer_data.empty:
+                        logger.info(f"Customer data retrieved successfully")
+                        logger.info(f"Customer data shape: {customer_data.shape}")
+                        logger.info(f"Customer data columns: {customer_data.columns}")
+                    else:
+                        logger.warning("No customer data retrieved")
+                
+                except Exception as e:
+                    logger.error(f"Comprehensive error getting customer data: {str(e)}")
+                    customer_data = pd.DataFrame()
+                    st.warning(f"Could not retrieve customer data: {str(e)}")
+                
+                # Process alerts if service is available
+                if alert_service and transformer_data is not None:
                     try:
                         alert_service.check_and_send_alerts(transformer_data)
                     except Exception as e:
                         logger.error(f"Alert processing error: {str(e)}")
                         st.warning("Could not process alerts.")
-                    
-                    # Store data in session state
-                    st.session_state.transformer_data = transformer_data
-                    st.session_state.customer_data = customer_data
-                    st.session_state.current_transformer = transformer_id
-                    st.session_state.current_feeder = feeder
-                    
-                    # Rerun to update display
-                    st.rerun()
-                else:
-                    st.warning("No transformer data available for the selected criteria.")
+                
+                # Store data in session state
+                st.session_state.transformer_data = transformer_data
+                st.session_state.customer_data = customer_data
+                st.session_state.current_transformer = transformer_id
+                st.session_state.current_feeder = feeder
+                
+                # Rerun to update display
+                st.rerun()
+            
             except Exception as e:
-                logger.error(f"Error retrieving data: {str(e)}")
-                st.error("Failed to retrieve data. Please try again.")
+                logger.error(f"Comprehensive data retrieval error: {str(e)}")
+                st.error(f"Failed to retrieve data: {str(e)}")
     
     # Main content area
     if 'transformer_data' in st.session_state:
         transformer_data = st.session_state.transformer_data
-        customer_data = st.session_state.customer_data
+        customer_data = st.session_state.get('customer_data', pd.DataFrame())
         
         if transformer_data is not None and not transformer_data.empty:
             try:
+                # Ensure timestamp is properly formatted
+                if not isinstance(transformer_data.index, pd.DatetimeIndex):
+                    transformer_data.index = pd.to_datetime(transformer_data.index)
+                
+                # Log additional diagnostic information
+                logger.info(f"Dashboard Data - Transformer Data Shape: {transformer_data.shape}")
+                logger.info(f"Dashboard Data - Transformer Columns: {transformer_data.columns}")
+                logger.info(f"Dashboard Data - Timestamp Range: {transformer_data.index.min()} to {transformer_data.index.max()}")
+                
+                # Display dashboard
                 display_transformer_dashboard(transformer_data, customer_data)
+            
             except Exception as e:
-                logger.error(f"Error displaying dashboard: {str(e)}")
-                st.error("Failed to display dashboard. Please try again.")
+                logger.error(f"Comprehensive dashboard display error: {str(e)}")
+                st.error(f"Failed to display dashboard: {str(e)}")
+                
+                # Additional diagnostic output
+                st.write("Diagnostic Information:")
+                st.write(f"Transformer Data Shape: {transformer_data.shape}")
+                st.write(f"Transformer Data Columns: {transformer_data.columns}")
+                st.write(f"Timestamp Type: {type(transformer_data.index)}")
         else:
             st.warning("No transformer data available for the selected criteria.")
 
