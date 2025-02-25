@@ -72,11 +72,17 @@ def main():
         end_date_param = params.get("end_date")
 
         # Set initial values from alert parameters
-        if start_date_param and end_date_param and alert_time:
-            initial_date = datetime.fromisoformat(start_date_param).date()
-            initial_end_date = datetime.fromisoformat(end_date_param).date()
+        if alert_time:
             alert_datetime = datetime.fromisoformat(alert_time)
             initial_hour = alert_datetime.hour
+            initial_date = alert_datetime.date()
+            initial_end_date = initial_date + timedelta(days=30)
+            
+            # Override with explicit date range if provided
+            if start_date_param:
+                initial_date = datetime.fromisoformat(start_date_param).date()
+            if end_date_param:
+                initial_end_date = datetime.fromisoformat(end_date_param).date()
         else:
             initial_date = datetime.now().date()
             initial_end_date = initial_date + timedelta(days=30)

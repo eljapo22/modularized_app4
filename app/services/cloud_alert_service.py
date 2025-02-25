@@ -97,11 +97,17 @@ class CloudAlertService:
         if hasattr(end_date, 'dtype') and end_date.dtype == 'int64':
             end_date = pd.Timestamp(end_date).date()
             
+        # Default to 30 day range if not provided
+        if not start_date:
+            start_date = alert_time.date()
+        if not end_date:
+            end_date = start_date + timedelta(days=30)
+            
         params = {
             'view': 'alert',
             'id': transformer_id,
-            'start_date': start_date.isoformat() if start_date else None,
-            'end_date': end_date.isoformat() if end_date else None,
+            'start_date': start_date.isoformat(),
+            'end_date': end_date.isoformat(),
             'alert_time': alert_time.isoformat() if alert_time else None
         }
         # Remove None values
