@@ -4,106 +4,88 @@ Database configuration for MotherDuck
 import os
 from typing import Dict
 
-# Query templates with different precision for transformer vs customer data
+# Query for transformer data
 TRANSFORMER_DATA_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    hours.hour as "timestamp",
+    t."timestamp",
     t."voltage_v",
     t."size_kva",
-    CAST(t."loading_percentage" AS DECIMAL(3,0)) as "loading_percentage",
-    CAST(t."current_a" AS DECIMAL(5,2)) as "current_a",
-    CAST(t."power_kw" AS DECIMAL(5,2)) as "power_kw",
-    CAST(t."power_kva" AS DECIMAL(5,2)) as "power_kva",
-    CAST(t."power_factor" AS DECIMAL(4,3)) as "power_factor",
+    CAST(t."loading_percentage" AS DECIMAL(3,0)) AS "loading_percentage",
+    CAST(t."current_a" AS DECIMAL(5,2)) AS "current_a",
+    CAST(t."power_kw" AS DECIMAL(5,2)) AS "power_kw",
+    CAST(t."power_kva" AS DECIMAL(5,2)) AS "power_kva",
+    CAST(t."power_factor" AS DECIMAL(4,3)) AS "power_factor",
     t."transformer_id",
     t."load_range"
-FROM hours
-LEFT JOIN {table_name} t ON t."timestamp" = hours.hour AND t."transformer_id" = ?
-WHERE t."loading_percentage" IS NOT NULL  -- Only include rows with actual data
-ORDER BY hours.hour
+FROM {table_name} t
+WHERE t."transformer_id" = ?
+  AND t."loading_percentage" IS NOT NULL
+ORDER BY t."timestamp";
 """
 
+# Query for transformer data within a date range
 TRANSFORMER_DATA_RANGE_QUERY = """
 SELECT 
     t."timestamp",
     t."voltage_v",
     t."size_kva",
-    CAST(t."loading_percentage" AS DECIMAL(3,0)) as "loading_percentage",
-    CAST(t."current_a" AS DECIMAL(5,2)) as "current_a",
-    CAST(t."power_kw" AS DECIMAL(5,2)) as "power_kw",
-    CAST(t."power_kva" AS DECIMAL(5,2)) as "power_kva",
-    CAST(t."power_factor" AS DECIMAL(4,3)) as "power_factor",
+    CAST(t."loading_percentage" AS DECIMAL(3,0)) AS "loading_percentage",
+    CAST(t."current_a" AS DECIMAL(5,2)) AS "current_a",
+    CAST(t."power_kw" AS DECIMAL(5,2)) AS "power_kw",
+    CAST(t."power_kva" AS DECIMAL(5,2)) AS "power_kva",
+    CAST(t."power_factor" AS DECIMAL(4,3)) AS "power_factor",
     t."transformer_id",
     t."load_range"
 FROM {table_name} t 
 WHERE t."transformer_id" = ?
-  AND t."timestamp" >= ?
-  AND t."timestamp" <= ?
-  AND t."loading_percentage" IS NOT NULL  -- Only include rows with actual data
-ORDER BY t."timestamp"
+  AND t."timestamp" BETWEEN ? AND ?
+  AND t."loading_percentage" IS NOT NULL
+ORDER BY t."timestamp";
 """
 
+# Query for hourly customer data
 CUSTOMER_DATA_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    CAST(COALESCE(c."current_a", LAG(c."current_a") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
+    c."timestamp",
     c."customer_id",
-    EXTRACT(HOUR FROM hours.hour) as "hour",
-    CAST(COALESCE(c."power_factor", LAG(c."power_factor") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
-    CAST(COALESCE(c."power_kva", LAG(c."power_kva") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kva",
-    CAST(COALESCE(c."power_kw", LAG(c."power_kw") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
+    EXTRACT(HOUR FROM c."timestamp") AS "hour",
+    CAST(c."power_factor" AS DECIMAL(4,3)) AS "power_factor",
+    CAST(c."power_kva" AS DECIMAL(5,2)) AS "power_kva",
+    CAST(c."power_kw" AS DECIMAL(5,2)) AS "power_kw",
     c."size_kva",
-    hours.hour as "timestamp",
     c."transformer_id",
-    COALESCE(c."voltage_v", LAG(c."voltage_v") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) as "voltage_v"
-FROM hours
-LEFT JOIN {table_name} c ON c."timestamp" = hours.hour AND c."transformer_id" = ?
-WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
-ORDER BY hours.hour, c."customer_id"
+    c."voltage_v",
+    CAST(c."current_a" AS DECIMAL(5,2)) AS "current_a"
+FROM {table_name} c
+WHERE c."transformer_id" = ?
+  AND c."timestamp" BETWEEN ? AND ?
+ORDER BY c."timestamp", c."customer_id";
 """
 
+# Query to retrieve distinct transformer IDs
 TRANSFORMER_LIST_QUERY = """
 SELECT DISTINCT "transformer_id"
 FROM {table_name}
-ORDER BY "transformer_id"
+ORDER BY "transformer_id";
 """
 
+# Query for daily customer power statistics
 CUSTOMER_AGGREGATION_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
 SELECT 
-    hours.hour::DATE as date,
+    DATE(c."timestamp") AS date,
     c."customer_id",
-    CAST(AVG(c."power_kw") AS DECIMAL(4,3)) as avg_power_kw,
-    CAST(MAX(c."power_kw") AS DECIMAL(4,3)) as max_power_kw,
-    CAST(MIN(c."power_kw") AS DECIMAL(4,3)) as min_power_kw,
-    CAST(AVG(c."power_factor") AS DECIMAL(4,3)) as avg_power_factor
-FROM hours
-LEFT JOIN {table_name} c ON c."timestamp" = hours.hour AND c."transformer_id" = ?
-WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
-GROUP BY hours.hour::DATE, c."customer_id"
-ORDER BY hours.hour::DATE, c."customer_id"
+    CAST(AVG(c."power_kw") AS DECIMAL(4,3)) AS avg_power_kw,
+    CAST(MAX(c."power_kw") AS DECIMAL(4,3)) AS max_power_kw,
+    CAST(MIN(c."power_kw") AS DECIMAL(4,3)) AS min_power_kw,
+    CAST(AVG(c."power_factor") AS DECIMAL(4,3)) AS avg_power_factor
+FROM {table_name} c
+WHERE c."transformer_id" = ?
+  AND c."timestamp" BETWEEN ? AND ?
+GROUP BY DATE(c."timestamp"), c."customer_id"
+ORDER BY DATE(c."timestamp"), c."customer_id";
 """
 
-# Query to get feeder names
+# Query to get feeder names from MotherDuck
 FEEDER_LIST_QUERY = """
 SELECT DISTINCT table_name 
 FROM information_schema.tables 
