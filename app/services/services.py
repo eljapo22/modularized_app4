@@ -1,6 +1,5 @@
 # Standard library imports
 import logging
-import logging.handlers
 from datetime import datetime, date, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -32,15 +31,8 @@ from app.models.data_models import (
     AlertData
 )
 
-# Initialize logger with module name
+# Get logger for this module
 logger = logging.getLogger(__name__)
-
-# Ensure logger has at least one handler
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
 
 """
 Combined services for the Transformer Loading Analysis Application
@@ -149,10 +141,19 @@ class CloudDataService:
             if not all([start_date, end_date, feeder, transformer_id]):
                 return None
             
-            # Get feeder number from feeder string
-            feeder_num = int(feeder.split()[-1])
-            if feeder_num not in FEEDER_NUMBERS:
-                raise ValueError(f"Invalid feeder number: {feeder_num}")
+            # Extract feeder number from transformer ID for consistency
+            try:
+                if transformer_id.startswith('S1F'):
+                    feeder_num = int(transformer_id[3])
+                else:
+                    # Fallback to feeder string if transformer ID format is different
+                    feeder_num = int(feeder.split()[-1])
+                
+                if feeder_num not in FEEDER_NUMBERS:
+                    raise ValueError(f"Invalid feeder number: {feeder_num}")
+            except (IndexError, ValueError) as e:
+                logger.error(f"Error extracting feeder number: {str(e)}")
+                return None
                 
             # Use the correct table name format
             table = f'"Transformer Feeder {feeder_num}"'
