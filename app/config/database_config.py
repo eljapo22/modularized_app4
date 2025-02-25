@@ -5,8 +5,8 @@ import os
 from typing import Dict, List
 
 # Table templates
-TRANSFORMER_TABLE_TEMPLATE = "transformer_data_feeder_{}"
-CUSTOMER_TABLE_TEMPLATE = "customer_data_feeder_{}"
+TRANSFORMER_TABLE_TEMPLATE = "Transformer Feeder {}"
+CUSTOMER_TABLE_TEMPLATE = "Customer Feeder {}"
 
 # Available feeder numbers
 FEEDER_NUMBERS = [1, 2, 3, 4, 5]
@@ -124,7 +124,7 @@ ORDER BY hour
 TRANSFORMER_LIST_QUERY = """
 SELECT DISTINCT transformer_id
 FROM {table_name}
-WHERE transformer_id LIKE 'F' || ? || '_%'
+WHERE transformer_id LIKE 'S1F%'
 ORDER BY transformer_id;
 """
 
