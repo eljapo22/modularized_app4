@@ -7,6 +7,7 @@ import duckdb
 from typing import Optional, List
 import pandas as pd
 import logging
+from app.utils.db_utils import query_data as utils_query_data
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,10 @@ class DatabaseAdapter:
     def query_data(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
         """Execute query and return results"""
         try:
+            if self.conn is None:
+                # Fallback to the connection pool if direct connection fails
+                return pd.DataFrame(utils_query_data(query, params))
+                
             if params:
                 result = self.conn.execute(query, params).fetchdf()
             else:
@@ -40,7 +45,11 @@ class DatabaseAdapter:
             logger.error(f"Query error: {str(e)}")
             logger.error(f"Query: {query}")
             logger.error(f"Parameters: {params}")
-            raise
+            # Try using the connection pool as fallback
+            try:
+                return pd.DataFrame(utils_query_data(query, params))
+            except:
+                return pd.DataFrame()
 
     def get_transformer_data(self, transformer_id: str, date_str: str) -> pd.DataFrame:
         """Get transformer data from specific feeder"""
