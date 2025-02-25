@@ -61,9 +61,6 @@ def display_loading_status(results_df: pd.DataFrame):
         category_data = df[mask]
         
         if not category_data.empty:
-            # Debug logging
-            st.write(f"Category {name}: {len(category_data)} points, Range: {min_load}-{max_load}")
-            
             # Create hover text
             hover_text = [
                 f"Loading: {row['loading_percentage']:.1f}%<br>" +
@@ -77,15 +74,15 @@ def display_loading_status(results_df: pd.DataFrame):
                 x=category_data['timestamp'],
                 y=category_data['loading_percentage'],
                 mode='markers',
-                name=name,
+                name=f"{name} ({len(category_data)} points)",  # Add point count to legend
                 marker=dict(
                     color=color,
-                    size=10,
+                    size=8,  # Slightly smaller points to reduce overlap
                     line=dict(
                         color='rgba(255,255,255,0.8)',
                         width=1
                     ),
-                    opacity=0.9
+                    opacity=0.8
                 ),
                 text=hover_text,
                 hoverinfo='text'
@@ -96,8 +93,8 @@ def display_loading_status(results_df: pd.DataFrame):
                 x=[],
                 y=[],
                 mode='markers',
-                name=name,
-                marker=dict(color=color, size=10),
+                name=f"{name} (0 points)",  # Consistent legend format
+                marker=dict(color=color, size=8),
                 showlegend=True
             ))
 
@@ -114,8 +111,8 @@ def display_loading_status(results_df: pd.DataFrame):
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
-            tickformat='%Y-%m-%d %H:%M',
-            dtick='D1',
+            tickformat='%Y-%m-%d',  # Simplified date format
+            dtick='D2',  # Show every other day
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
@@ -124,16 +121,18 @@ def display_loading_status(results_df: pd.DataFrame):
         yaxis=dict(
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
-            range=[0, max(150, df['loading_percentage'].max() * 1.1)]
+            range=[0, max(150, df['loading_percentage'].max() * 1.1)],
+            dtick=20  # Show grid lines every 20%
         ),
         legend=dict(
             yanchor="top",
             y=0.99,
             xanchor="right",
             x=0.99,
-            bgcolor='rgba(255,255,255,0.8)',
-            bordercolor='rgba(128,128,128,0.2)',
-            borderwidth=1
+            bgcolor='rgba(255,255,255,0.9)',  # Slightly more opaque
+            bordercolor='rgba(128,128,128,0.3)',
+            borderwidth=1,
+            itemsizing='constant'  # Keep legend item sizes consistent
         )
     )
 
