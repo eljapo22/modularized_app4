@@ -89,15 +89,27 @@ class CloudAlertService:
 
     def _create_deep_link(self, start_date: date, end_date: date, alert_time: datetime, transformer_id: str, hour: int = None, feeder: int = None) -> str:
         """Create deep link back to app with context"""
-        # Create URL parameters
+        # Create URL parameters with None checks
         params = {
             'view': 'alert',
-            'id': transformer_id,
-            'start_date': start_date.isoformat(),
-            'end_date': end_date.isoformat(),
-            'hour': str(hour) if hour is not None else str(alert_time.hour),
-            'feeder': str(feeder) if feeder is not None else '1'
+            'id': transformer_id
         }
+        
+        # Only add dates if they exist
+        if start_date:
+            params['start_date'] = start_date.isoformat()
+        if end_date:
+            params['end_date'] = end_date.isoformat()
+            
+        # Add hour from parameter or alert time
+        if hour is not None:
+            params['hour'] = str(hour)
+        elif alert_time:
+            params['hour'] = str(alert_time.hour)
+            
+        # Add feeder if it exists
+        if feeder is not None:
+            params['feeder'] = str(feeder)
             
         # Create query string
         query_string = '&'.join(f"{k}={v}" for k, v in params.items())

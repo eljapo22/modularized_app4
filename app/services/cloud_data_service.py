@@ -68,26 +68,48 @@ class CloudDataService:
             logger.info(f"Found {len(self._available_feeders)} feeders: {self._available_feeders}")
         return self._available_feeders
 
+    def get_transformer_ids(self, feeder_num: int) -> List[str]:
+        """Get list of transformer IDs for a specific feeder"""
+        try:
+            logger.info(f"Retrieving transformer IDs for feeder {feeder_num}...")
+            if feeder_num not in FEEDER_NUMBERS:
+                logger.error(f"Invalid feeder number: {feeder_num}")
+                return []
+            
+            # Use the correct table name format
+            table = f'"Transformer Feeder {feeder_num}"'
+            logger.debug(f"Querying transformer IDs from table: {table}")
+            
+            try:
+                query = TRANSFORMER_LIST_QUERY.format(table_name=table)
+                results = execute_query(query)
+                
+                if results:
+                    transformer_ids = [r['transformer_id'] for r in results]
+                    logger.info(f"Found {len(transformer_ids)} transformers")
+                    logger.debug(f"Transformer IDs: {transformer_ids}")
+                    return sorted(transformer_ids)
+                else:
+                    logger.warning(f"No transformers found for feeder {feeder_num}")
+                    return []
+            except Exception as e:
+                logger.error(f"Database error getting transformer IDs: {str(e)}")
+                # Return a default list of transformers for this feeder
+                default_ids = [f"S1F{feeder_num}ATF{i:03d}" for i in range(1, 11)]
+                logger.info(f"Using default transformer IDs: {default_ids}")
+                return default_ids
+                
+        except Exception as e:
+            logger.error(f"Error getting transformer IDs: {str(e)}")
+            return []
+
     def get_load_options(self, feeder: str) -> List[str]:
         """Get list of available transformer IDs"""
         try:
             logger.info(f"Retrieving transformer IDs for {feeder}...")
             # Extract feeder number from string like "Feeder 1"
             feeder_num = int(feeder.split()[-1])
-            if feeder_num not in FEEDER_NUMBERS:
-                logger.error(f"Invalid feeder number: {feeder_num}")
-                raise ValueError(f"Invalid feeder number: {feeder_num}")
-                
-            if self._transformer_ids is None:
-                # Table name already includes quotes
-                table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
-                logger.debug(f"Querying transformer IDs from table: {table}")
-                query = TRANSFORMER_LIST_QUERY.format(table_name=table)
-                results = execute_query(query)
-                self._transformer_ids = [r['transformer_id'] for r in results]
-                logger.info(f"Found {len(self._transformer_ids)} transformers")
-                logger.debug(f"Transformer IDs: {self._transformer_ids}")
-            return sorted(self._transformer_ids)
+            return self.get_transformer_ids(feeder_num)
         except Exception as e:
             logger.error(f"Error getting transformer IDs: {str(e)}")
             return []

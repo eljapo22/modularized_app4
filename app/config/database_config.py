@@ -74,9 +74,9 @@ ORDER BY hours.hour, c."customer_id"
 """
 
 TRANSFORMER_LIST_QUERY = """
-SELECT DISTINCT "transformer_id"
+SELECT DISTINCT transformer_id
 FROM {table_name}
-ORDER BY "transformer_id"
+ORDER BY transformer_id;
 """
 
 CUSTOMER_AGGREGATION_QUERY = """

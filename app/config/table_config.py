@@ -50,12 +50,11 @@ Database Structure:
 
 # Column decimal place configuration
 DECIMAL_PLACES = {
-    'loading_percentage': 2,  # Changed from 0 to 2 to match actual data
+    'loading_percentage': 0,
     'current_a': 2,
     'power_kw': 2,
     'power_kva': 2,
-    'power_factor': 3,
-    'voltage_v': 1  # Add voltage with 1 decimal place
+    'power_factor': 3
 }
 
 # Table names - with proper quoting for SQL
