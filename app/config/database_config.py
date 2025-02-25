@@ -325,7 +325,7 @@ def get_customer_data(transformer_id: str, start_date: date, end_date: date, fee
 
         # Get table names
         customer_table = f'"{CUSTOMER_TABLE_TEMPLATE.format(feeder)}"'
-        reading_table = f'"Customer Reading Feeder {feeder}"'
+        reading_table = f'"Customer Readings Feeder {feeder}"'
         
         # Execute query with all required parameters
         query = CUSTOMER_DATA_QUERY.format(customer_table=customer_table, reading_table=reading_table)
