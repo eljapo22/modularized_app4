@@ -222,6 +222,10 @@ def display_transformer_dashboard(
         return
 
     try:
+        # Reset index if timestamp is the index
+        if isinstance(transformer_df.index, pd.DatetimeIndex):
+            transformer_df = transformer_df.reset_index()
+
         # Ensure timestamp is datetime
         if 'timestamp' not in transformer_df.columns:
             logger.error("No timestamp column in transformer data")
@@ -277,7 +281,7 @@ def display_transformer_dashboard(
                 is_clickable=False
             )
 
-        # Display transformer data visualizations22
+        # Display transformer data visualizations
         display_transformer_data(transformer_df)
 
     except KeyError as ke:
