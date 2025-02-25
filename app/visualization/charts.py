@@ -29,6 +29,19 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create a copy and ensure timestamp handling
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
+    
+    # Debug: Check for duplicate timestamps
+    duplicate_times = df[df.duplicated(subset=['timestamp'], keep=False)]
+    if not duplicate_times.empty:
+        st.warning("Found duplicate timestamps in data:")
+        st.write(duplicate_times.sort_values('timestamp')[['timestamp', 'loading_percentage']].head(10))
+    
+    # Debug: Show value ranges
+    st.write("Loading percentage range:", 
+             f"Min: {df['loading_percentage'].min():.1f}%, ",
+             f"Max: {df['loading_percentage'].max():.1f}%, ",
+             f"Mean: {df['loading_percentage'].mean():.1f}%")
+    
     df = df.sort_values('timestamp')  # Ensure data is sorted by time
     
     # Round loading percentages to 1 decimal place for consistent display
