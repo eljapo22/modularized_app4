@@ -347,8 +347,13 @@ class CloudAlertService:
 
     def _create_deep_link(self, start_date: date, end_date: date, transformer_id: str, hour: int = None, feeder: int = None) -> str:
         """Create deep link back to app with context"""
-        logger.info(f"Creating deep link with start_date={start_date}, end_date={end_date}, hour={hour}, feeder={feeder}")
-        
+        logger.info("Creating deep link with the following parameters:")
+        logger.info(f"Start Date: {start_date}")
+        logger.info(f"End Date: {end_date}")
+        logger.info(f"Hour: {hour}")
+        logger.info(f"Feeder: {feeder}")
+        logger.info(f"Transformer ID: {transformer_id}")
+
         # Create base URL parameters
         params = {
             'view': 'alert',
@@ -459,19 +464,29 @@ class CloudAlertService:
     ) -> bool:
         """Check loading conditions and send alert if needed"""
         try:
-            if results_df is None or results_df.empty:
-                logger.warning("No data to check for alerts")
-                return False
-                
-            # Select point to alert on
+            logger.info("=== Alert Service Parameters ===")
+            logger.info(f"Start Date: {start_date}")
+            logger.info(f"End Date: {end_date}")
+            logger.info(f"Hour: {hour}")
+            logger.info(f"Feeder: {feeder}")
+            logger.info("============================")
+
+            # Select the point to alert on
+            logger.info("Selecting alert point from data...")
             alert_point = self._select_alert_point(results_df)
             if alert_point is None:
+                logger.info("No alert point found in data")
                 return False
-                
-            # Get alert status and color
-            status, color = get_alert_status(alert_point['loading_percentage'])
-            
+
+            logger.info(f"Alert point selected: {alert_point.name}")
+            logger.info(f"Loading percentage: {alert_point['loading_percentage']:.1f}%")
+
+            # Get status and color
+            status, color = self._get_status_color(alert_point['loading_percentage'])
+            logger.info(f"Alert status: {status}")
+
             # Create deep link back to app
+            logger.info("Creating deep link with search parameters...")
             deep_link = self._create_deep_link(
                 start_date=start_date or alert_point.name.date(),  # Fallback to alert point date
                 end_date=end_date or alert_point.name.date(),      # Fallback to alert point date
@@ -481,6 +496,7 @@ class CloudAlertService:
             )
             
             # Create email content
+            logger.info("Creating email content...")
             html_content = self._create_email_content(alert_point, status, color, deep_link)
             
             # Create email message
@@ -492,6 +508,7 @@ class CloudAlertService:
             
             # Send email
             if self.email_enabled:
+                logger.info(f"Sending alert email to {msg['To']}")
                 success = self._send_email(msg)
                 if success:
                     st.success(f"✉️ Alert email sent successfully to {msg['To']}")

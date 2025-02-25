@@ -194,7 +194,16 @@ def main():
                 # If search button was clicked, check for alerts
                 if search_clicked:
                     # Get data for the entire date range
-                    logger.info(f"Fetching data for date range: {selected_start_date} to {selected_end_date}, hour={selected_hour}")
+                    logger.info("=== Search & Alert Parameters ===")
+                    logger.info(f"Start Date: {selected_start_date}")
+                    logger.info(f"End Date: {selected_end_date}")
+                    logger.info(f"Hour: {selected_hour}")
+                    logger.info(f"Feeder: {selected_feeder}")
+                    logger.info(f"Transformer: {selected_transformer}")
+                    logger.info("============================")
+
+                    # Fetch data with selected parameters
+                    logger.info("Fetching data for selected parameters...")
                     date_range_data = data_service.get_transformer_data_by_range(
                         selected_transformer,
                         selected_start_date,
@@ -212,13 +221,15 @@ def main():
                         'hour': str(selected_hour),
                         'feeder': str(selected_feeder)
                     }
-                    logger.info(f"Setting URL parameters: {url_params}")
+                    logger.info("Setting URL parameters:")
+                    for key, value in url_params.items():
+                        logger.info(f"  {key}: {value}")
                     
                     # Update query parameters to match sidebar
                     st.experimental_set_query_params(**url_params)
                     
                     # Send alert with the sidebar selections
-                    logger.info("Sending alert with search parameters")
+                    logger.info("Triggering alert with search parameters...")
                     alert_service.check_and_send_alerts(
                         date_range_data,
                         start_date=selected_start_date,
