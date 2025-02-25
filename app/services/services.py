@@ -1,10 +1,12 @@
 # Standard library imports
 import logging
-from datetime import datetime, date, time
+import logging.handlers
+from datetime import datetime, date, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
-from typing import Optional, List
+from typing import Optional, List, Dict, Tuple, Any
+import traceback
 import sys
 
 # Third-party imports
@@ -25,9 +27,22 @@ from app.config.database_config import (
     init_db_pool,
     execute_query
 )
+from app.utils.data_validation import validate_transformer_data, analyze_trends
+from app.models.data_models import (
+    TransformerData,
+    CustomerData,
+    AlertData
+)
 
 # Initialize logger with module name
 logger = logging.getLogger(__name__)
+
+# Ensure logger has at least one handler
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 """
 Combined services for the Transformer Loading Analysis Application
@@ -74,7 +89,11 @@ class CloudDataService:
                     return sorted(transformer_ids)
                 else:
                     logger.warning(f"No transformers found for feeder {feeder_num}")
-                    return []
+                    # Return a default list of transformers for this feeder
+                    default_ids = [f"S1F{feeder_num}ATF{i:03d}" for i in range(1, 11)]
+                    logger.info(f"Using default transformer IDs: {default_ids}")
+                    return default_ids
+                
             except Exception as e:
                 logger.error(f"Database error getting transformer IDs: {str(e)}")
                 # Return a default list of transformers for this feeder
@@ -87,106 +106,80 @@ class CloudDataService:
             return []
 
     def get_load_options(self, feeder: str) -> List[str]:
-        """Get list of available transformer IDs"""
+        """Get list of transformer IDs for a feeder"""
         try:
-            logger.info(f"Retrieving transformer IDs for {feeder}...")
-            # Extract feeder number from string like "Feeder 1"
+            if not feeder:
+                return []
+                
+            # Extract feeder number from string (e.g. "Feeder 1" -> 1)
             feeder_num = int(feeder.split()[-1])
+            
+            # Get transformer IDs for this feeder
             return self.get_transformer_ids(feeder_num)
+            
         except Exception as e:
-            logger.error(f"Error getting transformer IDs: {str(e)}")
+            logger.error(f"Error getting load options: {str(e)}")
             return []
 
-    def get_available_dates(self) -> tuple[date, date]:
-        """Get the available date range for data queries"""
-        logger.info(f"Returning date range: {date(2024, 1, 1)} to {date(2024, 6, 28)}")
-        return date(2024, 1, 1), date(2024, 6, 28)
-
-    def _format_numeric_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Format numeric columns with proper decimal places"""
-        if df is None or df.empty:
-            return df
-            
-        # Apply formatting to each numeric column based on configuration
-        for col, decimals in DECIMAL_PLACES:
-            if col in df.columns:
-                df[col] = df[col].round(decimals)
-        
-        return df
-
-    def get_transformer_data(self, transformer_id: str, date: datetime, hour: int, feeder: str) -> Optional[pd.DataFrame]:
-        """
-        Get transformer data for a specific date and hour.
-        
-        Args:
-            transformer_id (str): Transformer identifier
-            date (datetime): The datetime object for the query
-            hour (int): Hour of the day (0-23)
-            feeder (str): Feeder identifier (e.g., "Feeder 1")
-        
-        Returns:
-            Optional[pd.DataFrame]: DataFrame containing transformer data or None if no data found
-        """
+    def get_transformer_data(self, transformer_id: str, query_date: date, hour: int) -> Optional[pd.DataFrame]:
+        """Get transformer data for a specific date and hour"""
         try:
-            # Extract just the date part for the query
-            query_date = date.date() if isinstance(date, datetime) else date
-            
-            # Extract feeder number from string like "Feeder 1"
-            feeder_num = int(feeder.split()[-1])
+            # Extract feeder number from transformer ID
+            feeder_num = int(transformer_id.split('F')[1][0])
             if feeder_num not in FEEDER_NUMBERS:
-                logger.error(f"Invalid feeder number: {feeder_num}")
                 raise ValueError(f"Invalid feeder number: {feeder_num}")
                 
             # Table name already includes quotes
-            table = f"transformer_data_feeder_{feeder_num}"
+            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
             logger.debug(f"Querying table: {table}")
             query = TRANSFORMER_DATA_QUERY.format(table_name=table)
             results = execute_query(query, (transformer_id, query_date, hour))
             
-            if results and len(results) > 0:
-                df = pd.DataFrame(results)
-                df = self._format_numeric_columns(df)
-                return df
-            return None
+            if not results:
+                logger.warning(f"No data found for transformer {transformer_id} on {query_date} at hour {hour}")
+                return None
+                
+            df = pd.DataFrame(results)
+            return validate_transformer_data(df)
             
         except Exception as e:
             logger.error(f"Error getting transformer data: {str(e)}")
-            raise
+            return None
 
     def get_transformer_data_range(
         self,
-        start_date: date, 
-        end_date: date, 
-        feeder: str, 
+        start_date: date,
+        end_date: date,
+        feeder: str,
         transformer_id: str
     ) -> Optional[pd.DataFrame]:
-        """
-        Get transformer data for a date range.
-        """
+        """Get transformer data for a date range"""
         try:
-            logger.info(f"Fetching transformer data for {transformer_id}")
+            if not all([start_date, end_date, feeder, transformer_id]):
+                return None
             
             # Get feeder number from feeder string
             feeder_num = int(feeder.split()[-1])
-            table = f"transformer_data_feeder_{feeder_num}"
+            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Convert dates to timestamps for the query
-            start_ts = datetime.combine(start_date, time.min)
-            end_ts = datetime.combine(end_date, time.max)
+            start_ts = datetime.combine(start_date, datetime.min.time())
+            end_ts = datetime.combine(end_date, datetime.max.time())
             
-            # Execute query
+            # Query data
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
-            params = (transformer_id, start_ts, end_ts)
+            results = execute_query(query, (transformer_id, start_ts, end_ts))
             
-            results = execute_query(query, params)
             if not results:
+                logger.warning(
+                    f"No data found for transformer {transformer_id} "
+                    f"between {start_date} and {end_date}"
+                )
                 return None
                 
-            # Convert to DataFrame and format
+            # Convert to DataFrame and validate
             df = pd.DataFrame(results)
-            df = self._format_numeric_columns(df)
-            
-            return df
+            return validate_transformer_data(df)
             
         except Exception as e:
             logger.error(f"Error getting transformer data range: {str(e)}")
@@ -196,77 +189,46 @@ class CloudDataService:
         self,
         transformer_id: str,
         start_date: date,
-        end_date: date,
-        feeder: str
+        end_date: date
     ) -> Optional[pd.DataFrame]:
-        """Get customer data for analysis"""
+        """Get customer data for a transformer and date range"""
         try:
-            logger.info(f"Fetching customer data for {transformer_id}")
+            if not all([transformer_id, start_date, end_date]):
+                return None
             
-            # Get feeder number from feeder string
-            feeder_num = int(feeder.split()[-1])
+            # Extract feeder number from transformer ID
+            feeder_num = int(transformer_id.split('F')[1][0])
+            if feeder_num not in FEEDER_NUMBERS:
+                raise ValueError(f"Invalid feeder number: {feeder_num}")
+            
+            # Get table name
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Convert dates to timestamps
-            start_ts = datetime.combine(start_date, time.min)
-            end_ts = datetime.combine(end_date, time.max)
+            start_ts = datetime.combine(start_date, datetime.min.time())
+            end_ts = datetime.combine(end_date, datetime.max.time())
             
-            # Execute query
+            # Query data
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
-            params = (transformer_id, start_ts, end_ts)
+            results = execute_query(query, (transformer_id, start_ts, end_ts))
             
-            results = execute_query(query, params)
             if not results:
+                logger.warning(
+                    f"No customer data found for transformer {transformer_id} "
+                    f"between {start_date} and {end_date}"
+                )
                 return None
-                
-            # Convert to DataFrame and format
-            df = pd.DataFrame(results)
-            df = self._format_numeric_columns(df)
             
+            df = pd.DataFrame(results)
             return df
             
         except Exception as e:
             logger.error(f"Error getting customer data: {str(e)}")
             return None
 
-    def get_aggregated_customer_data(
-        self,
-        transformer_id: str,
-        start_date: date,
-        end_date: date,
-        feeder: str
-    ) -> Optional[pd.DataFrame]:
-        """Get aggregated customer data"""
-        try:
-            logger.info(f"Fetching aggregated customer data for {transformer_id}")
-            
-            # Get feeder number from feeder string
-            feeder_num = int(feeder.split()[-1])
-            table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
-            
-            # Convert dates to timestamps
-            start_ts = datetime.combine(start_date, time.min)
-            end_ts = datetime.combine(end_date, time.max)
-            
-            # Execute query
-            query = CUSTOMER_AGGREGATION_QUERY.format(table_name=table)
-            params = (transformer_id, start_ts, end_ts)
-            
-            results = execute_query(query, params)
-            if not results:
-                return None
-                
-            # Convert to DataFrame and format
-            df = pd.DataFrame(results)
-            df = self._format_numeric_columns(df)
-            
-            return df
-            
-        except Exception as e:
-            logger.error(f"Error getting aggregated customer data: {str(e)}")
-            return None
-
 class CloudAlertService:
+    """Service for handling alerts in cloud environment"""
+    
     def __init__(self):
         """Initialize the alert service"""
         # Set the app URL to the current cloud deployment
@@ -279,81 +241,57 @@ class CloudAlertService:
             logger.warning("Email alerts disabled: Gmail app password not found in secrets")
         else:
             logger.info("Email alerts enabled")
-
-    def _get_status_color(self, loading_pct: float) -> tuple:
+    
+    def _get_status_color(self, loading_pct: float) -> Tuple[str, str]:
         """Get status and color based on loading percentage"""
         if loading_pct >= 120:
-            return "CRITICAL", "#dc3545", "🚨"
+            return "Critical", "red"
         elif loading_pct >= 100:
-            return "OVERLOADED", "#fd7e14", "⚠️"
+            return "Overloaded", "orange"
         elif loading_pct >= 80:
-            return "WARNING", "#ffc107", "⚡"
+            return "Warning", "yellow"
         elif loading_pct >= 50:
-            return "PRE-WARNING", "#6f42c1", "📊"
+            return "Pre-Warning", "blue"
         else:
-            return "NORMAL", "#198754", "✅"
-
-    def _select_alert_point(self, results_df: pd.DataFrame) -> Optional[pd.Series]:
+            return "Normal", "green"
+    
+    def _select_alert_point(self, results_df: pd.DataFrame) -> pd.Series:
         """Select the point to alert on"""
-        try:
-            # Find the highest loading percentage
-            max_loading_idx = results_df['loading_percentage'].idxmax()
-            max_loading = results_df.iloc[max_loading_idx].copy()  # Use copy to avoid modifying original
-            
-            # Ensure we have the correct timestamp
-            max_loading.name = results_df['timestamp'].iloc[max_loading_idx]
-            
-            # Log the max loading found
-            logger.info(f"Found max loading: {max_loading['loading_percentage']:.1f}% at {max_loading.name}")
-            
-            # Only alert if loading is high enough
-            if max_loading['loading_percentage'] >= 80:
-                return max_loading
-            else:
-                logger.info(f"Max loading {max_loading['loading_percentage']:.1f}% below alert threshold (80%)")
-                st.info(f"🔍 Maximum loading ({max_loading['loading_percentage']:.1f}%) is below alert threshold (80%)")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error selecting alert point: {str(e)}")
-            return None
-
-    def _create_deep_link(self, start_date: date, end_date: date, transformer_id: str, hour: int = None, feeder: int = None) -> str:
+        # Get the row with the highest loading percentage
+        max_loading_idx = results_df['loading_percentage'].idxmax()
+        return results_df.loc[max_loading_idx]
+    
+    def _create_deep_link(
+        self,
+        start_date: date,
+        end_date: date,
+        transformer_id: str,
+        hour: int = None,
+        feeder: int = None
+    ) -> str:
         """Create deep link back to app with context"""
-        logger.info("Creating deep link with the following parameters:")
-        logger.info(f"Start Date: {start_date}")
-        logger.info(f"End Date: {end_date}")
-        logger.info(f"Hour: {hour}")
-        logger.info(f"Feeder: {feeder}")
-        logger.info(f"Transformer ID: {transformer_id}")
-
-        # Create base URL parameters
+        base_url = self.app_url
         params = {
-            'view': 'alert',
-            'id': transformer_id,
-            'start_date': start_date.isoformat() if start_date else None,
-            'end_date': end_date.isoformat() if end_date else None
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'transformer_id': transformer_id
         }
-        
-        # Add hour parameter if provided
         if hour is not None:
-            params['hour'] = str(hour)
-            logger.info(f"Using hour: {hour}")
-            
-        # Add feeder if it exists
+            params['hour'] = hour
         if feeder is not None:
-            params['feeder'] = str(feeder)
+            params['feeder'] = f"Feeder {feeder}"
             
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
-        
-        # Construct the URL with parameters
-        param_string = '&'.join(f"{k}={v}" for k, v in params.items())
-        final_url = f"{self.app_url}/?{param_string}"
-        logger.info(f"Generated deep link URL: {final_url}")
-        return final_url
-
-    def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
+        # Build query string
+        query = '&'.join([f"{k}={v}" for k, v in params.items()])
+        return f"{base_url}?{query}"
+    
+    def _create_email_content(
+        self,
+        data: pd.Series,
+        status: str,
+        color: str,
+        deep_link: str
+    ) -> str:
         """
         Create HTML content for alert email with context
         
@@ -366,66 +304,74 @@ class CloudAlertService:
         Returns:
             str: HTML content of the email
         """
-        transformer_id = data['transformer_id']
-        loading_pct = data['loading_percentage']
+        # Format timestamp for display
+        timestamp = data['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
         
         html = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2f4f4f;">Transformer Loading Alert {get_status_emoji(status)}</h2>
-            
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: {color};">Status: {status}</h3>
-                <p><strong>Transformer:</strong> {transformer_id}</p>
-                <p><strong>Loading:</strong> {loading_pct:.1f}%</p>
-                <p><strong>Alert Time:</strong> {data.name.strftime('%Y-%m-%d %H:%M')}</p>
-            </div>
-            
-            <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h4>Detailed Readings:</h4>
-                <ul>
-                    <li>Power: {data['power_kw']:.1f} kW</li>
-                    <li>Current: {data['current_a']:.1f} A</li>
-                    <li>Voltage: {data['voltage_v']:.1f} V</li>
-                    <li>Power Factor: {data['power_factor']:.2f}</li>
-                </ul>
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                    View Loading History
-                </a>
-            </div>
-            
-            <p style="color: #6c757d; font-size: 12px; text-align: center;">
-                This is an automated alert from your Transformer Loading Analysis System.<br>
-                Click the button above to view the loading history leading up to this alert.
-            </p>
-        </div>
+        <html>
+            <body>
+                <h2>Transformer Loading Alert</h2>
+                <p>A transformer has exceeded its loading threshold:</p>
+                
+                <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Attribute</th>
+                        <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Value</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #ddd;">Transformer ID</td>
+                        <td style="padding: 12px; border: 1px solid #ddd;">{data['transformer_id']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #ddd;">Status</td>
+                        <td style="padding: 12px; border: 1px solid #ddd; color: {color};">{status}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #ddd;">Loading Percentage</td>
+                        <td style="padding: 12px; border: 1px solid #ddd;">{data['loading_percentage']:.2f}%</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #ddd;">Power (kW)</td>
+                        <td style="padding: 12px; border: 1px solid #ddd;">{data['power_kw']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #ddd;">Current (A)</td>
+                        <td style="padding: 12px; border: 1px solid #ddd;">{data['current_a']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #ddd;">Voltage (V)</td>
+                        <td style="padding: 12px; border: 1px solid #ddd;">{data['voltage_v']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #ddd;">Timestamp</td>
+                        <td style="padding: 12px; border: 1px solid #ddd;">{timestamp}</td>
+                    </tr>
+                </table>
+                
+                <p>Click the link below to view detailed analysis:</p>
+                <p><a href="{deep_link}">View in Dashboard</a></p>
+                
+                <p style="color: #666; font-size: 12px;">
+                    This is an automated alert from the Transformer Loading Analysis System.
+                    Please do not reply to this email.
+                </p>
+            </body>
+        </html>
         """
         return html
     
-    def _send_email(self, msg: MIMEMultipart) -> bool:
+    def _send_email(self, msg: MIMEMultipart):
         """Send email using Gmail SMTP with app password"""
         try:
-            logger.info(f"Attempting to send email to {msg['To']}")
-            
-            # Connect to Gmail's SMTP server
-            server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-            server.login(self.email, self.app_password)
-            
-            # Send email
-            server.send_message(msg)
-            server.quit()
-            
-            logger.info("Email sent successfully")
-            return True
-            
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                smtp.login(self.email, self.app_password)
+                smtp.send_message(msg)
+                logger.info("Alert email sent successfully")
+                return True
         except Exception as e:
-            logger.error(f"Failed to send email: {str(e)}")
-            if "Invalid login" in str(e):
-                st.error("❌ Failed to login to Gmail. Please check your app password in secrets.toml")
+            logger.error(f"Failed to send alert email: {str(e)}")
             return False
-
+    
     def check_and_send_alerts(
         self,
         results_df: pd.DataFrame,
@@ -434,99 +380,82 @@ class CloudAlertService:
         hour: Optional[int] = None,
         feeder: Optional[int] = None,
         recipient: str = None
-    ) -> bool:
+    ):
         """Check loading conditions and send alert if needed"""
         try:
-            # Validate input data
-            if results_df is None or results_df.empty:
-                logger.warning("No data provided for alert check")
-                return False
-
-            logger.info("=== Alert Service Parameters ===")
-            logger.info(f"Start Date: {start_date}")
-            logger.info(f"End Date: {end_date}")
-            logger.info(f"Hour: {hour}")
-            logger.info(f"Feeder: {feeder}")
-            logger.info("============================")
-
-            # Select the point to alert on
-            logger.info("Selecting alert point from data...")
+            if not self.email_enabled:
+                st.warning("Email alerts are disabled. Check Gmail app password configuration.")
+                return
+                
+            if results_df.empty:
+                st.warning("No data available for alert analysis")
+                return
+                
+            # Get the point to alert on
             alert_point = self._select_alert_point(results_df)
-            if alert_point is None:
-                logger.info("No alert point found in data")
-                return False
-
-            # Validate alert point data
-            if 'loading_pct' not in alert_point or 'transformer_id' not in alert_point:
-                logger.error("Alert point missing required fields")
-                return False
-
-            logger.info(f"Alert point selected: {alert_point.name}")
-            logger.info(f"Loading percentage: {alert_point['loading_pct']:.1f}%")
-            logger.info(f"Transformer ID: {alert_point['transformer_id']}")
-
+            loading_pct = alert_point['loading_percentage']
+            
             # Get status and color
-            status, color = self._get_status_color(alert_point['loading_pct'])
-            logger.info(f"Alert status: {status}")
-
-            # Create deep link back to app
-            logger.info("Creating deep link with search parameters...")
-            deep_link = self._create_deep_link(
-                start_date=start_date or alert_point.name.date(),
-                end_date=end_date or alert_point.name.date(),
-                transformer_id=alert_point['transformer_id'],
-                hour=hour,
-                feeder=feeder
-            )
+            status, color = self._get_status_color(loading_pct)
             
-            # Create email content
-            logger.info("Creating email content...")
-            html_content = self._create_email_content(alert_point, status, color, deep_link)
-            
-            # Create email message
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = f"🔔 Transformer Loading Alert - {status}"
-            msg['From'] = self.email
-            msg['To'] = recipient or self.email
-            msg.attach(MIMEText(html_content, 'html'))
-            
-            # Send email
-            if self.email_enabled:
-                logger.info(f"Sending alert email to {msg['To']}")
-                success = self._send_email(msg)
-                if success:
-                    st.success(f"✉️ Alert email sent successfully to {msg['To']}")
-                return success
+            # Create email if loading is above warning threshold
+            if loading_pct >= 80:  # Warning threshold
+                # Create deep link
+                deep_link = self._create_deep_link(
+                    start_date=start_date or date.today(),
+                    end_date=end_date or date.today(),
+                    transformer_id=alert_point['transformer_id'],
+                    hour=hour,
+                    feeder=feeder
+                )
+                
+                # Create email content
+                html_content = self._create_email_content(
+                    data=alert_point,
+                    status=status,
+                    color=color,
+                    deep_link=deep_link
+                )
+                
+                # Create message
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = f"Transformer Alert: {status} Loading Detected"
+                msg['From'] = self.email
+                msg['To'] = recipient or self.email
+                msg.attach(MIMEText(html_content, 'html'))
+                
+                # Send email
+                if self._send_email(msg):
+                    st.success(f"Alert sent: {status} loading detected")
+                else:
+                    st.error("Failed to send alert email")
             else:
-                logger.warning("Email alerts are disabled")
-                st.warning("⚠️ Email alerts are disabled. Add GMAIL_APP_PASSWORD to secrets.toml to enable.")
-                return False
+                st.info(f"No alerts needed. Current status: {status}")
                 
         except Exception as e:
-            logger.error(f"Error checking and sending alerts: {str(e)}")
-            logger.error(f"Stack trace: {traceback.format_exc()}")
-            st.error(f"❌ Failed to send alert: {str(e)}")
-            return False
+            logger.error(f"Error in check_and_send_alerts: {str(e)}")
+            st.error("Failed to process alerts")
 
-def get_alert_status(loading_pct: float) -> tuple[str, str]:
+def get_alert_status(loading_pct: float) -> Tuple[str, str]:
     """Get alert status and color based on loading percentage"""
     if loading_pct >= 120:
-        return 'Critical', '#dc3545'
+        return "Critical", "red"
     elif loading_pct >= 100:
-        return 'Overloaded', '#fd7e14'
+        return "Overloaded", "orange"
     elif loading_pct >= 80:
-        return 'Warning', '#ffc107'
+        return "Warning", "yellow"
     elif loading_pct >= 50:
-        return 'Pre-Warning', '#6f42c1'
+        return "Pre-Warning", "blue"
     else:
-        return 'Normal', '#198754'
+        return "Normal", "green"
 
 def get_status_emoji(status: str) -> str:
     """Get emoji for status"""
-    return {
-        'Critical': '🔴',
-        'Overloaded': '🟠',
-        'Warning': '🟡',
-        'Pre-Warning': '🟣',
-        'Normal': '🟢'
-    }.get(status, '⚪')
+    emoji_map = {
+        "Critical": "🔴",
+        "Overloaded": "🟠",
+        "Warning": "🟡",
+        "Pre-Warning": "🔵",
+        "Normal": "🟢"
+    }
+    return emoji_map.get(status, "❓")
