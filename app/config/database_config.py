@@ -3,6 +3,7 @@ Database configuration for MotherDuck
 """
 import os
 from typing import Dict, List
+import duckdb
 
 # Table templates
 TRANSFORMER_TABLE_TEMPLATE = "Transformer Feeder {}"
@@ -160,10 +161,49 @@ AND table_catalog = 'ModApp4DB'
 ORDER BY table_name;
 """
 
+# Database connection
+_connection = None
+
 def init_db_pool():
     """Initialize database connection pool"""
-    pass  # Placeholder for actual implementation
+    global _connection
+    try:
+        # Connect to MotherDuck
+        token = os.getenv('MOTHERDUCK_TOKEN')
+        if not token:
+            raise ValueError("MOTHERDUCK_TOKEN environment variable not set")
+            
+        _connection = duckdb.connect(f'md:ModApp4DB?motherduck_token={token}')
+        return True
+    except Exception as e:
+        print(f"Error initializing database: {str(e)}")
+        return False
 
 def execute_query(query: str, params: tuple = None) -> List[Dict]:
     """Execute a query with optional parameters"""
-    pass  # Placeholder for actual implementation
+    global _connection
+    try:
+        if not _connection:
+            init_db_pool()
+            
+        if not _connection:
+            raise ValueError("No database connection")
+            
+        # Execute query
+        if params:
+            result = _connection.execute(query, params).fetchall()
+        else:
+            result = _connection.execute(query).fetchall()
+            
+        # Convert to list of dicts
+        if result:
+            columns = [desc[0] for desc in _connection.description]
+            return [dict(zip(columns, row)) for row in result]
+        return []
+        
+    except Exception as e:
+        print(f"Error executing query: {str(e)}")
+        print(f"Query: {query}")
+        if params:
+            print(f"Params: {params}")
+        return []

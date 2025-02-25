@@ -119,10 +119,14 @@ class CloudDataService:
     def get_transformer_data(self, transformer_id: str, query_date: date, hour: int) -> Optional[pd.DataFrame]:
         """Get transformer data for a specific date and hour"""
         try:
-            # Extract feeder number from transformer ID
-            feeder_num = int(transformer_id.split('F')[1][0])
+            # Extract feeder number from transformer ID more safely
+            parts = transformer_id.split('F')
+            if len(parts) < 2:
+                raise ValueError(f"Invalid transformer ID format: {transformer_id}")
+            
+            feeder_num = int(parts[1][0])
             if feeder_num not in FEEDER_NUMBERS:
-                raise ValueError(f"Invalid feeder number: {feeder_num}")
+                raise ValueError(f"Invalid feeder number in transformer ID: {feeder_num}")
                 
             # Use the correct table name format
             table = f'"Transformer Feeder {feeder_num}"'
@@ -137,6 +141,9 @@ class CloudDataService:
             df = pd.DataFrame(results)
             return validate_transformer_data(df)
             
+        except ValueError as ve:
+            logger.error(str(ve))
+            return None
         except Exception as e:
             logger.error(f"Error getting transformer data: {str(e)}")
             return None
@@ -150,45 +157,28 @@ class CloudDataService:
     ) -> Optional[pd.DataFrame]:
         """Get transformer data for a date range"""
         try:
-            if not all([start_date, end_date, feeder, transformer_id]):
-                return None
-            
-            # Extract feeder number from transformer ID for consistency
-            try:
-                if transformer_id.startswith('S1F'):
-                    feeder_num = int(transformer_id[3])
-                else:
-                    # Fallback to feeder string if transformer ID format is different
-                    feeder_num = int(feeder.split()[-1])
-                
-                if feeder_num not in FEEDER_NUMBERS:
-                    raise ValueError(f"Invalid feeder number: {feeder_num}")
-            except (IndexError, ValueError) as e:
-                logger.error(f"Error extracting feeder number: {str(e)}")
-                return None
+            # Extract feeder number from feeder string
+            feeder_num = int(feeder.split()[-1]) if isinstance(feeder, str) else feeder
+            if feeder_num not in FEEDER_NUMBERS:
+                raise ValueError(f"Invalid feeder number: Feeder {feeder_num}")
                 
             # Use the correct table name format
             table = f'"Transformer Feeder {feeder_num}"'
+            logger.debug(f"Querying table: {table}")
             
-            # Convert dates to timestamps for the query
-            start_ts = datetime.combine(start_date, datetime.min.time())
-            end_ts = datetime.combine(end_date, datetime.max.time())
-            
-            # Query data
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
-            results = execute_query(query, (transformer_id, start_ts, end_ts))
+            results = execute_query(query, (transformer_id, start_date, end_date))
             
             if not results:
-                logger.warning(
-                    f"No data found for transformer {transformer_id} "
-                    f"between {start_date} and {end_date}"
-                )
+                logger.warning(f"No data found for transformer {transformer_id} between {start_date} and {end_date}")
                 return None
                 
-            # Convert to DataFrame and validate
             df = pd.DataFrame(results)
             return validate_transformer_data(df)
             
+        except ValueError as ve:
+            logger.error(str(ve))
+            return None
         except Exception as e:
             logger.error(f"Error getting transformer data range: {str(e)}")
             return None
