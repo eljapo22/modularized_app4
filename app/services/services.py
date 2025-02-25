@@ -5,6 +5,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
 from typing import Optional, List, Dict, Tuple, Any
+import traceback
 
 # Third-party imports
 import pandas as pd
@@ -464,6 +465,11 @@ class CloudAlertService:
     ) -> bool:
         """Check loading conditions and send alert if needed"""
         try:
+            # Validate input data
+            if results_df is None or results_df.empty:
+                logger.warning("No data provided for alert check")
+                return False
+
             logger.info("=== Alert Service Parameters ===")
             logger.info(f"Start Date: {start_date}")
             logger.info(f"End Date: {end_date}")
@@ -478,8 +484,14 @@ class CloudAlertService:
                 logger.info("No alert point found in data")
                 return False
 
+            # Validate alert point data
+            if 'loading_pct' not in alert_point or 'transformer_id' not in alert_point:
+                logger.error("Alert point missing required fields")
+                return False
+
             logger.info(f"Alert point selected: {alert_point.name}")
             logger.info(f"Loading percentage: {alert_point['loading_pct']:.1f}%")
+            logger.info(f"Transformer ID: {alert_point['transformer_id']}")
 
             # Get status and color
             status, color = self._get_status_color(alert_point['loading_pct'])
@@ -488,8 +500,8 @@ class CloudAlertService:
             # Create deep link back to app
             logger.info("Creating deep link with search parameters...")
             deep_link = self._create_deep_link(
-                start_date=start_date or alert_point.name.date(),  # Fallback to alert point date
-                end_date=end_date or alert_point.name.date(),      # Fallback to alert point date
+                start_date=start_date or alert_point.name.date(),
+                end_date=end_date or alert_point.name.date(),
                 transformer_id=alert_point['transformer_id'],
                 hour=hour,
                 feeder=feeder
@@ -520,6 +532,7 @@ class CloudAlertService:
                 
         except Exception as e:
             logger.error(f"Error checking and sending alerts: {str(e)}")
+            logger.error(f"Stack trace: {traceback.format_exc()}")
             st.error(f"❌ Failed to send alert: {str(e)}")
             return False
 
