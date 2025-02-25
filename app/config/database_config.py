@@ -2,7 +2,25 @@
 Database configuration for MotherDuck
 """
 import os
-from typing import Dict
+from typing import Dict, List
+
+# Table templates
+TRANSFORMER_TABLE_TEMPLATE = "transformer_data_feeder_{}"
+CUSTOMER_TABLE_TEMPLATE = "customer_data_feeder_{}"
+
+# Available feeder numbers
+FEEDER_NUMBERS = [1, 2, 3, 4, 5]
+
+# Decimal places for numeric columns
+DECIMAL_PLACES = {
+    'voltage_v': 0,
+    'size_kva': 0,
+    'loading_percentage': 0,
+    'current_a': 2,
+    'power_kw': 2,
+    'power_kva': 2,
+    'power_factor': 3
+}
 
 # Query templates with different precision for transformer vs customer data
 TRANSFORMER_DATA_QUERY = """
@@ -101,6 +119,36 @@ GROUP BY hours.hour::DATE, c."customer_id"
 ORDER BY hours.hour::DATE, c."customer_id"
 """
 
+CUSTOMER_DATA_QUERY_NEW = """
+SELECT 
+    c."timestamp",
+    c."customer_id",
+    c."consumption_kwh",
+    c."demand_kw",
+    c."power_factor",
+    c."transformer_id"
+FROM {table_name} c
+WHERE c."transformer_id" = ?
+  AND c."timestamp" >= ?
+  AND c."timestamp" <= ?
+ORDER BY c."timestamp", c."customer_id"
+"""
+
+CUSTOMER_AGGREGATION_QUERY_NEW = """
+SELECT 
+    DATE_TRUNC('hour', c."timestamp") as hour,
+    COUNT(DISTINCT c."customer_id") as customer_count,
+    SUM(c."consumption_kwh") as total_consumption_kwh,
+    AVG(c."demand_kw") as avg_demand_kw,
+    AVG(c."power_factor") as avg_power_factor
+FROM {table_name} c
+WHERE c."transformer_id" = ?
+  AND c."timestamp" >= ?
+  AND c."timestamp" <= ?
+GROUP BY DATE_TRUNC('hour', c."timestamp")
+ORDER BY hour
+"""
+
 # Query to get feeder names
 FEEDER_LIST_QUERY = """
 SELECT DISTINCT table_name 
@@ -110,3 +158,11 @@ AND table_name LIKE 'Transformer Feeder %'
 AND table_catalog = 'ModApp4DB'
 ORDER BY table_name;
 """
+
+def init_db_pool():
+    """Initialize database connection pool"""
+    pass  # Placeholder for actual implementation
+
+def execute_query(query: str, params: tuple = None) -> List[Dict]:
+    """Execute a query with optional parameters"""
+    pass  # Placeholder for actual implementation

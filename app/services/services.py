@@ -16,20 +16,14 @@ import streamlit as st
 # Local imports
 from app.config.database_config import (
     TRANSFORMER_TABLE_TEMPLATE,
+    CUSTOMER_TABLE_TEMPLATE,
     TRANSFORMER_DATA_QUERY,
-    FEEDER_NUMBERS,
-    init_db_pool,
-    execute_query,
     TRANSFORMER_DATA_RANGE_QUERY,
     CUSTOMER_DATA_QUERY,
     TRANSFORMER_LIST_QUERY,
-    CUSTOMER_AGGREGATION_QUERY
-)
-from app.config.table_config import (
-    CUSTOMER_TABLE_TEMPLATE,
-    DECIMAL_PLACES
-)
-from app.utils.db_utils import (
+    CUSTOMER_AGGREGATION_QUERY,
+    FEEDER_NUMBERS,
+    DECIMAL_PLACES,
     init_db_pool,
     execute_query
 )
@@ -37,7 +31,7 @@ from app.utils.data_validation import validate_transformer_data, analyze_trends
 from app.models.data_models import (
     TransformerData,
     CustomerData,
-    AggregatedCustomerData
+    AlertData
 )
 
 # Initialize logger with module name
@@ -55,31 +49,15 @@ Combined services for the Transformer Loading Analysis Application
 """
 
 class CloudDataService:
-    """Service class for handling data operations in the cloud environment"""
+    """Service for handling transformer and customer data in cloud environment"""
     
     def __init__(self):
-        """Initialize the data service"""
-        try:
-            logger.info("Initializing CloudDataService...")
-            # Initialize database connection pool
-            init_db_pool()
-            logger.info("Database pool initialized successfully")
-            
-            # Cache for transformer IDs
-            self._transformer_ids: Optional[List[str]] = None
-            
-            # Cache for available feeders
-            self._available_feeders: Optional[List[str]] = None
-            
-            # Dataset date range
-            self.min_date = date(2024, 1, 1)
-            self.max_date = date(2024, 6, 28)
-            
-            logger.info(f"CloudDataService initialized with date range: {self.min_date} to {self.max_date}")
-        except Exception as e:
-            logger.error(f"Error initializing CloudDataService: {str(e)}")
-            raise
-
+        """Initialize the service"""
+        self._available_feeders = None
+        self._transformer_options = {}
+        init_db_pool()
+        logger.info("CloudDataService initialized")
+    
     def get_feeder_options(self) -> List[str]:
         """Get list of available feeders"""
         if self._available_feeders is None:
@@ -136,8 +114,8 @@ class CloudDataService:
 
     def get_available_dates(self) -> tuple[date, date]:
         """Get the available date range for data queries"""
-        logger.info(f"Returning date range: {self.min_date} to {self.max_date}")
-        return self.min_date, self.max_date
+        logger.info(f"Returning date range: {date(2024, 1, 1)} to {date(2024, 6, 28)}")
+        return date(2024, 1, 1), date(2024, 6, 28)
 
     def _format_numeric_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Format numeric columns with proper decimal places"""
@@ -145,7 +123,7 @@ class CloudDataService:
             return df
             
         # Apply formatting to each numeric column based on configuration
-        for col, decimals in DECIMAL_PLACES.items():
+        for col, decimals in DECIMAL_PLACES:
             if col in df.columns:
                 df[col] = df[col].round(decimals)
         
