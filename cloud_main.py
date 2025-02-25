@@ -128,10 +128,12 @@ def main():
             create_section_banner("Raw Data")
             
             # Get and display transformer data
-            transformer_data = data_service.get_transformer_data(
-                selected_date,
-                selected_hour,
-                selected_feeder,
+            start_date = selected_date
+            end_date = selected_date
+            transformer_data = data_service.get_transformer_data_range(
+                start_date,
+                end_date,
+                f"Feeder {selected_feeder}",
                 selected_transformer
             )
             if transformer_data is not None:

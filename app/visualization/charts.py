@@ -43,22 +43,30 @@ def display_loading_status(results_df: pd.DataFrame):
         (0, 50, 'Normal', 'rgb(0, 255, 0)')
     ]
     
-    # Plot each category
-    plotted_timestamps = set()  # Track plotted timestamps
+    # First add a line plot for all data to show progression
+    fig.add_trace(go.Scatter(
+        x=df['timestamp'],
+        y=df['loading_percentage'],
+        mode='lines',
+        name='Loading Trend',
+        line=dict(
+            color='rgba(128,128,128,0.3)',
+            width=1
+        ),
+        showlegend=False
+    ))
+    
+    # Then add colored scatter points for each category
     for min_load, max_load, name, color in categories:
-        # Only consider timestamps we haven't plotted yet
-        available_data = df[~df['timestamp'].isin(plotted_timestamps)]
-        
-        # Find points in this category
-        mask = (available_data['loading_percentage'] >= min_load) & (available_data['loading_percentage'] < max_load)
-        category_data = available_data[mask]
+        mask = (df['loading_percentage'] >= min_load) & (df['loading_percentage'] < max_load)
+        category_data = df[mask]
         
         if not category_data.empty:
             # Create hover text
             hover_text = [
                 f"Loading: {row['loading_percentage']:.1f}%<br>" +
                 f"Power: {row['power_kw']:.1f} kW<br>" +
-                f"Time: {row['timestamp']}"
+                f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M')}"
                 for _, row in category_data.iterrows()
             ]
             
@@ -70,21 +78,21 @@ def display_loading_status(results_df: pd.DataFrame):
                 name=name,
                 marker=dict(
                     color=color,
-                    size=6,
+                    size=8,
                     line=dict(
-                        color='rgba(0,0,0,0.5)',
-                        width=0.5
+                        color='rgba(255,255,255,0.8)',
+                        width=1
                     ),
                     opacity=0.8
                 ),
                 text=hover_text,
                 hoverinfo='text'
             ))
-            
-            # Update plotted timestamps
-            plotted_timestamps.update(category_data['timestamp'].tolist())
 
     # Update layout
+    min_time = df['timestamp'].min()
+    max_time = df['timestamp'].max()
+    
     fig.update_layout(
         xaxis_title="Time",
         yaxis_title="Loading Percentage (%)",
@@ -97,16 +105,18 @@ def display_loading_status(results_df: pd.DataFrame):
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
-            tickformat='%Y-%m-%d %H:%M',
+            tickformat='%H:%M',  # Show only hour:minute for cleaner display
             dtick=3600000,  # 1 hour in milliseconds
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
+            range=[min_time, max_time],  # Set range to exactly match data
             rangeslider=dict(visible=False)
         ),
         yaxis=dict(
             gridcolor='rgba(128,128,128,0.1)',
-            showgrid=True
+            showgrid=True,
+            range=[0, max(150, df['loading_percentage'].max() * 1.1)]  # Ensure we see all data plus threshold lines
         ),
         legend=dict(
             yanchor="top",
