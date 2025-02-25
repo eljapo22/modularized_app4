@@ -286,6 +286,13 @@ def display_customer_data(results_df: pd.DataFrame):
         st.warning("No data available for customer visualization.")
         return
 
+    # Display mock coordinates
+    st.markdown("""
+        <div style='padding: 10px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
+            <p style='margin: 0; color: #666666; font-size: 14px'>X: 43.6532° N, Y: 79.3832° W</p>
+        </div>
+    """, unsafe_allow_html=True)
+
     # Power Consumption
     create_colored_banner("Power Consumption")
     df_power = results_df.copy()
