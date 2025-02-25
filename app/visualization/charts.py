@@ -26,12 +26,9 @@ def display_loading_status(results_df: pd.DataFrame):
         st.warning("No data available for loading status chart")
         return
 
-    # Create a copy of the dataframe and ensure proper time handling
+    # Create a copy of the dataframe
     df = results_df.copy()
     df = df.sort_values('timestamp')
-    
-    # Debug info about total data points
-    st.write(f"Total data points: {len(df)}")
     
     # Create the scatter plot
     fig = go.Figure()
@@ -45,55 +42,75 @@ def display_loading_status(results_df: pd.DataFrame):
         (0, 50, 'Normal', 'rgb(0, 255, 0)')
     ]
     
-    # Create masks for each category, ensuring no overlap
-    plotted_timestamps = set()  # Keep track of plotted timestamps
+    # Initialize arrays for the single scatter plot
+    timestamps = []
+    loading_values = []
+    colors = []
+    hover_texts = []
+    categories_list = []
+    
+    # Process each timestamp once, in priority order
+    plotted_timestamps = set()
     
     for min_load, max_load, name, color in categories:
-        # Debug info before filtering
-        st.write(f"\nProcessing {name} category ({min_load}% - {max_load}%):")
-        st.write(f"- Points available before filtering: {len(df[~df['timestamp'].isin(plotted_timestamps)])}")
-        
         # Only consider timestamps we haven't plotted yet
         available_data = df[~df['timestamp'].isin(plotted_timestamps)]
         
-        # For each category, only include points that are strictly within its range
+        # Find points in this category
         mask = (available_data['loading_percentage'] >= min_load) & (available_data['loading_percentage'] < max_load)
         category_data = available_data[mask]
         
-        # Debug info after filtering
-        st.write(f"- Points in this category: {len(category_data)}")
-        if len(category_data) > 0:
-            st.write(f"- Sample point: {category_data['timestamp'].iloc[0]} with loading {category_data['loading_percentage'].iloc[0]:.1f}%")
-        
         if not category_data.empty:
-            # Create hover text for this category's data
+            timestamps.extend(category_data['timestamp'])
+            loading_values.extend(category_data['loading_percentage'])
+            colors.extend([color] * len(category_data))
+            categories_list.extend([name] * len(category_data))
+            
+            # Create hover text for these points
             hover_text = category_data.apply(
                 lambda row: f"Loading: {row['loading_percentage']:.1f}%<br>" +
                            f"Time: {row['timestamp']}", 
                 axis=1
             )
-            
-            fig.add_trace(go.Scatter(
-                x=category_data['timestamp'],
-                y=category_data['loading_percentage'],
-                mode='markers',
-                name=name,
-                marker=dict(
-                    color=color,
-                    size=8,
-                    line=dict(
-                        color='black',
-                        width=1
-                    )
-                ),
-                text=hover_text,
-                hoverinfo='text',
-                showlegend=True
-            ))
+            hover_texts.extend(hover_text)
             
             # Add these timestamps to our plotted set
             plotted_timestamps.update(category_data['timestamp'].tolist())
-            st.write(f"- Total points plotted so far: {len(plotted_timestamps)}")
+    
+    # Create a single scatter plot with all points
+    fig.add_trace(go.Scatter(
+        x=timestamps,
+        y=loading_values,
+        mode='markers',
+        marker=dict(
+            color=colors,
+            size=8,
+            line=dict(
+                color='black',
+                width=1
+            )
+        ),
+        text=hover_texts,
+        hoverinfo='text'
+    ))
+    
+    # Add legend entries manually
+    for _, _, name, color in categories:
+        fig.add_trace(go.Scatter(
+            x=[None],
+            y=[None],
+            mode='markers',
+            name=name,
+            marker=dict(
+                color=color,
+                size=8,
+                line=dict(
+                    color='black',
+                    width=1
+                )
+            ),
+            showlegend=True
+        ))
 
     # Update layout
     fig.update_layout(
@@ -112,7 +129,7 @@ def display_loading_status(results_df: pd.DataFrame):
         )
     )
 
-    # Add threshold lines - only for actual category boundaries
+    # Add threshold lines
     thresholds = [120, 100, 80, 50]  # Define thresholds explicitly
     threshold_colors = ['rgb(255, 0, 0)', 'rgb(255, 165, 0)', 'rgb(255, 255, 0)', 'rgb(147, 112, 219)']
     
@@ -120,7 +137,7 @@ def display_loading_status(results_df: pd.DataFrame):
         fig.add_hline(
             y=threshold,
             line=dict(color=color, width=1, dash="dash"),
-            opacity=0.5  # Make lines slightly transparent
+            opacity=0.5
         )
 
     # Display the plot
