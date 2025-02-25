@@ -1,12 +1,10 @@
 # Standard library imports
 import logging
-import logging.handlers
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
-from typing import Optional, List, Dict, Tuple, Any
-import traceback
+from typing import Optional, List
 import sys
 
 # Third-party imports
