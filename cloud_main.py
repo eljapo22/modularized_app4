@@ -73,17 +73,23 @@ def main():
 
         # Set initial values from alert parameters
         if alert_time:
+            # Parse alert time first
             alert_datetime = datetime.fromisoformat(alert_time)
             initial_hour = alert_datetime.hour
-            initial_date = alert_datetime.date()
-            initial_end_date = initial_date + timedelta(days=30)
             
-            # Override with explicit date range if provided
+            # Use start_date from URL if provided, otherwise use alert time
             if start_date_param:
                 initial_date = datetime.fromisoformat(start_date_param).date()
+            else:
+                initial_date = alert_datetime.date()
+                
+            # Use end_date from URL if provided, otherwise default to 30 days
             if end_date_param:
                 initial_end_date = datetime.fromisoformat(end_date_param).date()
+            else:
+                initial_end_date = initial_date + timedelta(days=30)
         else:
+            # No alert time, use current time
             initial_date = datetime.now().date()
             initial_end_date = initial_date + timedelta(days=30)
             initial_hour = datetime.now().hour

@@ -197,12 +197,12 @@ class CloudAlertService:
         recipient: str = None
     ) -> bool:
         """Check loading conditions and send alert if needed"""
-        logger.info("Starting alert check process...")
-        
         if not self.email_enabled:
-            msg = "Email alerts disabled - Gmail app password not found in secrets.toml"
-            logger.warning(msg)
-            st.warning(f"📧 {msg}")
+            st.warning("⚠️ Email alerts are disabled - no Gmail app password configured")
+            return False
+            
+        if results_df is None or len(results_df) == 0:
+            logger.warning("No data provided for alert check")
             return False
 
         try:
@@ -229,11 +229,21 @@ class CloudAlertService:
                 st.write(f"**Loading:** {alert_point['loading_percentage']:.1f}%")
                 st.write(f"**Time:** {alert_point.name}")
                 
-                # Create deep link
+                # Use alert point time if no explicit alert time
+                if alert_time is None:
+                    alert_time = alert_point.name
+                    
+                # Use alert time for date range if not provided
+                if start_date is None:
+                    start_date = alert_time.date()
+                if end_date is None:
+                    end_date = start_date + timedelta(days=30)
+                
+                # Create deep link with date range
                 deep_link = self._create_deep_link(
                     start_date,
                     end_date,
-                    alert_time or alert_point.name,
+                    alert_time,
                     alert_point['transformer_id']
                 )
                 logger.info(f"Created deep link: {deep_link}")
@@ -255,15 +265,11 @@ class CloudAlertService:
                 msg.attach(MIMEText(html_content, 'html'))
                 
                 # Send the email
-                if self._send_email(msg):
-                    st.success(f"✉️ Alert email sent successfully")
-                    return True
-                else:
-                    st.error(f"❌ Failed to send alert email")
-                    return False
+                self._send_email(msg)
+                st.success("✉️ Alert email sent successfully!")
+                return True
                 
         except Exception as e:
-            error_msg = f"Error in check_and_send_alerts: {str(e)}"
-            logger.error(error_msg)
-            st.error(f"❌ {error_msg}")
+            logger.error(f"Error checking alerts: {str(e)}")
+            st.error(f"❌ Error sending alert email: {str(e)}")
             return False
