@@ -132,7 +132,8 @@ def display_loading_status(results_df: pd.DataFrame):
             dtick=3600000,  # 1 hour in milliseconds
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',  # Light grid lines
-            showgrid=True
+            showgrid=True,
+            rangeslider=dict(visible=False)  # Remove the range slider
         ),
         yaxis=dict(
             gridcolor='rgba(128,128,128,0.1)',  # Light grid lines
