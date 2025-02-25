@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info("Starting cloud application...")
 
-from app.services.services import CloudDataService, CloudAlertService
+from app.services.consolidated import ConsolidatedService
 from app.visualization.charts import display_transformer_dashboard
 from app.utils.performance import log_performance
 
@@ -41,8 +41,7 @@ def main():
     try:
         # Initialize services
         logger.info("Initializing services...")
-        data_service = CloudDataService()
-        alert_service = CloudAlertService()
+        consolidated_service = ConsolidatedService()
         
         # Sidebar for controls
         with st.sidebar:
@@ -63,9 +62,18 @@ def main():
                 max_value=pd.to_datetime("2024-06-28").date()
             )
             
+            # Hour selection
+            st.subheader("Hour Selection")
+            hour = st.number_input(
+                "Hour (0-23)",
+                min_value=0,
+                max_value=23,
+                value=12
+            )
+            
             # Feeder selection
             st.subheader("Feeder Selection")
-            feeders = data_service.get_feeder_options()
+            feeders = consolidated_service.get_feeder_options()
             feeder = st.selectbox(
                 "Select Feeder",
                 options=feeders,
@@ -74,7 +82,7 @@ def main():
             
             # Transformer selection
             st.subheader("Transformer Selection")
-            transformers = data_service.get_load_options(feeder) if feeder else []
+            transformers = consolidated_service.get_load_options(feeder) if feeder else []
             transformer_id = st.selectbox(
                 "Select Transformer",
                 options=transformers,
@@ -86,7 +94,7 @@ def main():
                 st.session_state.search_clicked = True
                 
                 # Get transformer data
-                transformer_data = data_service.get_transformer_data_range(
+                transformer_data = consolidated_service.get_transformer_data_range(
                     start_date=start_date,
                     end_date=end_date,
                     feeder=feeder,
@@ -94,7 +102,7 @@ def main():
                 )
                 
                 # Get customer data
-                customer_data = data_service.get_customer_data(
+                customer_data = consolidated_service.get_customer_data(
                     transformer_id=transformer_id,
                     start_date=start_date,
                     end_date=end_date
@@ -102,7 +110,13 @@ def main():
                 
                 if transformer_data is not None:
                     # Process alerts
-                    alert_service.check_and_send_alerts(transformer_data)
+                    consolidated_service.check_and_send_alerts(
+                        results_df=transformer_data,
+                        start_date=start_date,
+                        end_date=end_date,
+                        hour=hour,
+                        feeder=feeder
+                    )
                     
                     # Store data in session state
                     st.session_state.transformer_data = transformer_data
@@ -124,7 +138,8 @@ def main():
                 st.warning("No transformer data available for the selected criteria.")
     except Exception as e:
         logger.error(f"An error occurred: {e}")
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
+        st.error(f"❌ An error occurred: {str(e)}")
 
 if __name__ == "__main__":
     main()
