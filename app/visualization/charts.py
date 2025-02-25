@@ -31,34 +31,50 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Ensure timestamp is datetime
     df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.set_index('timestamp')
     
-    # Create the data with status column for coloring
-    chart_data = pd.DataFrame()
-    chart_data['timestamp'] = df['timestamp']
-    chart_data['value'] = df['loading_percentage']
+    # Split the loading percentage into different columns based on thresholds
+    chart_data = pd.DataFrame(index=df.index)
+    chart_data['Critical'] = df['loading_percentage'].where(df['loading_percentage'] >= 120)
+    chart_data['Overloaded'] = df['loading_percentage'].where((df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120))
+    chart_data['Warning'] = df['loading_percentage'].where((df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100))
+    chart_data['Pre-Warning'] = df['loading_percentage'].where((df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80))
+    chart_data['Normal'] = df['loading_percentage'].where(df['loading_percentage'] < 50)
     
-    # Add status column for coloring
-    def get_status(value):
-        if value >= 120:
-            return STATUS_COLORS['Critical']
-        elif value >= 100:
-            return STATUS_COLORS['Overloaded']
-        elif value >= 80:
-            return STATUS_COLORS['Warning']
-        elif value >= 50:
-            return STATUS_COLORS['Pre-Warning']
-        else:
-            return STATUS_COLORS['Normal']
+    # Apply custom colors using Streamlit's native color support
+    st.markdown(f"""
+        <style>
+            .stChart > div > div > div > svg g g.traces path {{
+                stroke-width: 2;
+            }}
+            /* Critical line */
+            .stChart > div > div > div > svg g g.traces:nth-child(1) path {{
+                stroke: {STATUS_COLORS['Critical']} !important;  /* Red */
+            }}
+            /* Overloaded line */
+            .stChart > div > div > div > svg g g.traces:nth-child(2) path {{
+                stroke: {STATUS_COLORS['Overloaded']} !important;  /* Orange */
+            }}
+            /* Warning line */
+            .stChart > div > div > div > svg g g.traces:nth-child(3) path {{
+                stroke: {STATUS_COLORS['Warning']} !important;  /* Gold */
+            }}
+            /* Pre-Warning line */
+            .stChart > div > div > div > svg g g.traces:nth-child(4) path {{
+                stroke: {STATUS_COLORS['Pre-Warning']} !important;  /* Purple */
+            }}
+            /* Normal line */
+            .stChart > div > div > div > svg g g.traces:nth-child(5) path {{
+                stroke: {STATUS_COLORS['Normal']} !important;  /* Green */
+            }}
+        </style>
+    """, unsafe_allow_html=True)
     
-    chart_data['status'] = chart_data['value'].apply(get_status)
-    
-    # Create the chart with custom colors
+    # Create the chart
     st.line_chart(
-        data=chart_data,
-        x='timestamp',
-        y='value',
-        color='status',
-        height=400
+        chart_data,
+        height=400,
+        use_container_width=True
     )
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
