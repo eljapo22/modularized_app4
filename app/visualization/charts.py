@@ -30,6 +30,9 @@ def display_loading_status(results_df: pd.DataFrame):
     df = results_df.copy()
     df = df.sort_values('timestamp')
     
+    # Debug info about total data points
+    st.write(f"Total data points: {len(df)}")
+    
     # Create the scatter plot
     fig = go.Figure()
     
@@ -46,12 +49,21 @@ def display_loading_status(results_df: pd.DataFrame):
     plotted_timestamps = set()  # Keep track of plotted timestamps
     
     for min_load, max_load, name, color in categories:
+        # Debug info before filtering
+        st.write(f"\nProcessing {name} category ({min_load}% - {max_load}%):")
+        st.write(f"- Points available before filtering: {len(df[~df['timestamp'].isin(plotted_timestamps)])}")
+        
         # Only consider timestamps we haven't plotted yet
         available_data = df[~df['timestamp'].isin(plotted_timestamps)]
         
-        # Find points in this category
+        # For each category, only include points that are strictly within its range
         mask = (available_data['loading_percentage'] >= min_load) & (available_data['loading_percentage'] < max_load)
         category_data = available_data[mask]
+        
+        # Debug info after filtering
+        st.write(f"- Points in this category: {len(category_data)}")
+        if len(category_data) > 0:
+            st.write(f"- Sample point: {category_data['timestamp'].iloc[0]} with loading {category_data['loading_percentage'].iloc[0]:.1f}%")
         
         if not category_data.empty:
             # Create hover text for this category's data
@@ -81,6 +93,7 @@ def display_loading_status(results_df: pd.DataFrame):
             
             # Add these timestamps to our plotted set
             plotted_timestamps.update(category_data['timestamp'].tolist())
+            st.write(f"- Total points plotted so far: {len(plotted_timestamps)}")
 
     # Update layout
     fig.update_layout(
@@ -95,16 +108,19 @@ def display_loading_status(results_df: pd.DataFrame):
             type='date',
             tickformat='%Y-%m-%d %H:%M',
             dtick=3600000,  # 1 hour in milliseconds
-            tickangle=45,
-            rangeslider=dict(visible=True)
+            tickangle=45
         )
     )
 
-    # Add horizontal threshold lines
-    for threshold, _, _, color in categories[:-1]:
+    # Add threshold lines - only for actual category boundaries
+    thresholds = [120, 100, 80, 50]  # Define thresholds explicitly
+    threshold_colors = ['rgb(255, 0, 0)', 'rgb(255, 165, 0)', 'rgb(255, 255, 0)', 'rgb(147, 112, 219)']
+    
+    for threshold, color in zip(thresholds, threshold_colors):
         fig.add_hline(
             y=threshold,
-            line=dict(color=color, width=1, dash="dash")
+            line=dict(color=color, width=1, dash="dash"),
+            opacity=0.5  # Make lines slightly transparent
         )
 
     # Display the plot
