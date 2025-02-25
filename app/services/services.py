@@ -59,13 +59,13 @@ class CloudDataService:
                 logger.error(f"Invalid feeder number: {feeder_num}")
                 return []
             
-            # Use the correct table name format from TRANSFORMER_TABLE_TEMPLATE
-            table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
+            # Use the correct table name format
+            table = f'"Transformer Feeder {feeder_num}"'
             logger.debug(f"Querying transformer IDs from table: {table}")
             
             try:
                 query = TRANSFORMER_LIST_QUERY.format(table_name=table)
-                results = execute_query(query, (str(feeder_num),))  # Pass feeder number as parameter
+                results = execute_query(query)
                 
                 if results:
                     transformer_ids = [r['transformer_id'] for r in results]
@@ -78,7 +78,7 @@ class CloudDataService:
             except Exception as e:
                 logger.error(f"Database error getting transformer IDs: {str(e)}")
                 # Return a default list of transformers for this feeder
-                default_ids = [f"F{feeder_num}_T{i:03d}" for i in range(1, 11)]
+                default_ids = [f"S1F{feeder_num}ATF{i:03d}" for i in range(1, 11)]
                 logger.info(f"Using default transformer IDs: {default_ids}")
                 return default_ids
                 
