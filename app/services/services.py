@@ -17,7 +17,8 @@ from app.config.database_config import (
     FEEDER_NUMBERS,
     get_transformer_data,
     get_transformer_ids,
-    execute_query
+    execute_query,
+    get_customer_data
 )
 from app.utils.data_validation import validate_transformer_data, analyze_trends
 from app.models.data_models import (
@@ -112,6 +113,45 @@ class CloudDataService:
             
         except Exception as e:
             logger.error(f"Error in get_transformer_data_range: {str(e)}")
+            return pd.DataFrame()
+
+    def get_customer_data(self, start_date: date, end_date: date, feeder: str, transformer_id: str) -> pd.DataFrame:
+        """Get customer data for a specific transformer and date range"""
+        try:
+            # Extract feeder number
+            if isinstance(feeder, str):
+                match = re.search(r'\d+', feeder)
+                if match:
+                    feeder_num = int(match.group())
+                else:
+                    logger.error(f"Could not extract feeder number from: {feeder}")
+                    return pd.DataFrame()
+            elif isinstance(feeder, (int, float)):
+                feeder_num = int(feeder)
+            else:
+                logger.error(f"Invalid feeder type: {type(feeder)}")
+                return pd.DataFrame()
+
+            if feeder_num not in FEEDER_NUMBERS:
+                logger.error(f"Invalid feeder number: Feeder {feeder_num}")
+                return pd.DataFrame()
+            
+            # Get data from database
+            customer_data = get_customer_data(
+                transformer_id=transformer_id,
+                start_date=start_date,
+                end_date=end_date,
+                feeder=feeder_num
+            )
+            
+            if customer_data.empty:
+                logger.warning(f"No customer data found for transformer {transformer_id} on feeder {feeder_num}")
+                return pd.DataFrame()
+            
+            return customer_data
+            
+        except Exception as e:
+            logger.error(f"Error in get_customer_data: {str(e)}")
             return pd.DataFrame()
 
 class CloudAlertService:

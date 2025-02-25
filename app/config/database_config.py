@@ -131,6 +131,28 @@ GROUP BY hours.hour::DATE, c."customer_id"
 ORDER BY hours.hour::DATE, c."customer_id"
 """
 
+CUSTOMER_DATA_QUERY = """
+WITH RECURSIVE hours AS (
+    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
+    UNION ALL
+    SELECT hour + INTERVAL '1 hour'
+    FROM hours
+    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
+)
+SELECT 
+    hours.hour as "timestamp",
+    c."customer_id",
+    CAST(COALESCE(cr."power_kw", LAG(cr."power_kw") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
+    CAST(COALESCE(cr."current_a", LAG(cr."current_a") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
+    CAST(COALESCE(cr."power_factor", LAG(cr."power_factor") OVER (ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
+    c."service_type"
+FROM hours
+LEFT JOIN {customer_table} c ON c."transformer_id" = ?
+LEFT JOIN {reading_table} cr ON cr."customer_id" = c."customer_id" AND cr."timestamp" = hours.hour
+WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
+ORDER BY hours.hour, c."customer_id"
+"""
+
 # Query to get feeder names
 FEEDER_LIST_QUERY = """
 SELECT DISTINCT table_name 
@@ -215,6 +237,47 @@ def get_transformer_data(transformer_id: str, query_date: date, hour: int = None
         logger.error(f"Error getting transformer data: {str(e)}")
         return pd.DataFrame()
 
+def get_transformer_data_range(transformer_id: str, start_date: date, end_date: date, feeder: int = None) -> pd.DataFrame:
+    """Get transformer data for a date range"""
+    try:
+        # Extract feeder number if not provided
+        if feeder is None:
+            try:
+                feeder = int(transformer_id[3])
+            except (IndexError, ValueError):
+                logger.error(f"Could not extract feeder number from transformer ID: {transformer_id}")
+                return pd.DataFrame()
+
+        # Validate feeder number
+        if feeder not in FEEDER_NUMBERS:
+            logger.error(f"Invalid feeder number: Feeder {feeder}")
+            return pd.DataFrame()
+
+        # Get table name
+        table = f'"{TRANSFORMER_TABLE_TEMPLATE.format(feeder)}"'
+        
+        # Execute query with all required parameters
+        query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
+        params = (
+            start_date,  # First timestamp for hours CTE
+            end_date,    # Second timestamp for hours CTE
+            transformer_id,  # For JOIN condition
+            start_date,  # For WHERE clause start
+            end_date     # For WHERE clause end
+        )
+        
+        results = execute_query(query, params)
+        
+        if not results:
+            logger.warning(f"No data found for transformer {transformer_id}")
+            return pd.DataFrame()
+            
+        return pd.DataFrame(results)
+        
+    except Exception as e:
+        logger.error(f"Error getting transformer data: {str(e)}")
+        return pd.DataFrame()
+
 def get_transformer_ids(feeder: int) -> List[str]:
     """Get list of transformer IDs for a specific feeder"""
     try:
@@ -238,6 +301,46 @@ def get_transformer_ids(feeder: int) -> List[str]:
     except Exception as e:
         logger.error(f"Error getting transformer IDs: {str(e)}")
         return []
+
+def get_customer_data(transformer_id: str, start_date: date, end_date: date, feeder: int = None) -> pd.DataFrame:
+    """Get customer data for a specific transformer and date range"""
+    try:
+        # Extract feeder number if not provided
+        if feeder is None:
+            try:
+                feeder = int(transformer_id[3])
+            except (IndexError, ValueError):
+                logger.error(f"Could not extract feeder number from transformer ID: {transformer_id}")
+                return pd.DataFrame()
+
+        # Validate feeder number
+        if feeder not in FEEDER_NUMBERS:
+            logger.error(f"Invalid feeder number: Feeder {feeder}")
+            return pd.DataFrame()
+
+        # Get table names
+        customer_table = f'"{CUSTOMER_TABLE_TEMPLATE.format(feeder)}"'
+        reading_table = f'"Customer Reading Feeder {feeder}"'
+        
+        # Execute query with all required parameters
+        query = CUSTOMER_DATA_QUERY.format(customer_table=customer_table, reading_table=reading_table)
+        params = (
+            transformer_id,  # For customer table JOIN
+            start_date,  # For WHERE clause start
+            end_date     # For WHERE clause end
+        )
+        
+        results = execute_query(query, params)
+        
+        if not results:
+            logger.warning(f"No customer data found for transformer {transformer_id}")
+            return pd.DataFrame()
+            
+        return pd.DataFrame(results)
+        
+    except Exception as e:
+        logger.error(f"Error getting customer data: {str(e)}")
+        return pd.DataFrame()
 
 # Initialize database connection pool
 init_db_pool()
