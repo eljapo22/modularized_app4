@@ -65,6 +65,34 @@ def execute_query(query: str, params: Optional[tuple] = None) -> pd.DataFrame:
         logger.error(f"Connection error: {str(e)}")
         return pd.DataFrame()
 
+# Adding back the original query function that returns a list of dictionaries
+def query_data(query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
+    """Execute a query and return results as a list of dictionaries"""
+    global _connection_pool
+    try:
+        if _connection_pool is None:
+            init_db_pool()
+
+        # Execute query with parameters
+        try:
+            if params:
+                result = _connection_pool.execute(query, params).fetchdf()
+            else:
+                result = _connection_pool.execute(query).fetchdf()
+
+            # Convert to list of dictionaries
+            return result.to_dict('records')
+        except duckdb.Error as e:
+            logger.error(f"DuckDB error executing query: {str(e)}")
+            logger.error(f"Query: {query}")
+            logger.error(f"Parameters: {params}")
+            raise
+    except Exception as e:
+        logger.error(f"Error executing query: {str(e)}")
+        logger.error(f"Query: {query}")
+        logger.error(f"Parameters: {params}")
+        raise
+
 def close_pool():
     """Close the database connection pool"""
     global _connection_pool
