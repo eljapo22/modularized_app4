@@ -287,11 +287,7 @@ def display_customer_data(results_df: pd.DataFrame):
         return
 
     # Power Consumption
-    st.markdown("""
-        <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-            <h3 style='margin: 0px; color: #262626; font-size: 18px'>Power Consumption</h3>
-        </div>
-    """, unsafe_allow_html=True)
+    create_colored_banner("Power Consumption")
     df_power = results_df.copy()
     df_power['timestamp'] = pd.to_datetime(df_power['timestamp'])
     df_power = df_power.sort_values('timestamp')  # Sort by timestamp
@@ -302,11 +298,7 @@ def display_customer_data(results_df: pd.DataFrame):
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("""
-            <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-                <h3 style='margin: 0px; color: #262626; font-size: 18px'>Current</h3>
-            </div>
-        """, unsafe_allow_html=True)
+        create_colored_banner("Current")
         df_current = results_df.copy()
         df_current['timestamp'] = pd.to_datetime(df_current['timestamp'])
         df_current = df_current.sort_values('timestamp')  # Sort by timestamp
@@ -314,11 +306,7 @@ def display_customer_data(results_df: pd.DataFrame):
         st.line_chart(df_current['current_a'])
         
     with col2:
-        st.markdown("""
-            <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-                <h3 style='margin: 0px; color: #262626; font-size: 18px'>Voltage</h3>
-            </div>
-        """, unsafe_allow_html=True)
+        create_colored_banner("Voltage")
         df_voltage = results_df.copy()
         df_voltage['timestamp'] = pd.to_datetime(df_voltage['timestamp'])
         df_voltage = df_voltage.sort_values('timestamp')  # Sort by timestamp
