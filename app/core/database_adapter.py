@@ -54,11 +54,23 @@ class DatabaseAdapter:
     def get_transformer_data(self, transformer_id: str, date_str: str) -> pd.DataFrame:
         """Get transformer data from specific feeder"""
         try:
-            # Extract feeder number from transformer ID (e.g., S1F1ATF001 -> 1)
-            feeder = int(transformer_id[3])  # Position 3 is the feeder number
+            logger.info(f"Getting transformer data for {transformer_id} on {date_str}")
+            
+            # Better feeder number extraction with fallback
+            feeder_num = 1  # Default to feeder 1
+            try:
+                if isinstance(transformer_id, str) and len(transformer_id) > 3:
+                    # Try to get feeder number from 4th character in ID (e.g., S1F1ATF001)
+                    feeder_chars = [c for c in transformer_id if c.isdigit()]
+                    if feeder_chars:
+                        feeder_num = int(feeder_chars[0])
+                    else:
+                        logger.warning(f"Could not extract feeder number from transformer ID: {transformer_id}")
+            except Exception as e:
+                logger.warning(f"Feeder number extraction failed: {str(e)}")
             
             # Use correct table name with quotes
-            table_name = f'"Transformer Feeder {feeder}"'
+            table_name = f'"Transformer Feeder {feeder_num}"'
             
             query = f"""
             SELECT 
@@ -74,7 +86,7 @@ class DatabaseAdapter:
                 load_range
             FROM {table_name}
             WHERE transformer_id = ?
-            AND DATE(timestamp) = DATE(?)
+            AND timestamp::DATE = ?::DATE
             """
             
             result = self.query_data(query, [transformer_id, date_str])
@@ -96,12 +108,26 @@ class DatabaseAdapter:
     def get_customer_data(self, customer_id: str, date_str: str) -> pd.DataFrame:
         """Get customer data for a specific date"""
         try:
-            # Extract feeder from customer ID (format matches transformer ID pattern)
-            transformer_id = customer_id.split('C')[0]  # Get transformer part of customer ID
-            feeder = int(transformer_id[3])  # Same position as in transformer ID
+            logger.info(f"Getting customer data for {customer_id} on {date_str}")
+            
+            # Better feeder number extraction with fallback
+            feeder_num = 1  # Default to feeder 1
+            try:
+                # Extract feeder from customer ID 
+                if isinstance(customer_id, str):
+                    # Try to get the transformer part (if customer ID format contains transformer ID)
+                    transformer_id = customer_id.split('C')[0] if 'C' in customer_id else customer_id
+                    # Try to get feeder number from digits in ID
+                    feeder_chars = [c for c in transformer_id if c.isdigit()]
+                    if feeder_chars:
+                        feeder_num = int(feeder_chars[0])
+                    else:
+                        logger.warning(f"Could not extract feeder number from ID: {customer_id}")
+            except Exception as e:
+                logger.warning(f"Feeder number extraction failed: {str(e)}")
             
             # Use correct table name with quotes
-            table_name = f'"Customer Feeder {feeder}"'
+            table_name = f'"Customer Feeder {feeder_num}"'
             
             query = f"""
             SELECT 
@@ -115,7 +141,7 @@ class DatabaseAdapter:
                 voltage_v
             FROM {table_name}
             WHERE customer_id = ?
-            AND DATE(timestamp) = DATE(?)
+            AND timestamp::DATE = ?::DATE
             """
             
             result = self.query_data(query, [customer_id, date_str])

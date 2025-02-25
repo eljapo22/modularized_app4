@@ -45,6 +45,10 @@ def execute_query(query: str, params: Optional[tuple] = None) -> pd.DataFrame:
         if connection is None:
             logger.error("Database connection is None")
             return pd.DataFrame()
+        
+        # Debug log the query and params
+        logger.debug(f"Executing query: {query}")
+        logger.debug(f"With parameters: {params}")
             
         # Execute query with parameters
         try:
@@ -53,6 +57,10 @@ def execute_query(query: str, params: Optional[tuple] = None) -> pd.DataFrame:
             else:
                 result = connection.execute(query).fetchdf()
 
+            # Log the result size
+            row_count = 0 if result.empty else len(result)
+            logger.debug(f"Query returned {row_count} rows")
+            
             return result if not result.empty else pd.DataFrame()
                 
         except Exception as e:
@@ -66,12 +74,16 @@ def execute_query(query: str, params: Optional[tuple] = None) -> pd.DataFrame:
         return pd.DataFrame()
 
 # Adding back the original query function that returns a list of dictionaries
-def query_data(query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
+def query_data(query: str, params: Optional[List] = None) -> List[Dict[str, Any]]:
     """Execute a query and return results as a list of dictionaries"""
     global _connection_pool
     try:
         if _connection_pool is None:
             init_db_pool()
+
+        # Debug log
+        logger.debug(f"query_data - Executing query: {query}")
+        logger.debug(f"query_data - With parameters: {params}")
 
         # Execute query with parameters
         try:
@@ -81,17 +93,24 @@ def query_data(query: str, params: Optional[tuple] = None) -> List[Dict[str, Any
                 result = _connection_pool.execute(query).fetchdf()
 
             # Convert to list of dictionaries
-            return result.to_dict('records')
-        except duckdb.Error as e:
-            logger.error(f"DuckDB error executing query: {str(e)}")
-            logger.error(f"Query: {query}")
-            logger.error(f"Parameters: {params}")
-            raise
+            if result is not None and not result.empty:
+                # Log success
+                logger.debug(f"query_data - Query returned {len(result)} rows")
+                records = result.to_dict(orient='records')
+                return records
+            else:
+                logger.debug("query_data - Query returned no results")
+                return []
+
+        except Exception as e:
+            logger.error(f"query_data - Query execution error: {str(e)}")
+            logger.error(f"query_data - Query: {query}")
+            logger.error(f"query_data - Parameters: {params}")
+            return []
+
     except Exception as e:
-        logger.error(f"Error executing query: {str(e)}")
-        logger.error(f"Query: {query}")
-        logger.error(f"Parameters: {params}")
-        raise
+        logger.error(f"query_data - Connection pool error: {str(e)}")
+        return []
 
 def close_pool():
     """Close the database connection pool"""

@@ -76,12 +76,17 @@ class CloudDataService:
     def get_transformer_options(self, feeder_id: str) -> List[str]:
         """Get list of transformers for a specific feeder"""
         try:
-            feeder_num = feeder_id.split()[-1] if isinstance(feeder_id, str) and 'Feeder' in feeder_id else 1
-            # Convert to int
-            try:
-                feeder_num = int(feeder_num)
-            except:
-                feeder_num = 1
+            logger.info(f"Retrieving transformer options for feeder {feeder_id}")
+            
+            # Better feeder number extraction with fallback
+            feeder_num = 1  # Default to feeder 1
+            if isinstance(feeder_id, str):
+                # Try to extract number from strings like "Feeder 1"
+                parts = feeder_id.split()
+                if len(parts) > 1 and parts[-1].isdigit():
+                    feeder_num = int(parts[-1])
+                else:
+                    logger.warning(f"Could not extract feeder number from '{feeder_id}', using default feeder 1")
              
             # Use correct table name with quotes   
             table_name = f'"Transformer Feeder {feeder_num}"'
@@ -118,14 +123,20 @@ class CloudDataService:
     def get_customer_options(self, transformer_id: str) -> List[str]:
         """Get list of customers for a specific transformer"""
         try:
-            # First try to extract feeder number from transformer_id
+            logger.info(f"Retrieving customer options for transformer {transformer_id}")
+            
+            # Better feeder number extraction with fallback
+            feeder_num = 1  # Default to feeder 1
             try:
-                if transformer_id and len(transformer_id) >= 4:
-                    feeder_num = int(transformer_id[3])  # Extract feeder number from ID like S1F1ATF001
-                else:
-                    feeder_num = 1
-            except:
-                feeder_num = 1
+                if isinstance(transformer_id, str) and len(transformer_id) > 3:
+                    # Try to get feeder number from 4th character in ID (e.g., S1F1ATF001)
+                    feeder_chars = [c for c in transformer_id if c.isdigit()]
+                    if feeder_chars:
+                        feeder_num = int(feeder_chars[0])
+                    else:
+                        logger.warning(f"Could not extract feeder number from transformer ID: {transformer_id}")
+            except Exception as e:
+                logger.warning(f"Feeder number extraction failed: {str(e)}")
             
             # Use correct table name with quotes
             table_name = f'"Customer Feeder {feeder_num}"'
@@ -177,10 +188,17 @@ class CloudDataService:
     ) -> Optional[pd.DataFrame]:
         """Get transformer data for a date range."""
         try:
-            logger.info(f"Fetching transformer data from {start_date} to {end_date}")
+            logger.info(f"Fetching transformer data from {start_date} to {end_date} for feeder {feeder}")
             
-            # Extract feeder number
-            feeder_num = int(feeder.split()[-1]) if isinstance(feeder, str) and 'Feeder' in feeder else 1
+            # Better feeder number extraction with fallback
+            feeder_num = 1  # Default to feeder 1
+            if isinstance(feeder, str):
+                # Try to extract number from strings like "Feeder 1"
+                parts = feeder.split()
+                if len(parts) > 1 and parts[-1].isdigit():
+                    feeder_num = int(parts[-1])
+                else:
+                    logger.warning(f"Could not extract feeder number from '{feeder}', using default feeder 1")
             
             # Use correct table name with quotes
             table_name = f'"Transformer Feeder {feeder_num}"'
@@ -199,7 +217,7 @@ class CloudDataService:
                 CAST(power_kva AS DECIMAL(5,2)) as power_kva,
                 CAST(power_factor AS DECIMAL(4,3)) as power_factor
             FROM {table_name}
-            WHERE DATE(timestamp) BETWEEN ? AND ?
+            WHERE timestamp::DATE BETWEEN ?::DATE AND ?::DATE
             """
             
             params = [start_date, end_date]
@@ -214,8 +232,11 @@ class CloudDataService:
             # Execute query
             results = execute_query(query, tuple(params))
             
+            # Handle empty results
             if results is None or results.empty:
-                logger.warning("No transformer data found")
+                logger.warning(f"No data found for query against {table_name}")
+                logger.debug(f"Query: {query}")
+                logger.debug(f"Parameters: {params}")
                 return None
                 
             # Process data
