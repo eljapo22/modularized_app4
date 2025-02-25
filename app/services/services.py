@@ -193,63 +193,63 @@ class CloudAlertService:
 
     def _create_deep_link(self, start_date: date, end_date: date, transformer_id: str, hour: int = None, feeder: int = None) -> str:
         """Create deep link back to app with context"""
+        # Ensure we have both dates
+        if not end_date:
+            end_date = start_date
+            
+        # Format dates as ISO format for URL
         params = {
-            'start_date': start_date.strftime('%Y-%m-%d'),
-            'end_date': end_date.strftime('%Y-%m-%d') if end_date else None,
-            'transformer_id': transformer_id,
-            'hour': hour,
-            'feeder': feeder
+            'start_date': start_date.isoformat(),
+            'end_date': end_date.isoformat(),
+            'transformer_id': transformer_id
         }
         
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
+        # Add hour if specified
+        if hour is not None:
+            params['hour'] = str(hour)
+            
+        # Add feeder if specified
+        if feeder is not None:
+            params['feeder'] = str(feeder)
         
-        # Create query string
+        # Create query string with URL encoding
         query = '&'.join([f"{k}={v}" for k, v in params.items()])
         
         return f"{self.app_url}?{query}"
 
     def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
         """Create HTML content for alert email"""
-        timestamp = data['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+        timestamp = data['timestamp'].strftime('%Y-%m-%d %H:%M')
         
         html = f"""
         <html>
-        <body style="font-family: Arial, sans-serif;">
-            <h2 style="color: #333;">Transformer Loading Alert</h2>
-            <p>This is an automated alert from the Transformer Loading Analysis System.</p>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #333;">Transformer Loading Alert ⚡</h2>
             
-            <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
-                <tr>
-                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Attribute</th>
-                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Value</th>
-                </tr>
-                <tr>
-                    <td style="padding: 12px; border: 1px solid #ddd;">Transformer ID</td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{data['transformer_id']}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 12px; border: 1px solid #ddd;">Status</td>
-                    <td style="padding: 12px; border: 1px solid #ddd; color: {color};">{status}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 12px; border: 1px solid #ddd;">Loading Percentage</td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{data['loading_percentage']:.2f}%</td>
-                </tr>
-                <tr>
-                    <td style="padding: 12px; border: 1px solid #ddd;">Power (kW)</td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{data['power_kw']:.2f}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 12px; border: 1px solid #ddd;">Timestamp</td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{timestamp}</td>
-                </tr>
-            </table>
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                <p style="color: {color}; font-weight: bold; margin: 0;">Status: {status}</p>
+                <p style="margin: 10px 0;">Transformer: {data['transformer_id']}</p>
+                <p style="margin: 10px 0;">Loading: {data['loading_percentage']:.1f}%</p>
+                <p style="margin: 10px 0;">Alert Time: {timestamp}</p>
+            </div>
             
-            <p>Click here to view detailed analysis: <a href="{deep_link}">View in Dashboard</a></p>
+            <div style="margin: 20px 0;">
+                <h3 style="color: #333;">Detailed Readings:</h3>
+                <ul style="list-style-type: none; padding: 0;">
+                    <li>Power: {data['power_kw']:.1f} kW</li>
+                    <li>Current: {data['current_a']:.1f} A</li>
+                    <li>Voltage: {data.get('voltage_v', 'N/A')} V</li>
+                    <li>Power Factor: {data.get('power_factor', 'N/A'):.2f}</li>
+                </ul>
+            </div>
             
-            <p style="color: #666; font-size: 12px;">
-                This is an automated message. Please do not reply to this email.
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{deep_link}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Loading History</a>
+            </div>
+            
+            <p style="color: #666; font-size: 12px; text-align: center;">
+                This is an automated alert from your Transformer Loading Analysis System.<br>
+                Click the button above to view the loading history leading up to this alert.
             </p>
         </body>
         </html>

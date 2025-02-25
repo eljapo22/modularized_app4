@@ -124,8 +124,7 @@ SELECT
     c."customer_id",
     CAST(cr."power_kw" AS DECIMAL(5,2)) as "power_kw",
     CAST(cr."current_a" AS DECIMAL(5,2)) as "current_a",
-    CAST(cr."power_factor" AS DECIMAL(4,3)) as "power_factor",
-    c."service_type"
+    CAST(cr."power_factor" AS DECIMAL(4,3)) as "power_factor"
 FROM {customer_table} c
 LEFT JOIN {reading_table} cr ON cr."customer_id" = c."customer_id"
 WHERE c."transformer_id" = ?
