@@ -29,101 +29,110 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create a copy and ensure timestamp handling
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.sort_values('timestamp')  # Ensure data is sorted by time
+    
+    # Round loading percentages to 1 decimal place for consistent display
+    df['loading_percentage'] = df['loading_percentage'].round(1)
     
     # Create the scatter plot
     fig = go.Figure()
     
-    # Categorize points based on loading percentage
-    df['category'] = 'Normal'
-    df.loc[df['loading_percentage'] >= 120, 'category'] = 'Critical'
-    df.loc[(df['loading_percentage'] >= 100) & (df['loading_percentage'] < 120), 'category'] = 'Overloaded'
-    df.loc[(df['loading_percentage'] >= 80) & (df['loading_percentage'] < 100), 'category'] = 'Warning'
-    df.loc[(df['loading_percentage'] >= 50) & (df['loading_percentage'] < 80), 'category'] = 'Pre-Warning'
-    
-    # Define colors for each category
-    colors = {
-        'Critical': 'rgb(255, 0, 0)',      # Red
-        'Overloaded': 'rgb(255, 140, 0)',  # Orange
-        'Warning': 'rgb(255, 255, 0)',     # Yellow
-        'Pre-Warning': 'rgb(147, 112, 219)', # Purple
-        'Normal': 'rgb(0, 255, 0)'         # Green
-    }
+    # Define the categories and their thresholds
+    categories = [
+        ('Critical', 120, float('inf'), 'rgb(255, 0, 0)'),      # Red
+        ('Overloaded', 100, 120, 'rgb(255, 140, 0)'),  # Orange
+        ('Warning', 80, 100, 'rgb(255, 255, 0)'),     # Yellow
+        ('Pre-Warning', 50, 80, 'rgb(147, 112, 219)'), # Purple
+        ('Normal', -float('inf'), 50, 'rgb(0, 255, 0)')         # Green
+    ]
     
     # Add scatter plot for each category
-    for category in ['Critical', 'Overloaded', 'Warning', 'Pre-Warning', 'Normal']:
-        mask = df['category'] == category
+    for category, min_val, max_val, color in categories:
+        mask = (df['loading_percentage'] >= min_val) & (df['loading_percentage'] < max_val)
         category_data = df[mask]
         
-        # Create hover text
-        hover_text = [
-            f"Loading: {row['loading_percentage']:.1f}%<br>" +
-            f"Power: {row['power_kw']:.1f} kW<br>" +
-            f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M')}"
-            for _, row in category_data.iterrows()
-        ]
-        
-        # Add scatter plot
-        fig.add_trace(go.Scatter(
-            x=category_data['timestamp'],
-            y=category_data['loading_percentage'],
-            mode='markers',
-            name=f"{category} ({len(category_data)} points)",
-            marker=dict(
-                color=colors[category],
-                size=10,
-                line=dict(color='white', width=1)
-            ),
-            text=hover_text,
-            hoverinfo='text'
-        ))
+        if len(category_data) > 0:  # Only add trace if we have data
+            hover_text = [
+                f"Loading: {row['loading_percentage']}%<br>" +
+                f"Power: {row['power_kw']:.1f} kW<br>" +
+                f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M')}"
+                for _, row in category_data.iterrows()
+            ]
+            
+            fig.add_trace(go.Scatter(
+                x=category_data['timestamp'],
+                y=category_data['loading_percentage'],
+                mode='markers',
+                name=f"{category} ({len(category_data)} points)",
+                marker=dict(
+                    color=color,
+                    size=8,
+                    line=dict(color='white', width=1)
+                ),
+                text=hover_text,
+                hoverinfo='text'
+            ))
+            
+            # Add threshold line (except for Normal category which is the baseline)
+            if category != 'Normal':
+                fig.add_hline(
+                    y=min_val,
+                    line=dict(
+                        color=color,
+                        width=1,
+                        dash="dash"
+                    ),
+                    opacity=0.5,
+                    annotation=dict(
+                        text=f"{category} ≥ {min_val}%",
+                        align='left',
+                        showarrow=False,
+                        xref='paper',
+                        x=1.02,
+                        y=min_val
+                    )
+                )
     
     # Update layout
     fig.update_layout(
-        title="Loading Status",
-        xaxis_title="Time",
-        yaxis_title="Loading Percentage (%)",
+        title=dict(
+            text="Transformer Loading Status",
+            x=0.5,
+            y=0.95
+        ),
         showlegend=True,
-        height=400,
+        height=500,  # Slightly taller for better readability
         template="plotly_white",
-        margin=dict(l=40, r=10, t=40, b=60),
+        margin=dict(l=50, r=150, t=50, b=50),  # Increased right margin for threshold annotations
         plot_bgcolor='white',
         xaxis=dict(
+            title="Time",
             type='date',
-            tickformat='%Y-%m-%d',
-            dtick='D2',
+            tickformat='%Y-%m-%d\n%H:%M',  # Include time in tick labels
+            dtick='D1',  # Show every day
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',
-            showgrid=True
+            showgrid=True,
+            rangeslider=dict(visible=False)
         ),
         yaxis=dict(
+            title="Loading Percentage (%)",
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
             range=[0, max(150, df['loading_percentage'].max() * 1.1)],
-            dtick=20
+            dtick=20,
+            ticksuffix="%"  # Add % to y-axis labels
         ),
         legend=dict(
             yanchor="top",
             y=0.99,
-            xanchor="right",
-            x=0.99,
+            xanchor="left",
+            x=0.01,
             bgcolor='rgba(255,255,255,0.9)',
             bordercolor='rgba(128,128,128,0.3)',
             borderwidth=1
         )
     )
-    
-    # Add threshold lines
-    thresholds = [(120, 'Critical'), (100, 'Overloaded'), (80, 'Warning'), (50, 'Pre-Warning')]
-    for threshold, category in thresholds:
-        fig.add_hline(
-            y=threshold,
-            line=dict(
-                color=colors[category],
-                width=1,
-                dash="dash"
-            ),
-            opacity=0.5
-        )
     
     # Display the plot
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
