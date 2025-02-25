@@ -6,6 +6,7 @@ import logging
 import duckdb
 from typing import List, Dict, Any, Optional
 import streamlit as st
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -34,32 +35,35 @@ def init_db_pool():
         logger.error(f"Error initializing database pool: {str(e)}")
         raise
 
-def execute_query(query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
-    """Execute a query and return results as a list of dictionaries"""
-    global _connection_pool
+def execute_query(query: str, params: Optional[tuple] = None) -> pd.DataFrame:
+    """Execute a query and return results as a pandas DataFrame"""
     try:
-        if _connection_pool is None:
-            init_db_pool()
-
+        # Get database connection
+        from app.core.database import get_database_connection
+        connection = get_database_connection()
+        
+        if connection is None:
+            logger.error("Database connection is None")
+            return pd.DataFrame()
+            
         # Execute query with parameters
         try:
             if params:
-                result = _connection_pool.execute(query, params).fetchdf()
+                result = connection.execute(query, params).fetchdf()
             else:
-                result = _connection_pool.execute(query).fetchdf()
+                result = connection.execute(query).fetchdf()
 
-            # Convert to list of dictionaries
-            return result.to_dict('records')
-        except duckdb.Error as e:
-            logger.error(f"DuckDB error executing query: {str(e)}")
+            return result if not result.empty else pd.DataFrame()
+                
+        except Exception as e:
+            logger.error(f"Query execution error: {str(e)}")
             logger.error(f"Query: {query}")
             logger.error(f"Parameters: {params}")
-            raise
+            return pd.DataFrame()
+            
     except Exception as e:
-        logger.error(f"Error executing query: {str(e)}")
-        logger.error(f"Query: {query}")
-        logger.error(f"Parameters: {params}")
-        raise
+        logger.error(f"Connection error: {str(e)}")
+        return pd.DataFrame()
 
 def close_pool():
     """Close the database connection pool"""

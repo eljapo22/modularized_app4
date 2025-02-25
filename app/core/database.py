@@ -30,22 +30,15 @@ def get_database_connection():
             st.error("MotherDuck token not found in secrets")
             return None
             
-        # Set token in environment as recommended by MotherDuck
-        os.environ["motherduck_token"] = token
-        
-        # Create connection and load extension
-        con = duckdb.connect(':memory:')
-        con.execute("INSTALL motherduck")
-        con.execute("LOAD motherduck")
-        
-        # Attach MotherDuck database
-        con.execute("ATTACH 'md:ModApp4DB' as motherduck")
-        con.execute("USE motherduck")
+        # Create direct connection to MotherDuck
+        # Note: Avoid using aliases as they're not supported
+        con = duckdb.connect(f'md:?motherduck_token={token}')
         
         # Configure connection
         con.execute("SET enable_progress_bar=false")
         con.execute("SET errors_as_json=true")
         
+        # Log success
         logger.info("Successfully connected to MotherDuck database")
         return con
     except Exception as e:

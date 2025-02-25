@@ -5,8 +5,9 @@ Data service implementation for MotherDuck
 import pandas as pd
 from datetime import datetime, date, timedelta
 import logging
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from app.core.database_adapter import DatabaseAdapter
+from app.utils.db_utils import execute_query
 
 logger = logging.getLogger(__name__)
 
@@ -43,29 +44,34 @@ class CloudDataService:
     def get_feeder_options(self) -> List[str]:
         """Get list of available feeders"""
         try:
-            query = """
-            SELECT DISTINCT 
-                SUBSTRING(transformer_id, 1, 4) as feeder_id 
-            FROM transformer_feeder_1
-            UNION
-            SELECT DISTINCT 
-                SUBSTRING(transformer_id, 1, 4) as feeder_id 
-            FROM transformer_feeder_2
-            UNION
-            SELECT DISTINCT 
-                SUBSTRING(transformer_id, 1, 4) as feeder_id 
-            FROM transformer_feeder_3
-            UNION
-            SELECT DISTINCT 
-                SUBSTRING(transformer_id, 1, 4) as feeder_id 
-            FROM transformer_feeder_4
-            ORDER BY feeder_id
-            """
-            result = self.db.query_data(query)
-            return result['feeder_id'].tolist()
+            logger.info("Retrieving feeder options...")
+            
+            # Hardcoded feeders as fallback
+            feeders = ["Feeder 1", "Feeder 2", "Feeder 3", "Feeder 4"]
+            
+            try:
+                # Try to query database
+                query = """
+                SELECT DISTINCT 
+                    'Feeder ' || SUBSTRING(table_name, 19, 1) as feeder
+                FROM information_schema.tables 
+                WHERE table_schema = 'main'
+                AND table_name LIKE 'transformer_feeder_%'
+                ORDER BY feeder
+                """
+                
+                result = execute_query(query)
+                if result is not None and not result.empty:
+                    feeders = result['feeder'].tolist()
+            except Exception as e:
+                logger.warning(f"Using fallback feeders due to error: {str(e)}")
+                
+            logger.info(f"Found feeders: {feeders}")
+            return feeders
+            
         except Exception as e:
             logger.error(f"Error getting feeder options: {str(e)}")
-            return []
+            return ["Feeder 1"]  # Return at least one default feeder
             
     def get_transformer_options(self, feeder_id: str) -> List[str]:
         """Get list of transformers for a specific feeder"""
@@ -98,3 +104,70 @@ class CloudDataService:
         except Exception as e:
             logger.error(f"Error getting customer options: {str(e)}")
             return []
+
+    def get_available_dates(self) -> Tuple[date, date]:
+        """Get the available date range for data queries"""
+        try:
+            # You could query this from the database, but using constants for simplicity
+            return date(2024, 1, 1), date(2024, 6, 30)
+        except Exception as e:
+            logger.error(f"Error getting available dates: {str(e)}")
+            return date(2024, 1, 1), date(2024, 6, 30)
+            
+    def get_transformer_data_range(
+        self, 
+        start_date: date,
+        end_date: date,
+        feeder: str,
+        transformer_id: str = None
+    ) -> Optional[pd.DataFrame]:
+        """Get transformer data for a date range."""
+        try:
+            logger.info(f"Fetching transformer data from {start_date} to {end_date}")
+            
+            # Extract feeder number
+            feeder_num = int(feeder.split()[-1]) if isinstance(feeder, str) and 'Feeder' in feeder else 1
+            
+            # Build query
+            query = f"""
+            SELECT 
+                timestamp,
+                transformer_id,
+                CAST(size_kva AS DECIMAL(5,1)) as size_kva,
+                load_range,
+                CAST(loading_percentage AS DECIMAL(5,2)) as loading_percentage,
+                CAST(current_a AS DECIMAL(6,2)) as current_a,
+                CAST(voltage_v AS INTEGER) as voltage_v,
+                CAST(power_kw AS DECIMAL(5,2)) as power_kw,
+                CAST(power_kva AS DECIMAL(5,2)) as power_kva,
+                CAST(power_factor AS DECIMAL(4,3)) as power_factor
+            FROM transformer_feeder_{feeder_num}
+            WHERE DATE(timestamp) BETWEEN ? AND ?
+            """
+            
+            params = [start_date, end_date]
+            
+            # Add transformer filter if provided
+            if transformer_id:
+                query += " AND transformer_id = ?"
+                params.append(transformer_id)
+                
+            query += " ORDER BY timestamp"
+            
+            # Execute query
+            results = execute_query(query, tuple(params))
+            
+            if results is None or results.empty:
+                logger.warning("No transformer data found")
+                return None
+                
+            # Process data
+            results['timestamp'] = pd.to_datetime(results['timestamp'])
+            results.set_index('timestamp', inplace=True)
+            
+            logger.info(f"Retrieved {len(results)} records")
+            return results
+                
+        except Exception as e:
+            logger.error(f"Error in get_transformer_data_range: {str(e)}")
+            return None

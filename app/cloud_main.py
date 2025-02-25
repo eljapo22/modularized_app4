@@ -5,7 +5,7 @@ Uses app.-prefixed imports required by Streamlit Cloud
 import streamlit as st
 import logging
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
@@ -23,9 +23,26 @@ def main():
     
     st.title("Transformer Loading Analysis")
     
-    # Initialize services
-    data_service = CloudDataService()
-    alert_service = CloudAlertService()
+    # Initialize services with error handling
+    try:
+        data_service = CloudDataService()
+    except Exception as e:
+        st.error(f"Error initializing services: {str(e)}")
+        data_service = CloudDataService()  # Try again
+    
+    try:
+        alert_service = CloudAlertService()
+    except Exception as e:
+        st.error(f"Error initializing alert service: {str(e)}")
+        logger.error(f"Alert service initialization error: {str(e)}")
+    
+    # Get available date range with fallback
+    try:
+        min_date, max_date = data_service.get_available_dates()
+    except Exception as e:
+        logger.error(f"Error getting date range: {str(e)}")
+        min_date = date(2024, 1, 1)
+        max_date = date(2024, 6, 30)
     
     # Sidebar for controls
     with st.sidebar:
@@ -35,20 +52,29 @@ def main():
         st.subheader("Date Range")
         start_date = st.date_input(
             "Start Date",
-            value=pd.to_datetime("2024-01-01").date(),
-            min_value=pd.to_datetime("2024-01-01").date(),
-            max_value=pd.to_datetime("2024-06-28").date()
+            value=min_date,
+            min_value=min_date,
+            max_value=max_date
         )
         end_date = st.date_input(
             "End Date",
-            value=pd.to_datetime("2024-06-28").date(),
-            min_value=pd.to_datetime("2024-01-01").date(),
-            max_value=pd.to_datetime("2024-06-28").date()
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date
         )
         
         # Feeder selection
         st.subheader("Feeder Selection")
-        feeders = data_service.get_feeder_options()
+        try:
+            feeders = data_service.get_feeder_options()
+            if not feeders:
+                st.warning("No feeders found. Using default.")
+                feeders = ["Feeder 1"]
+        except Exception as e:
+            logger.error(f"Error loading feeders: {str(e)}")
+            feeders = ["Feeder 1"]
+            st.warning("Error loading feeders. Using default.")
+        
         feeder = st.selectbox(
             "Select Feeder",
             options=feeders,
@@ -57,7 +83,15 @@ def main():
         
         # Transformer selection
         st.subheader("Transformer Selection")
-        transformers = data_service.get_load_options(feeder) if feeder else []
+        try:
+            transformers = data_service.get_transformer_options(feeder) if feeder else []
+            if not transformers:
+                st.warning(f"No transformers found for {feeder}. Try another feeder.")
+        except Exception as e:
+            logger.error(f"Error loading transformers: {str(e)}")
+            transformers = []
+            st.warning("Error loading transformers.")
+            
         transformer_id = st.selectbox(
             "Select Transformer",
             options=transformers,
@@ -73,41 +107,59 @@ def main():
             
             st.session_state.search_clicked = True
             
-            # Get transformer data
-            transformer_data = data_service.get_transformer_data_range(
-                start_date=start_date,
-                end_date=end_date,
-                feeder=feeder,
-                transformer_id=transformer_id
-            )
-            
-            # Get customer data
-            customer_data = data_service.get_customer_data(
-                transformer_id=transformer_id,
-                start_date=start_date,
-                end_date=end_date
-            )
-            
-            if transformer_data is not None:
-                # Process alerts
-                alert_service.check_and_send_alerts(transformer_data)
+            try:
+                # Get transformer data
+                transformer_data = data_service.get_transformer_data_range(
+                    start_date=start_date,
+                    end_date=end_date,
+                    feeder=feeder,
+                    transformer_id=transformer_id
+                )
                 
-                # Store data in session state
-                st.session_state.transformer_data = transformer_data
-                st.session_state.customer_data = customer_data
-                st.session_state.current_transformer = transformer_id
-                st.session_state.current_feeder = feeder
+                # Get customer data - adapt parameters based on the actual method signature
+                try:
+                    # Use the correct parameter format for get_customer_data
+                    customer_data = data_service.get_customer_data(
+                        customer_id=transformer_id,
+                        date_str=start_date.strftime("%Y-%m-%d")
+                    )
+                except Exception as e:
+                    logger.warning(f"Error getting customer data: {str(e)}")
+                    customer_data = pd.DataFrame()
                 
-                # Rerun to update display
-                st.rerun()
+                if transformer_data is not None:
+                    # Process alerts
+                    try:
+                        alert_service.check_and_send_alerts(transformer_data)
+                    except Exception as e:
+                        logger.error(f"Alert processing error: {str(e)}")
+                        st.warning("Could not process alerts.")
+                    
+                    # Store data in session state
+                    st.session_state.transformer_data = transformer_data
+                    st.session_state.customer_data = customer_data
+                    st.session_state.current_transformer = transformer_id
+                    st.session_state.current_feeder = feeder
+                    
+                    # Rerun to update display
+                    st.rerun()
+                else:
+                    st.warning("No transformer data available for the selected criteria.")
+            except Exception as e:
+                logger.error(f"Error retrieving data: {str(e)}")
+                st.error("Failed to retrieve data. Please try again.")
     
     # Main content area
     if 'transformer_data' in st.session_state:
         transformer_data = st.session_state.transformer_data
         customer_data = st.session_state.customer_data
         
-        if transformer_data is not None:
-            display_transformer_dashboard(transformer_data, customer_data)
+        if transformer_data is not None and not transformer_data.empty:
+            try:
+                display_transformer_dashboard(transformer_data, customer_data)
+            except Exception as e:
+                logger.error(f"Error displaying dashboard: {str(e)}")
+                st.error("Failed to display dashboard. Please try again.")
         else:
             st.warning("No transformer data available for the selected criteria.")
 
