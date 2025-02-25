@@ -15,17 +15,18 @@ WITH RECURSIVE hours AS (
 )
 SELECT 
     hours.hour as "timestamp",
-    COALESCE(t."voltage_v", LAG(t."voltage_v") OVER (ORDER BY hours.hour)) as "voltage_v",
+    t."voltage_v",
     t."size_kva",
-    CAST(COALESCE(t."loading_percentage", LAG(t."loading_percentage") OVER (ORDER BY hours.hour)) AS DECIMAL(3,0)) as "loading_percentage",
-    CAST(COALESCE(t."current_a", LAG(t."current_a") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
-    CAST(COALESCE(t."power_kw", LAG(t."power_kw") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
-    CAST(COALESCE(t."power_kva", LAG(t."power_kva") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kva",
-    CAST(COALESCE(t."power_factor", LAG(t."power_factor") OVER (ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
+    CAST(t."loading_percentage" AS DECIMAL(3,0)) as "loading_percentage",
+    CAST(t."current_a" AS DECIMAL(5,2)) as "current_a",
+    CAST(t."power_kw" AS DECIMAL(5,2)) as "power_kw",
+    CAST(t."power_kva" AS DECIMAL(5,2)) as "power_kva",
+    CAST(t."power_factor" AS DECIMAL(4,3)) as "power_factor",
     t."transformer_id",
     t."load_range"
 FROM hours
 LEFT JOIN {table_name} t ON t."timestamp" = hours.hour AND t."transformer_id" = ?
+WHERE t."loading_percentage" IS NOT NULL  # Only include rows with actual data
 ORDER BY hours.hour
 """
 
@@ -34,17 +35,18 @@ SELECT
     t."timestamp",
     t."voltage_v",
     t."size_kva",
-    t."loading_percentage",
-    t."current_a",
-    t."power_kw",
-    t."power_kva",
-    t."power_factor",
+    CAST(t."loading_percentage" AS DECIMAL(3,0)) as "loading_percentage",
+    CAST(t."current_a" AS DECIMAL(5,2)) as "current_a",
+    CAST(t."power_kw" AS DECIMAL(5,2)) as "power_kw",
+    CAST(t."power_kva" AS DECIMAL(5,2)) as "power_kva",
+    CAST(t."power_factor" AS DECIMAL(4,3)) as "power_factor",
     t."transformer_id",
     t."load_range"
 FROM {table_name} t 
 WHERE t."transformer_id" = ?
   AND t."timestamp" >= ?
   AND t."timestamp" <= ?
+  AND t."loading_percentage" IS NOT NULL  # Only include rows with actual data
 ORDER BY t."timestamp"
 """
 
