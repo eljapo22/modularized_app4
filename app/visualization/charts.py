@@ -40,7 +40,7 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create the scatter plot
     fig = go.Figure()
     
-    # Add scatter plot for each loading category
+    # Define categories in priority order (highest to lowest)
     categories = [
         (120, float('inf'), ' Critical', 'rgb(255, 0, 0)'),
         (100, 120, 'Overloaded', 'rgb(255, 165, 0)'),
@@ -49,9 +49,16 @@ def display_loading_status(results_df: pd.DataFrame):
         (0, 50, 'Normal', 'rgb(0, 255, 0)')
     ]
     
+    # Create masks for each category, ensuring no overlap
+    plotted_timestamps = set()  # Keep track of plotted timestamps
+    
     for min_load, max_load, name, color in categories:
-        mask = (df['loading_percentage'] >= min_load) & (df['loading_percentage'] < max_load)
-        category_data = df[mask]
+        # Only consider timestamps we haven't plotted yet
+        available_data = df[~df['timestamp'].isin(plotted_timestamps)]
+        
+        # Find points in this category
+        mask = (available_data['loading_percentage'] >= min_load) & (available_data['loading_percentage'] < max_load)
+        category_data = available_data[mask]
         
         if not category_data.empty:
             fig.add_trace(go.Scatter(
@@ -71,7 +78,10 @@ def display_loading_status(results_df: pd.DataFrame):
                 hoverinfo='text',
                 showlegend=True
             ))
-    
+            
+            # Add these timestamps to our plotted set
+            plotted_timestamps.update(category_data['timestamp'].tolist())
+
     # Update layout
     fig.update_layout(
         xaxis_title="Time",
@@ -80,16 +90,23 @@ def display_loading_status(results_df: pd.DataFrame):
         height=400,
         template="plotly_white",
         margin=dict(l=0, r=0, t=0, b=0),
-        font=dict(color='#2f4f4f')
+        font=dict(color='#2f4f4f'),
+        xaxis=dict(
+            type='date',
+            tickformat='%Y-%m-%d %H:%M',
+            dtick=3600000,  # 1 hour in milliseconds
+            tickangle=45,
+            rangeslider=dict(visible=True)
+        )
     )
-    
-    # Add horizontal lines for thresholds
-    for threshold, _, _, color in categories[:-1]:  # Skip the last category (Normal)
+
+    # Add horizontal threshold lines
+    for threshold, _, _, color in categories[:-1]:
         fig.add_hline(
             y=threshold,
             line=dict(color=color, width=1, dash="dash")
         )
-    
+
     # Display the plot
     st.plotly_chart(fig, use_container_width=True)
 
