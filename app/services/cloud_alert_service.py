@@ -38,8 +38,8 @@ def get_status_emoji(status: str) -> str:
 class CloudAlertService:
     def __init__(self):
         """Initialize the alert service"""
-        # Always use the cloud URL since alerts should direct back to the cloud instance
-        self.app_url = "https://modularized-app4-cloud.streamlit.app"
+        # Set the app URL to the current cloud deployment
+        self.app_url = "https://transformer-dashboard.streamlit.app"
         self.email = st.secrets.get("DEFAULT_EMAIL", "jhnapo2213@gmail.com")
         self.app_password = st.secrets.get("GMAIL_APP_PASSWORD")
         self.email_enabled = self.app_password is not None
