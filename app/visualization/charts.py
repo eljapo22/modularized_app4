@@ -30,13 +30,6 @@ def display_loading_status(results_df: pd.DataFrame):
     df = results_df.copy()
     df = df.sort_values('timestamp')
     
-    # Create hover text with detailed information
-    hover_text = df.apply(
-        lambda row: f"Loading: {row['loading_percentage']:.1f}%<br>" +
-                   f"Time: {row['timestamp']}", 
-        axis=1
-    )
-    
     # Create the scatter plot
     fig = go.Figure()
     
@@ -61,6 +54,13 @@ def display_loading_status(results_df: pd.DataFrame):
         category_data = available_data[mask]
         
         if not category_data.empty:
+            # Create hover text for this category's data
+            hover_text = category_data.apply(
+                lambda row: f"Loading: {row['loading_percentage']:.1f}%<br>" +
+                           f"Time: {row['timestamp']}", 
+                axis=1
+            )
+            
             fig.add_trace(go.Scatter(
                 x=category_data['timestamp'],
                 y=category_data['loading_percentage'],
@@ -74,7 +74,7 @@ def display_loading_status(results_df: pd.DataFrame):
                         width=1
                     )
                 ),
-                text=hover_text[mask],
+                text=hover_text,
                 hoverinfo='text',
                 showlegend=True
             ))
