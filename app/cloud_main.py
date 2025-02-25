@@ -4,11 +4,9 @@ Uses app.-prefixed imports required by Streamlit Cloud
 """
 import streamlit as st
 import logging
-import logging.handlers
-import pandas as pd
-from datetime import datetime, timedelta
 import sys
-import traceback
+import pandas as pd
+from datetime import datetime
 
 # Remove all existing handlers to avoid duplicates
 for handler in logging.root.handlers[:]:
@@ -78,7 +76,7 @@ def main():
             
             # Transformer selection
             st.subheader("Transformer Selection")
-            transformers = data_service.get_load_options(feeder) if feeder else []
+            transformers = data_service.get_transformer_ids(feeder) if feeder else []
             transformer_id = st.selectbox(
                 "Select Transformer",
                 options=transformers,
@@ -99,43 +97,27 @@ def main():
                 
                 # Get customer data
                 customer_data = data_service.get_customer_data(
-                    transformer_id=transformer_id,
                     start_date=start_date,
                     end_date=end_date,
-                    feeder=feeder
+                    feeder=feeder,
+                    transformer_id=transformer_id
                 )
                 
-                if transformer_data is not None:
-                    # Process alerts
+                # Check for alerts
+                if not transformer_data.empty:
                     alert_service.check_and_send_alerts(
-                        results_df=transformer_data,
+                        transformer_data,
                         start_date=start_date,
                         end_date=end_date,
                         feeder=feeder
                     )
-                    
-                    # Store data in session state
-                    st.session_state.transformer_data = transformer_data
-                    st.session_state.customer_data = customer_data
-                    st.session_state.current_transformer = transformer_id
-                    st.session_state.current_feeder = feeder
-                    
-                    # Rerun to update display
-                    st.rerun()
-        
-        # Main content area
-        if 'transformer_data' in st.session_state:
-            transformer_data = st.session_state.transformer_data
-            customer_data = st.session_state.customer_data
-            
-            if transformer_data is not None:
+                
+                # Display dashboard
                 display_transformer_dashboard(transformer_data, customer_data)
-            else:
-                st.warning("No transformer data available for the selected criteria.")
+                
     except Exception as e:
-        logger.error(f"An error occurred: {e}")
-        logger.error(traceback.format_exc())
-        st.error(f"❌ An error occurred: {str(e)}")
+        logger.error(f"Error in main: {str(e)}")
+        st.error("An error occurred. Please try again.")
 
 if __name__ == "__main__":
     main()

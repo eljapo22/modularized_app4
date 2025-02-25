@@ -4,6 +4,12 @@ Database configuration for MotherDuck
 import os
 from typing import Dict, List
 import duckdb
+import logging
+import pandas as pd
+from datetime import datetime, date
+
+# Get logger for this module
+logger = logging.getLogger(__name__)
 
 # Table templates
 TRANSFORMER_TABLE_TEMPLATE = "Transformer Feeder {}"
@@ -49,25 +55,6 @@ ORDER BY hours.hour
 """
 
 TRANSFORMER_DATA_RANGE_QUERY = """
-SELECT 
-    t."timestamp",
-    t."voltage_v",
-    t."size_kva",
-    t."loading_percentage",
-    t."current_a",
-    t."power_kw",
-    t."power_kva",
-    t."power_factor",
-    t."transformer_id",
-    t."load_range"
-FROM {table_name} t 
-WHERE t."transformer_id" = ?
-  AND t."timestamp" >= ?
-  AND t."timestamp" <= ?
-ORDER BY t."timestamp"
-"""
-
-CUSTOMER_DATA_QUERY = """
 WITH RECURSIVE hours AS (
     SELECT DATE_TRUNC('hour', ?::timestamp) as hour
     UNION ALL
@@ -76,20 +63,20 @@ WITH RECURSIVE hours AS (
     WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
 )
 SELECT 
-    CAST(COALESCE(c."current_a", LAG(c."current_a") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "current_a",
-    c."customer_id",
-    EXTRACT(HOUR FROM hours.hour) as "hour",
-    CAST(COALESCE(c."power_factor", LAG(c."power_factor") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(4,3)) as "power_factor",
-    CAST(COALESCE(c."power_kva", LAG(c."power_kva") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kva",
-    CAST(COALESCE(c."power_kw", LAG(c."power_kw") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
-    c."size_kva",
     hours.hour as "timestamp",
-    c."transformer_id",
-    COALESCE(c."voltage_v", LAG(c."voltage_v") OVER (PARTITION BY c."customer_id" ORDER BY hours.hour)) as "voltage_v"
+    t."transformer_id",
+    CAST(COALESCE(t."power_kw", LAG(t."power_kw") OVER (ORDER BY hours.hour)) AS DECIMAL(5,2)) as "power_kw",
+    CAST(COALESCE(t."loading_percentage", LAG(t."loading_percentage") OVER (ORDER BY hours.hour)) AS DECIMAL(3,0)) as "loading_percentage"
 FROM hours
-LEFT JOIN {table_name} c ON c."timestamp" = hours.hour AND c."transformer_id" = ?
+LEFT JOIN {table_name} t ON t."timestamp" = hours.hour AND t."transformer_id" = ?
 WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
-ORDER BY hours.hour, c."customer_id"
+ORDER BY hours.hour
+"""
+
+TRANSFORMER_LIST_QUERY = """
+SELECT DISTINCT transformer_id 
+FROM {table_name}
+ORDER BY transformer_id
 """
 
 CUSTOMER_DATA_QUERY_NEW = """
@@ -120,13 +107,6 @@ WHERE c."transformer_id" = ?
   AND c."timestamp" <= ?
 GROUP BY DATE_TRUNC('hour', c."timestamp")
 ORDER BY hour
-"""
-
-TRANSFORMER_LIST_QUERY = """
-SELECT DISTINCT transformer_id
-FROM {table_name}
-WHERE transformer_id LIKE 'S1F%'
-ORDER BY transformer_id;
 """
 
 CUSTOMER_AGGREGATION_QUERY = """
@@ -176,7 +156,7 @@ def init_db_pool():
         _connection = duckdb.connect(f'md:ModApp4DB?motherduck_token={token}')
         return True
     except Exception as e:
-        print(f"Error initializing database: {str(e)}")
+        logger.error(f"Error initializing database: {str(e)}")
         return False
 
 def execute_query(query: str, params: tuple = None) -> List[Dict]:
@@ -202,8 +182,62 @@ def execute_query(query: str, params: tuple = None) -> List[Dict]:
         return []
         
     except Exception as e:
-        print(f"Error executing query: {str(e)}")
-        print(f"Query: {query}")
-        if params:
-            print(f"Params: {params}")
+        logger.error(f"Error executing query: {str(e)}")
         return []
+
+def get_transformer_data(transformer_id: str, query_date: date, hour: int = None, feeder: int = None) -> pd.DataFrame:
+    """Get transformer data for a specific transformer and date"""
+    try:
+        if feeder not in FEEDER_NUMBERS:
+            logger.error(f"Invalid feeder number: {feeder}")
+            return pd.DataFrame()
+            
+        # Use the correct table name format
+        table = f'"Transformer Feeder {feeder}"'
+        
+        # Build query parameters
+        if hour is not None:
+            query_time = datetime.combine(query_date, datetime.min.time().replace(hour=hour))
+        else:
+            query_time = datetime.combine(query_date, datetime.min.time())
+            
+        # Execute query
+        query = TRANSFORMER_DATA_QUERY.format(table_name=table)
+        results = execute_query(query, (transformer_id, query_time))
+        
+        if not results:
+            logger.warning(f"No data found for transformer {transformer_id}")
+            return pd.DataFrame()
+            
+        return pd.DataFrame(results)
+        
+    except Exception as e:
+        logger.error(f"Error getting transformer data: {str(e)}")
+        return pd.DataFrame()
+
+def get_transformer_ids(feeder: int) -> List[str]:
+    """Get list of transformer IDs for a specific feeder"""
+    try:
+        if feeder not in FEEDER_NUMBERS:
+            logger.error(f"Invalid feeder number: {feeder}")
+            return []
+            
+        # Use the correct table name format
+        table = f'"Transformer Feeder {feeder}"'
+        
+        # Execute query
+        query = TRANSFORMER_LIST_QUERY.format(table_name=table)
+        results = execute_query(query)
+        
+        if not results:
+            logger.warning(f"No transformers found for feeder {feeder}")
+            return []
+            
+        return sorted([r['transformer_id'] for r in results])
+        
+    except Exception as e:
+        logger.error(f"Error getting transformer IDs: {str(e)}")
+        return []
+
+# Initialize database connection pool
+init_db_pool()

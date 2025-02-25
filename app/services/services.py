@@ -1,11 +1,10 @@
 # Standard library imports
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
-from typing import Optional, List, Dict, Tuple, Any
-import traceback
+from typing import Optional, List
 import sys
 import re
 
@@ -15,14 +14,9 @@ import streamlit as st
 
 # Local imports
 from app.config.database_config import (
-    TRANSFORMER_DATA_QUERY,
-    TRANSFORMER_DATA_RANGE_QUERY,
-    CUSTOMER_DATA_QUERY,
-    TRANSFORMER_LIST_QUERY,
-    CUSTOMER_AGGREGATION_QUERY,
     FEEDER_NUMBERS,
-    DECIMAL_PLACES,
-    init_db_pool,
+    get_transformer_data,
+    get_transformer_ids,
     execute_query
 )
 from app.utils.data_validation import validate_transformer_data, analyze_trends
@@ -35,130 +29,57 @@ from app.models.data_models import (
 # Get logger for this module
 logger = logging.getLogger(__name__)
 
-"""
-Combined services for the Transformer Loading Analysis Application
-"""
-
 class CloudDataService:
-    """Service for handling transformer and customer data in cloud environment"""
+    """Service for handling cloud data operations"""
     
     def __init__(self):
         """Initialize the service"""
         logger.info("CloudDataService initialized")
         # Cache for transformer IDs
         self._transformer_ids_cache = {}
-    
+
     def get_feeder_options(self) -> List[str]:
         """Get list of available feeders"""
         return [f"Feeder {num}" for num in FEEDER_NUMBERS]
 
-    def get_transformer_ids(self, feeder_num: int) -> List[str]:
+    def get_transformer_ids(self, feeder: str) -> List[str]:
         """Get list of transformer IDs for a specific feeder"""
-        # Check cache first
-        if feeder_num in self._transformer_ids_cache:
-            return self._transformer_ids_cache[feeder_num]
-            
         try:
-            logger.info(f"Retrieving transformer IDs for feeder {feeder_num}...")
-            if feeder_num not in FEEDER_NUMBERS:
-                logger.error(f"Invalid feeder number: {feeder_num}")
-                return []
-            
-            # Use the correct table name format
-            table = f'"Transformer Feeder {feeder_num}"'
-            logger.debug(f"Querying transformer IDs from table: {table}")
-            
-            try:
-                query = TRANSFORMER_LIST_QUERY.format(table_name=table)
-                results = execute_query(query)
-                
-                if results:
-                    transformer_ids = [r['transformer_id'] for r in results]
-                    logger.info(f"Found {len(transformer_ids)} transformers")
-                    logger.debug(f"Transformer IDs: {transformer_ids}")
-                    # Cache the results
-                    self._transformer_ids_cache[feeder_num] = sorted(transformer_ids)
-                    return self._transformer_ids_cache[feeder_num]
+            # Extract feeder number
+            if isinstance(feeder, str):
+                match = re.search(r'\d+', feeder)
+                if match:
+                    feeder_num = int(match.group())
                 else:
-                    logger.warning(f"No transformers found for feeder {feeder_num}")
-                    # Return a default list of transformers for this feeder
-                    default_ids = [f"S1F{feeder_num}ATF{i:03d}" for i in range(1, 11)]
-                    logger.info(f"Using default transformer IDs: {default_ids}")
-                    # Cache the default IDs
-                    self._transformer_ids_cache[feeder_num] = default_ids
-                    return default_ids
-                
-            except Exception as e:
-                logger.error(f"Database error getting transformer IDs: {str(e)}")
-                # Return a default list of transformers for this feeder
-                default_ids = [f"S1F{feeder_num}ATF{i:03d}" for i in range(1, 11)]
-                logger.info(f"Using default transformer IDs: {default_ids}")
-                # Cache the default IDs
-                self._transformer_ids_cache[feeder_num] = default_ids
-                return default_ids
-                
+                    logger.error(f"Could not extract feeder number from: {feeder}")
+                    return []
+            elif isinstance(feeder, (int, float)):
+                feeder_num = int(feeder)
+            else:
+                logger.error(f"Invalid feeder type: {type(feeder)}")
+                return []
+
+            # Check cache first
+            if feeder_num in self._transformer_ids_cache:
+                return self._transformer_ids_cache[feeder_num]
+            
+            # Get transformer IDs from database
+            transformer_ids = get_transformer_ids(feeder_num)
+            
+            # Cache the results
+            if transformer_ids:
+                self._transformer_ids_cache[feeder_num] = transformer_ids
+            
+            return transformer_ids
+            
         except Exception as e:
             logger.error(f"Error getting transformer IDs: {str(e)}")
             return []
 
-    def get_load_options(self, feeder: str) -> List[str]:
-        """Get list of transformer IDs for a feeder"""
-        try:
-            if not feeder:
-                return []
-                
-            # Extract feeder number from string (e.g. "Feeder 1" -> 1)
-            feeder_num = int(feeder.split()[-1])
-            
-            # Get transformer IDs for this feeder
-            return self.get_transformer_ids(feeder_num)
-            
-        except Exception as e:
-            logger.error(f"Error getting load options: {str(e)}")
-            return []
-
-    def get_transformer_data(self, transformer_id: str, query_date: date, hour: int) -> Optional[pd.DataFrame]:
-        """Get transformer data for a specific date and hour"""
-        try:
-            # Extract feeder number from transformer ID more safely
-            parts = transformer_id.split('F')
-            if len(parts) < 2:
-                raise ValueError(f"Invalid transformer ID format: {transformer_id}")
-            
-            feeder_num = int(parts[1][0])
-            if feeder_num not in FEEDER_NUMBERS:
-                raise ValueError(f"Invalid feeder number in transformer ID: {feeder_num}")
-                
-            # Use the correct table name format
-            table = f'"Transformer Feeder {feeder_num}"'
-            logger.debug(f"Querying table: {table}")
-            query = TRANSFORMER_DATA_QUERY.format(table_name=table)
-            results = execute_query(query, (transformer_id, query_date, hour))
-            
-            if not results:
-                logger.warning(f"No data found for transformer {transformer_id} on {query_date} at hour {hour}")
-                return None
-                
-            df = pd.DataFrame(results)
-            return validate_transformer_data(df)
-            
-        except ValueError as ve:
-            logger.error(str(ve))
-            return None
-        except Exception as e:
-            logger.error(f"Error getting transformer data: {str(e)}")
-            return None
-
-    def get_transformer_data_range(
-        self,
-        start_date: date,
-        end_date: date,
-        feeder: str,
-        transformer_id: str
-    ) -> pd.DataFrame:
+    def get_transformer_data_range(self, start_date: date, end_date: date, feeder: str, transformer_id: str) -> pd.DataFrame:
         """Get transformer data for a date range"""
         try:
-            # Extract feeder number from feeder string and handle various formats
+            # Extract feeder number
             if isinstance(feeder, str):
                 match = re.search(r'\d+', feeder)
                 if match:
@@ -171,106 +92,27 @@ class CloudDataService:
             else:
                 logger.error(f"Invalid feeder type: {type(feeder)}")
                 return pd.DataFrame()
-            
-            query = """
-                SELECT 
-                    timestamp,
-                    transformer_id,
-                    power_kw,
-                    loading_percentage,
-                    latitude,
-                    longitude
-                FROM transformer_data 
-                WHERE feeder = ? 
-                AND transformer_id = ?
-                AND DATE(timestamp) BETWEEN ? AND ?
-                ORDER BY timestamp DESC
-            """
-            
-            params = (feeder_num, transformer_id, start_date, end_date)
-            
-            try:
-                df = pd.read_sql_query(query, self.conn, params=params)
-                if df.empty:
-                    logger.warning(f"No data found for transformer {transformer_id} on feeder {feeder_num}")
-                return df
-            except Exception as e:
-                logger.error(f"Database error: {str(e)}")
+
+            if feeder_num not in FEEDER_NUMBERS:
+                logger.error(f"Invalid feeder number: Feeder {feeder_num}")
                 return pd.DataFrame()
-                
+            
+            # Get data from database
+            transformer_data = get_transformer_data(
+                transformer_id=transformer_id,
+                query_date=start_date,
+                feeder=feeder_num
+            )
+            
+            if transformer_data.empty:
+                logger.warning(f"No data found for transformer {transformer_id} on feeder {feeder_num}")
+                return pd.DataFrame()
+            
+            return transformer_data
+            
         except Exception as e:
             logger.error(f"Error in get_transformer_data_range: {str(e)}")
             return pd.DataFrame()
-
-    def get_customer_data(
-        self,
-        transformer_id: str,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
-        feeder: Optional[int] = None
-    ) -> Optional[CustomerData]:
-        """Get customer data for a specific transformer"""
-        try:
-            if not transformer_id:
-                logger.error("No transformer ID provided")
-                return None
-                
-            # Extract feeder number from transformer ID if not provided
-            if feeder is None and transformer_id.startswith('S1F'):
-                try:
-                    feeder = int(transformer_id[3])
-                except (IndexError, ValueError):
-                    logger.warning(f"Could not extract feeder number from transformer ID: {transformer_id}")
-                    return None
-            
-            if feeder not in FEEDER_NUMBERS:
-                logger.error(f"Invalid feeder number: {feeder}")
-                return None
-                
-            table = f'"Customer Feeder {feeder}"'
-            
-            # Build query with date range if provided
-            if start_date and end_date:
-                query = CUSTOMER_DATA_QUERY.format(
-                    table_name=table,
-                    transformer_id=transformer_id,
-                    start_date=start_date.isoformat(),
-                    end_date=end_date.isoformat()
-                )
-            else:
-                query = CUSTOMER_DATA_QUERY.format(
-                    table_name=table,
-                    transformer_id=transformer_id,
-                    start_date='2024-01-01',
-                    end_date='2024-06-28'
-                )
-                
-            results = execute_query(query)
-            
-            if not results:
-                logger.warning(f"No customer data found for transformer {transformer_id}")
-                return None
-                
-            # Convert results to CustomerData model
-            df = pd.DataFrame(results)
-            
-            return CustomerData(
-                index_level_0=df['index_level_0'].tolist(),
-                current_a=df['current_a'].tolist(),
-                customer_id=df['customer_id'].tolist(),
-                hour=df['hour'].tolist(),
-                power_factor=df['power_factor'].tolist(),
-                power_kva=df['power_kva'].tolist(),
-                power_kw=df['power_kw'].tolist(),
-                size_kva=df['size_kva'].tolist(),
-                timestamp=df['timestamp'].tolist(),
-                transformer_id=df['transformer_id'].tolist(),
-                voltage_v=df['voltage_v'].tolist()
-            )
-            
-        except Exception as e:
-            logger.error(f"Error getting customer data: {str(e)}")
-            return None
 
 class CloudAlertService:
     """Service for handling alerts in cloud environment"""
@@ -287,8 +129,8 @@ class CloudAlertService:
             logger.warning("Email alerts disabled: Gmail app password not found in secrets")
         else:
             logger.info("Email alerts enabled")
-    
-    def _get_status_color(self, loading_pct: float) -> Tuple[str, str]:
+
+    def _get_status_color(self, loading_pct: float) -> str:
         """Get status and color based on loading percentage"""
         if loading_pct >= 120:
             return "Critical", "red"
@@ -300,166 +142,125 @@ class CloudAlertService:
             return "Pre-Warning", "blue"
         else:
             return "Normal", "green"
-    
+
     def _select_alert_point(self, results_df: pd.DataFrame) -> pd.Series:
         """Select the point to alert on"""
-        # Get the row with the highest loading percentage
-        max_loading_idx = results_df['loading_percentage'].idxmax()
-        return results_df.loc[max_loading_idx]
-    
-    def _create_deep_link(
-        self,
-        start_date: date,
-        end_date: date,
-        transformer_id: str,
-        hour: int = None,
-        feeder: int = None
-    ) -> str:
+        if results_df.empty:
+            return None
+            
+        # Get point with highest loading
+        return results_df.iloc[results_df['loading_percentage'].idxmax()]
+
+    def _create_deep_link(self, start_date: date, end_date: date, transformer_id: str, hour: int = None, feeder: int = None) -> str:
         """Create deep link back to app with context"""
-        base_url = self.app_url
         params = {
             'start_date': start_date.strftime('%Y-%m-%d'),
-            'end_date': end_date.strftime('%Y-%m-%d'),
-            'transformer_id': transformer_id
+            'end_date': end_date.strftime('%Y-%m-%d') if end_date else None,
+            'transformer_id': transformer_id,
+            'hour': hour,
+            'feeder': feeder
         }
-        if hour is not None:
-            params['hour'] = hour
-        if feeder is not None:
-            params['feeder'] = f"Feeder {feeder}"
-            
-        # Build query string
-        query = '&'.join([f"{k}={v}" for k, v in params.items()])
-        return f"{base_url}?{query}"
-    
-    def _create_email_content(
-        self,
-        data: pd.Series,
-        status: str,
-        color: str,
-        deep_link: str
-    ) -> str:
-        """
-        Create HTML content for alert email with context
         
-        Args:
-            data: Series with transformer data at alert point
-            status: Status of the alert
-            color: Color of the alert
-            deep_link: Deep link back to app
-            
-        Returns:
-            str: HTML content of the email
-        """
-        # Format timestamp for display
+        # Remove None values
+        params = {k: v for k, v in params.items() if v is not None}
+        
+        # Create query string
+        query = '&'.join([f"{k}={v}" for k, v in params.items()])
+        
+        return f"{self.app_url}?{query}"
+
+    def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
+        """Create HTML content for alert email"""
         timestamp = data['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
         
         html = f"""
         <html>
-            <body>
-                <h2>Transformer Loading Alert</h2>
-                <p>A transformer has exceeded its loading threshold:</p>
-                
-                <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
-                    <tr style="background-color: #f2f2f2;">
-                        <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Attribute</th>
-                        <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Value</th>
-                    </tr>
-                    <tr>
-                        <td style="padding: 12px; border: 1px solid #ddd;">Transformer ID</td>
-                        <td style="padding: 12px; border: 1px solid #ddd;">{data['transformer_id']}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 12px; border: 1px solid #ddd;">Status</td>
-                        <td style="padding: 12px; border: 1px solid #ddd; color: {color};">{status}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 12px; border: 1px solid #ddd;">Loading Percentage</td>
-                        <td style="padding: 12px; border: 1px solid #ddd;">{data['loading_percentage']:.2f}%</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 12px; border: 1px solid #ddd;">Power (kW)</td>
-                        <td style="padding: 12px; border: 1px solid #ddd;">{data['power_kw']:.2f}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 12px; border: 1px solid #ddd;">Current (A)</td>
-                        <td style="padding: 12px; border: 1px solid #ddd;">{data['current_a']:.2f}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 12px; border: 1px solid #ddd;">Voltage (V)</td>
-                        <td style="padding: 12px; border: 1px solid #ddd;">{data['voltage_v']:.2f}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 12px; border: 1px solid #ddd;">Timestamp</td>
-                        <td style="padding: 12px; border: 1px solid #ddd;">{timestamp}</td>
-                    </tr>
-                </table>
-                
-                <p>Click the link below to view detailed analysis:</p>
-                <p><a href="{deep_link}">View in Dashboard</a></p>
-                
-                <p style="color: #666; font-size: 12px;">
-                    This is an automated alert from the Transformer Loading Analysis System.
-                    Please do not reply to this email.
-                </p>
-            </body>
+        <body style="font-family: Arial, sans-serif;">
+            <h2 style="color: #333;">Transformer Loading Alert</h2>
+            <p>This is an automated alert from the Transformer Loading Analysis System.</p>
+            
+            <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+                <tr>
+                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Attribute</th>
+                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Value</th>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #ddd;">Transformer ID</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{data['transformer_id']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #ddd;">Status</td>
+                    <td style="padding: 12px; border: 1px solid #ddd; color: {color};">{status}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #ddd;">Loading Percentage</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{data['loading_percentage']:.2f}%</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #ddd;">Power (kW)</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{data['power_kw']:.2f}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #ddd;">Timestamp</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{timestamp}</td>
+                </tr>
+            </table>
+            
+            <p>Click here to view detailed analysis: <a href="{deep_link}">View in Dashboard</a></p>
+            
+            <p style="color: #666; font-size: 12px;">
+                This is an automated message. Please do not reply to this email.
+            </p>
+        </body>
         </html>
         """
         return html
-    
-    def _send_email(self, msg: MIMEMultipart):
+
+    def _send_email(self, msg: MIMEMultipart) -> bool:
         """Send email using Gmail SMTP with app password"""
         try:
+            logger.info(f"Attempting to send email to {msg['To']}")
+            
             with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
                 smtp.login(self.email, self.app_password)
                 smtp.send_message(msg)
-                logger.info("Alert email sent successfully")
-                return True
+                
+            logger.info("Email sent successfully")
+            return True
+            
         except Exception as e:
-            logger.error(f"Failed to send alert email: {str(e)}")
+            logger.error(f"Error sending email: {str(e)}")
             return False
-    
+
     def check_and_send_alerts(
-        self,
-        results_df: pd.DataFrame,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
-        hour: Optional[int] = None,
-        feeder: Optional[int] = None,
-        recipient: str = None
-    ):
+            self,
+            results_df: pd.DataFrame,
+            start_date: Optional[date] = None,
+            end_date: Optional[date] = None,
+            hour: Optional[int] = None,
+            feeder: Optional[int] = None,
+            recipient: str = None
+        ) -> bool:
         """Check loading conditions and send alert if needed"""
         try:
-            # Ensure results_df is a DataFrame
-            if not isinstance(results_df, pd.DataFrame):
-                if isinstance(results_df, dict):
-                    # If single row dict, wrap in list to create proper DataFrame
-                    if not any(isinstance(v, (list, tuple)) for v in results_df.values()):
-                        results_df = pd.DataFrame([results_df])
-                    else:
-                        results_df = pd.DataFrame(results_df)
-                else:
-                    results_df = pd.DataFrame()
-                
             if results_df.empty:
                 logger.warning("No data available for alerts")
-                return
-
-            # Validate required columns
-            required_columns = ['transformer_id', 'loading_percentage']
-            missing_columns = [col for col in required_columns if col not in results_df.columns]
-            if missing_columns:
-                logger.error(f"Missing required columns for alerts: {missing_columns}")
-                return
+                return False
                 
-            # Get the point to alert on
+            # Select point to alert on
             alert_point = self._select_alert_point(results_df)
             if alert_point is None:
-                logger.warning("No suitable alert point found")
-                return
+                logger.warning("No alert point found")
+                return False
                 
             # Get status and color
-            status, color = self._get_status_color(alert_point['loading_percentage'])
+            loading_pct = alert_point['loading_percentage']
+            status, color = self._get_status_color(loading_pct)
             
+            if loading_pct < 80:
+                st.info(f"No alerts needed. Current status: {status}")
+                return False
+                
             # Create deep link
             deep_link = self._create_deep_link(
                 start_date=start_date,
@@ -469,34 +270,35 @@ class CloudAlertService:
                 feeder=feeder
             )
             
-            # Create and send email
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = f"Transformer Alert: {status}"
-            msg['From'] = self.email
-            msg['To'] = recipient or self.email
-            
             # Create email content
-            html = self._create_email_content(
+            html_content = self._create_email_content(
                 data=alert_point,
                 status=status,
                 color=color,
                 deep_link=deep_link
             )
             
-            msg.attach(MIMEText(html, 'html'))
+            # Create email message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"Transformer Alert: {status} Loading ({loading_pct:.1f}%)"
+            msg['From'] = self.email
+            msg['To'] = recipient or self.email
+            msg.attach(MIMEText(html_content, 'html'))
             
-            if self.email_enabled:
-                self._send_email(msg)
-                st.success(f"Alert sent: {status}")
+            # Send email
+            if self._send_email(msg):
+                st.success(f"✉️ Alert sent: {status} loading detected")
+                return True
             else:
-                logger.warning("Email alerts are disabled")
-                st.warning("Email alerts are disabled")
+                st.error("Failed to send alert")
+                return False
                 
         except Exception as e:
             logger.error(f"Error in check_and_send_alerts: {str(e)}")
             st.error("Failed to process alerts")
+            return False
 
-def get_alert_status(loading_pct: float) -> Tuple[str, str]:
+def get_alert_status(loading_pct: float) -> tuple[str, str]:
     """Get alert status and color based on loading percentage"""
     if loading_pct >= 120:
         return "Critical", "red"
