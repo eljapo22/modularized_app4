@@ -93,7 +93,7 @@ class CloudAlertService:
         params = {}
         try:
             current_params = st.experimental_get_query_params()
-            params = {k: v[0] for k, v in current_params.items() if v}
+            params = {k: v[0] for k, v in current_params.items() if v and v[0]}
         except:
             # If we can't get query params, create new ones
             pass
@@ -103,14 +103,20 @@ class CloudAlertService:
             params['view'] = 'alert'
         if 'id' not in params:
             params['id'] = transformer_id
-        if 'start_date' not in params:
+        if 'start_date' not in params and start_date:
             params['start_date'] = start_date.isoformat()
-        if 'end_date' not in params:
+        if 'end_date' not in params and end_date:
             params['end_date'] = end_date.isoformat()
         if 'hour' not in params:
-            params['hour'] = str(hour) if hour is not None else str(alert_time.hour)
+            if hour is not None:
+                params['hour'] = str(hour)
+            elif alert_time:
+                params['hour'] = str(alert_time.hour)
         if 'feeder' not in params:
-            params['feeder'] = str(feeder) if feeder is not None else str(int(transformer_id[2]))
+            if feeder is not None:
+                params['feeder'] = str(feeder)
+            elif transformer_id and len(transformer_id) >= 3:
+                params['feeder'] = str(int(transformer_id[2]))
             
         # Create query string
         query_string = '&'.join(f"{k}={v}" for k, v in params.items())
@@ -238,21 +244,28 @@ class CloudAlertService:
                 
                 # Log the search parameters
                 logger.info(f"Using search parameters - Date Range: {start_date} to {end_date}, Hour: {hour}, Feeder: {feeder}")
-                st.write(f"**Search Parameters:**")
-                st.write(f"- Date Range: {start_date} to {end_date}")
-                st.write(f"- Hour: {hour}")
-                st.write(f"- Feeder: {feeder}")
+                st.write("**Search Parameters:**")
+                if start_date and end_date:
+                    st.write(f"- Date Range: {start_date} to {end_date}")
+                if hour is not None:
+                    st.write(f"- Hour: {hour}")
+                if feeder is not None:
+                    st.write(f"- Feeder: {feeder}")
                 
                 # Create deep link with all search parameters
-                deep_link = self._create_deep_link(
-                    start_date,
-                    end_date,
-                    alert_time,
-                    alert_point['transformer_id'],
-                    hour=hour,
-                    feeder=feeder
-                )
-                logger.info(f"Created deep link: {deep_link}")
+                try:
+                    deep_link = self._create_deep_link(
+                        start_date,
+                        end_date,
+                        alert_time,
+                        alert_point['transformer_id'],
+                        hour=hour,
+                        feeder=feeder
+                    )
+                    logger.info(f"Created deep link: {deep_link}")
+                except Exception as e:
+                    logger.error(f"Error creating deep link: {str(e)}")
+                    deep_link = self.app_url  # Fallback to base URL
                 
                 # Create and send email
                 msg = MIMEMultipart('alternative')
