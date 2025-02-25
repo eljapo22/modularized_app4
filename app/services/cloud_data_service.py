@@ -275,7 +275,7 @@ class CloudDataService:
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
             results = execute_query(
                 query,
-                params=(start_ts, end_ts, transformer_id, start_date, end_date)  # All 5 parameters for the query
+                params=(transformer_id, start_ts, end_ts)  # Fixed: Only pass the 3 required parameters in correct order
             )
             
             if not results:
