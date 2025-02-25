@@ -198,8 +198,8 @@ class CloudDataService:
             table = TRANSFORMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Convert dates to timestamps for the query
-            start_ts = datetime.combine(start_date, time.min)
-            end_ts = datetime.combine(end_date, time.max)
+            start_ts = datetime.combine(start_date, datetime.min.time)
+            end_ts = datetime.combine(end_date, datetime.max.time)
             
             # Execute query
             query = TRANSFORMER_DATA_RANGE_QUERY.format(table_name=table)
@@ -235,8 +235,8 @@ class CloudDataService:
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Convert dates to timestamps
-            start_ts = datetime.combine(start_date, time.min)
-            end_ts = datetime.combine(end_date, time.max)
+            start_ts = datetime.combine(start_date, datetime.min.time)
+            end_ts = datetime.combine(end_date, datetime.max.time)
             
             # Execute query
             query = CUSTOMER_DATA_QUERY.format(table_name=table)
@@ -272,8 +272,8 @@ class CloudDataService:
             table = CUSTOMER_TABLE_TEMPLATE.format(feeder_num)
             
             # Convert dates to timestamps
-            start_ts = datetime.combine(start_date, time.min)
-            end_ts = datetime.combine(end_date, time.max)
+            start_ts = datetime.combine(start_date, datetime.min.time)
+            end_ts = datetime.combine(end_date, datetime.max.time)
             
             # Execute query
             query = CUSTOMER_AGGREGATION_QUERY.format(table_name=table)
@@ -345,9 +345,9 @@ class CloudAlertService:
             logger.error(f"Error selecting alert point: {str(e)}")
             return None
 
-    def _create_deep_link(self, start_date: date, end_date: date, alert_time: datetime, transformer_id: str, hour: int = None, feeder: int = None) -> str:
+    def _create_deep_link(self, start_date: date, end_date: date, transformer_id: str, hour: int = None, feeder: int = None) -> str:
         """Create deep link back to app with context"""
-        logger.info(f"Creating deep link with params: start_date={start_date}, end_date={end_date}, alert_time={alert_time}, hour={hour}")
+        logger.info(f"Creating deep link with start_date={start_date}, end_date={end_date}, hour={hour}, feeder={feeder}")
         
         # Create base URL parameters
         params = {
@@ -357,13 +357,10 @@ class CloudAlertService:
             'end_date': end_date.isoformat() if end_date else None
         }
         
-        # Add hour parameter (prefer explicit hour over alert_time.hour)
+        # Add hour parameter if provided
         if hour is not None:
             params['hour'] = str(hour)
-            logger.info(f"Using explicit hour: {hour}")
-        elif alert_time:
-            params['hour'] = str(alert_time.hour)
-            logger.info(f"Using hour from alert_time: {alert_time.hour}")
+            logger.info(f"Using hour: {hour}")
             
         # Add feeder if it exists
         if feeder is not None:
@@ -456,7 +453,6 @@ class CloudAlertService:
         results_df: pd.DataFrame,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        alert_time: Optional[datetime] = None,
         hour: Optional[int] = None,
         feeder: Optional[int] = None,
         recipient: str = None
@@ -479,7 +475,6 @@ class CloudAlertService:
             deep_link = self._create_deep_link(
                 start_date=start_date or alert_point.name.date(),  # Fallback to alert point date
                 end_date=end_date or alert_point.name.date(),      # Fallback to alert point date
-                alert_time=alert_time,  # This can be None, which is fine
                 transformer_id=alert_point['transformer_id'],
                 hour=hour,
                 feeder=feeder

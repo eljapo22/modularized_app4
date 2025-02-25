@@ -223,7 +223,6 @@ def main():
                         date_range_data,
                         start_date=selected_start_date,
                         end_date=selected_end_date,
-                        alert_time=None,  # Don't pass alert_time, we want to use the search dates
                         hour=selected_hour,
                         feeder=selected_feeder
                     )
