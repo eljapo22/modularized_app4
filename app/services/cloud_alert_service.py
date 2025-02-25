@@ -66,7 +66,10 @@ class CloudAlertService:
         try:
             # Find the highest loading percentage
             max_loading_idx = results_df['loading_percentage'].idxmax()
-            max_loading = results_df.loc[max_loading_idx]
+            max_loading = results_df.iloc[max_loading_idx].copy()  # Use copy to avoid modifying original
+            
+            # Ensure we have the correct timestamp
+            max_loading.name = results_df['timestamp'].iloc[max_loading_idx]
             
             # Log the max loading found
             logger.info(f"Found max loading: {max_loading['loading_percentage']:.1f}% at {max_loading.name}")
