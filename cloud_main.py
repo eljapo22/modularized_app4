@@ -68,24 +68,30 @@ def main():
         alert_view = params.get("view") == "alert"
         alert_transformer = params.get("id")
         alert_time = params.get("alert_time")
+        start_date_param = params.get("start")
+
+        # Set initial values from alert parameters
+        if start_date_param and alert_time:
+            initial_date = datetime.fromisoformat(start_date_param).date()
+            alert_datetime = datetime.fromisoformat(alert_time)
+            initial_hour = alert_datetime.hour
+        else:
+            initial_date = datetime.now().date()
+            initial_hour = datetime.now().hour
+
+        # Get feeder from transformer ID if coming from alert
+        initial_feeder = int(alert_transformer[2]) if alert_transformer and len(alert_transformer) >= 3 else 1
 
         # Store the alert parameters in session state to persist across reruns
         if 'initialized' not in st.session_state:
             st.session_state.initialized = True
-            if alert_time:
-                st.session_state.alert_datetime = datetime.fromisoformat(alert_time)
-                st.session_state.initial_date = st.session_state.alert_datetime.date()
-                st.session_state.initial_hour = st.session_state.alert_datetime.hour
-            else:
-                st.session_state.initial_date = datetime.now().date()
-                st.session_state.initial_hour = datetime.now().hour
-
+            st.session_state.initial_date = initial_date
+            st.session_state.initial_hour = initial_hour
             if alert_transformer:
                 st.session_state.alert_transformer = alert_transformer
-                st.session_state.initial_feeder = int(alert_transformer[2]) if len(alert_transformer) >= 3 else 1
             else:
                 st.session_state.alert_transformer = None
-                st.session_state.initial_feeder = 1
+            st.session_state.initial_feeder = initial_feeder
             
         # Create sidebar with search criteria
         with st.sidebar:
