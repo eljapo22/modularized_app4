@@ -21,7 +21,7 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status chart showing peak values."""
+    """Display loading status chart showing loading percentages over time."""
     if results_df is None or results_df.empty:
         st.warning("No data available for loading status chart")
         return
@@ -37,105 +37,53 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create the scatter plot
     fig = go.Figure()
     
-    # Define the categories and their thresholds
-    categories = [
-        ('Critical', 120, float('inf'), 'rgb(255, 0, 0)'),      # Red
-        ('Overloaded', 100, 120, 'rgb(255, 140, 0)'),  # Orange
-        ('Warning', 80, 100, 'rgb(255, 255, 0)'),     # Yellow
-        ('Pre-Warning', 50, 80, 'rgb(147, 112, 219)'), # Purple
-        ('Normal', -float('inf'), 50, 'rgb(0, 255, 0)')         # Green
+    # Add scatter plot for loading percentages
+    fig.add_trace(go.Scatter(
+        x=df['timestamp'],
+        y=df['loading_percentage'],
+        mode='markers',
+        name='Loading %',
+        hovertemplate='<b>Loading:</b> %{y}%<br>' +
+                     '<b>Time:</b> %{x}<br>' +
+                     '<b>Power:</b> %{customdata[0]:.1f} kW<extra></extra>',
+        customdata=df[['power_kw']]
+    ))
+
+    # Add horizontal lines for thresholds with labels
+    thresholds = [
+        (120, 'Critical', 'red'),
+        (100, 'Overloaded', 'orange'),
+        (80, 'Warning', 'yellow'),
+        (50, 'Pre-Warning', 'purple'),
     ]
-    
-    # Add scatter plot for each category
-    for category, min_val, max_val, color in categories:
-        mask = (df['loading_percentage'] >= min_val) & (df['loading_percentage'] < max_val)
-        category_data = df[mask]
-        
-        if len(category_data) > 0:  # Only add trace if we have data
-            hover_text = [
-                f"Loading: {row['loading_percentage']}%<br>" +
-                f"Power: {row['power_kw']:.1f} kW<br>" +
-                f"Time: {row['timestamp'].strftime('%Y-%m-%d %H:%M')}"
-                for _, row in category_data.iterrows()
-            ]
-            
-            fig.add_trace(go.Scatter(
-                x=category_data['timestamp'],
-                y=category_data['loading_percentage'],
-                mode='markers',
-                name=f"{category} ({len(category_data)} points)",
-                marker=dict(
-                    color=color,
-                    size=8,
-                    line=dict(color='white', width=1)
-                ),
-                text=hover_text,
-                hoverinfo='text'
-            ))
-            
-            # Add threshold line (except for Normal category which is the baseline)
-            if category != 'Normal':
-                fig.add_hline(
-                    y=min_val,
-                    line=dict(
-                        color=color,
-                        width=1,
-                        dash="dash"
-                    ),
-                    opacity=0.5,
-                    annotation=dict(
-                        text=f"{category} ≥ {min_val}%",
-                        align='left',
-                        showarrow=False,
-                        xref='paper',
-                        x=1.02,
-                        y=min_val
-                    )
-                )
-    
+
+    for threshold, label, color in thresholds:
+        fig.add_hline(
+            y=threshold,
+            line=dict(color=color, width=1, dash='dash'),
+            annotation=dict(
+                text=f'{label} ≥ {threshold}%',
+                xref='paper',
+                x=1.02,
+                y=threshold,
+                showarrow=False,
+                font=dict(size=10)
+            )
+        )
+
     # Update layout
     fig.update_layout(
-        title=dict(
-            text="Transformer Loading Status",
-            x=0.5,
-            y=0.95
-        ),
-        showlegend=True,
-        height=500,  # Slightly taller for better readability
-        template="plotly_white",
-        margin=dict(l=50, r=150, t=50, b=50),  # Increased right margin for threshold annotations
-        plot_bgcolor='white',
-        xaxis=dict(
-            title="Time",
-            type='date',
-            tickformat='%Y-%m-%d\n%H:%M',  # Include time in tick labels
-            dtick='D1',  # Show every day
-            tickangle=45,
-            gridcolor='rgba(128,128,128,0.1)',
-            showgrid=True,
-            rangeslider=dict(visible=False)
-        ),
-        yaxis=dict(
-            title="Loading Percentage (%)",
-            gridcolor='rgba(128,128,128,0.1)',
-            showgrid=True,
-            range=[0, max(150, df['loading_percentage'].max() * 1.1)],
-            dtick=20,
-            ticksuffix="%"  # Add % to y-axis labels
-        ),
-        legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=0.01,
-            bgcolor='rgba(255,255,255,0.9)',
-            bordercolor='rgba(128,128,128,0.3)',
-            borderwidth=1
-        )
+        title='Loading Status',
+        title_x=0.5,  # Center the title
+        xaxis_title='Time',
+        yaxis_title='Loading Percentage (%)',
+        height=500,
+        showlegend=False,
+        margin=dict(r=150)  # Add right margin for threshold labels
     )
-    
-    # Display the plot
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+    # Display the chart
+    st.plotly_chart(fig, use_container_width=True)
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
