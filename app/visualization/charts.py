@@ -99,19 +99,21 @@ def display_loading_status(results_df: pd.DataFrame):
         showlegend=True,
         height=400,
         template="plotly_white",
-        margin=dict(l=40, r=10, t=10, b=40),
+        margin=dict(l=40, r=10, t=10, b=60),  # Increased bottom margin for labels
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='white',
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
-            tickformat='%H:%M',  # Show only hour:minute for cleaner display
-            dtick=3600000,  # 1 hour in milliseconds
+            tickformat='%H:%M',
+            dtick=7200000,  # 2 hours in milliseconds for less crowded ticks
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
-            range=[min_time, max_time],  # Set range to exactly match data
-            rangeslider=dict(visible=False)
+            range=[min_time, max_time],
+            rangeslider=dict(visible=False),
+            tickmode='auto',
+            nticks=12  # Limit number of ticks for better readability
         ),
         yaxis=dict(
             gridcolor='rgba(128,128,128,0.1)',
