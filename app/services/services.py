@@ -502,9 +502,9 @@ class CloudAlertService:
             
             # Create deep link back to app
             deep_link = self._create_deep_link(
-                start_date=start_date,
-                end_date=end_date,
-                alert_time=alert_time or alert_point.name,
+                start_date=start_date or alert_point.name.date(),  # Fallback to alert point date
+                end_date=end_date or alert_point.name.date(),      # Fallback to alert point date
+                alert_time=alert_time,  # This can be None, which is fine
                 transformer_id=alert_point['transformer_id'],
                 hour=hour,
                 feeder=feeder
