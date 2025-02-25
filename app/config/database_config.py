@@ -325,16 +325,14 @@ def get_customer_data(transformer_id: str, start_date: date, end_date: date, fee
 
         # Get table names
         customer_table = f'"{CUSTOMER_TABLE_TEMPLATE.format(feeder)}"'
-        reading_table = f'"Customer Readings Feeder {feeder}"'
+        reading_table = f'"Customer Feeder {feeder}"'
         
         # Execute query with all required parameters
         query = CUSTOMER_DATA_QUERY.format(customer_table=customer_table, reading_table=reading_table)
         params = (
-            start_date,  # First timestamp for hours CTE
-            end_date,    # Second timestamp for hours CTE
-            transformer_id,  # For customer table JOIN
-            start_date,  # For WHERE clause start
-            end_date     # For WHERE clause end
+            start_date,  # For hours CTE
+            end_date,    # For hours CTE
+            transformer_id  # For customer table JOIN
         )
         
         results = execute_query(query, params)

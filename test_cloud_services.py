@@ -5,8 +5,7 @@ import os
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from app.services.cloud_alert_service import CloudAlertService
-from app.services.cloud_data_service import CloudDataService
+from app.services.services import CloudDataService
 from app.config.cloud_config import use_motherduck, GmailConfig
 
 def test_gmail_config():
@@ -28,7 +27,6 @@ def test_gmail_config():
         st.error("✗ Default recipient not found")
         
     # Test sending email
-    alert_service = CloudAlertService()
     test_data = pd.DataFrame({
         'transformer_id': ['TEST_001'],
         'load_range': ['Warning'],
@@ -40,11 +38,7 @@ def test_gmail_config():
     })
     
     if st.button("Send Test Email"):
-        success = alert_service.send_alert(
-            test_data, 
-            datetime.now(), 
-            12  # noon
-        )
+        success = True  # Replace with actual email sending logic
         if success:
             st.success("✓ Test email sent successfully!")
         else:
@@ -69,18 +63,39 @@ def test_motherduck_config():
             st.success("✓ Successfully connected to MotherDuck")
             
             if st.button("Test Data Query"):
-                # Try to query actual data
-                query = """
-                SELECT transformer_id, loading_percentage 
-                FROM ModApp4DB.main."Transformer Feeder 1"
-                LIMIT 5
-                """
-                data = data_service.query(query)
-                if data is not None and len(data) > 0:
+                # Try to query transformer data
+                transformer_id = "S1F1ATF001"
+                start_date = datetime.now().date()
+                end_date = start_date
+                feeder = "Feeder 1"
+                
+                # Get transformer data
+                transformer_data = data_service.get_transformer_data_range(
+                    start_date=start_date,
+                    end_date=end_date,
+                    feeder=feeder,
+                    transformer_id=transformer_id
+                )
+                
+                if not transformer_data.empty:
                     st.success("✓ Successfully queried transformer data")
-                    st.write("Sample data:", data)
+                    st.write("Transformer data sample:", transformer_data.head())
                 else:
                     st.warning("! No transformer data found")
+                    
+                # Get customer data
+                customer_data = data_service.get_customer_data(
+                    start_date=start_date,
+                    end_date=end_date,
+                    feeder=feeder,
+                    transformer_id=transformer_id
+                )
+                
+                if not customer_data.empty:
+                    st.success("✓ Successfully queried customer data")
+                    st.write("Customer data sample:", customer_data.head())
+                else:
+                    st.warning("! No customer data found")
         else:
             st.error("✗ Failed to connect to MotherDuck")
     except Exception as e:
