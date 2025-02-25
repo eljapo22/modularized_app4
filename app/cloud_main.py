@@ -46,6 +46,37 @@ def main():
         data_service = CloudDataService()
         alert_service = CloudAlertService()
         
+        # Default dates
+        default_start = pd.to_datetime("2024-01-01").date()
+        default_end = pd.to_datetime("2024-06-28").date()
+        
+        # Only get URL parameters if we're coming from an alert link
+        params = st.experimental_get_query_params()
+        is_from_alert = 'transformer_id' in params
+        
+        if is_from_alert:
+            logger.info("Loading from alert link...")
+            initial_start = params.get('start_date', [None])[0]
+            initial_end = params.get('end_date', [None])[0]
+            initial_transformer = params.get('transformer_id', [None])[0]
+            initial_feeder = params.get('feeder', [None])[0]
+            initial_hour = params.get('hour', [None])[0]
+            
+            # Convert dates if provided
+            try:
+                start_date = pd.to_datetime(initial_start).date() if initial_start else default_start
+                end_date = pd.to_datetime(initial_end).date() if initial_end else default_end
+            except:
+                start_date = default_start
+                end_date = default_end
+        else:
+            logger.info("Initial launch...")
+            start_date = default_start
+            end_date = default_end
+            initial_transformer = None
+            initial_feeder = None
+            initial_hour = None
+        
         # Sidebar for controls
         with st.sidebar:
             st.header("Controls")
@@ -54,33 +85,60 @@ def main():
             st.subheader("Date Range")
             start_date = st.date_input(
                 "Start Date",
-                value=pd.to_datetime("2024-01-01").date(),
-                min_value=pd.to_datetime("2024-01-01").date(),
-                max_value=pd.to_datetime("2024-06-28").date()
+                value=start_date,
+                min_value=default_start,
+                max_value=default_end
             )
             end_date = st.date_input(
                 "End Date",
-                value=pd.to_datetime("2024-06-28").date(),
-                min_value=pd.to_datetime("2024-01-01").date(),
-                max_value=pd.to_datetime("2024-06-28").date()
+                value=end_date,
+                min_value=default_start,
+                max_value=default_end
             )
+            
+            # Hour selection if provided from alert
+            hour = None
+            if initial_hour and is_from_alert:
+                try:
+                    hour = int(initial_hour)
+                    st.info(f"Analyzing data for hour: {hour}:00")
+                except:
+                    pass
             
             # Feeder selection
             st.subheader("Feeder Selection")
             feeders = data_service.get_feeder_options()
+            
+            # Only try to match feeder if coming from alert
+            initial_feeder_idx = 0
+            if is_from_alert and initial_feeder:
+                try:
+                    initial_feeder_idx = feeders.index(f"Feeder {initial_feeder}")
+                except:
+                    pass
+                    
             feeder = st.selectbox(
                 "Select Feeder",
                 options=feeders,
-                index=0 if feeders else None
+                index=initial_feeder_idx if feeders else None
             )
             
             # Transformer selection
             st.subheader("Transformer Selection")
             transformers = data_service.get_transformer_ids(feeder) if feeder else []
+            
+            # Only try to match transformer if coming from alert
+            initial_transformer_idx = 0
+            if is_from_alert and initial_transformer and transformers:
+                try:
+                    initial_transformer_idx = transformers.index(initial_transformer)
+                except:
+                    pass
+                    
             transformer_id = st.selectbox(
                 "Select Transformer",
                 options=transformers,
-                index=0 if transformers else None
+                index=initial_transformer_idx if transformers else None
             )
             
             # Search & Alert button
