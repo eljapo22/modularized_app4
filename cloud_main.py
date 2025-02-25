@@ -101,17 +101,17 @@ def main():
         with st.sidebar:
             st.markdown("## Analysis Parameters")
             
-            # Date selection
-            selected_date = st.date_input(
-                "Select Start Date",
+            # Date Range selection
+            st.markdown("### Date Range")
+            selected_start_date = st.date_input(
+                "Start Date",
                 value=st.session_state.initial_date,
-                key="date_selector"
+                key="start_date_selector"
             )
             
-            # End Date selection
             selected_end_date = st.date_input(
-                "Select End Date",
-                value=st.session_state.initial_end_date,
+                "End Date",
+                value=selected_start_date + timedelta(days=30),
                 key="end_date_selector"
             )
             
@@ -125,6 +125,7 @@ def main():
             )
             
             # Feeder selection
+            st.markdown("### Feeder Selection")
             selected_feeder = st.selectbox(
                 "Select Feeder",
                 options=[1, 2, 3, 4],
@@ -133,6 +134,7 @@ def main():
             )
             
             # Transformer selection
+            st.markdown("### Transformer Selection")
             transformers = data_service.get_transformer_ids(selected_feeder)
             if st.session_state.alert_transformer in transformers:
                 transformer_index = transformers.index(st.session_state.alert_transformer)
@@ -157,7 +159,7 @@ def main():
                 # Get and display transformer data
                 transformer_data = data_service.get_transformer_data(
                     selected_transformer,
-                    selected_date,
+                    selected_start_date,
                     selected_hour
                 )
 
@@ -165,10 +167,10 @@ def main():
                     # If search button was clicked, check for alerts
                     if search_clicked:
                         # Create alert time from selected date and hour
-                        alert_time = datetime.combine(selected_date, datetime.min.time().replace(hour=selected_hour))
+                        alert_time = datetime.combine(selected_start_date, datetime.min.time().replace(hour=selected_hour))
                         alert_service.check_and_send_alerts(
                             transformer_data,
-                            start_date=selected_date,
+                            start_date=selected_start_date,
                             end_date=selected_end_date,
                             alert_time=alert_time
                         )
@@ -205,7 +207,7 @@ def main():
             display_transformer_dashboard(
                 data_service,
                 selected_transformer,
-                selected_date,
+                selected_start_date,
                 selected_hour,
                 selected_feeder
             )
@@ -217,7 +219,7 @@ def main():
             # Get and display transformer data
             transformer_data = data_service.get_transformer_data(
                 selected_transformer,
-                selected_date,
+                selected_start_date,
                 selected_hour,
                 selected_feeder
             )
@@ -229,7 +231,7 @@ def main():
             # Get and display customer data
             customer_data = data_service.get_customer_data(
                 selected_transformer,
-                selected_date,
+                selected_start_date,
                 selected_hour
             )
             if customer_data is not None:

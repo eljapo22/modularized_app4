@@ -87,16 +87,15 @@ class CloudAlertService:
             logger.error(f"Error selecting alert point: {str(e)}")
             return None
 
-    def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
+    def _create_deep_link(self, start_date: date, end_date: date, alert_time: datetime, transformer_id: str) -> str:
         """Create deep link back to app with context"""
         # Convert numpy.int64 to datetime if needed
         if hasattr(alert_time, 'dtype') and alert_time.dtype == 'int64':
             alert_time = pd.Timestamp(alert_time).to_pydatetime()
         if hasattr(start_date, 'dtype') and start_date.dtype == 'int64':
             start_date = pd.Timestamp(start_date).date()
-            
-        # Set end date to 30 days after start date
-        end_date = start_date + timedelta(days=30)
+        if hasattr(end_date, 'dtype') and end_date.dtype == 'int64':
+            end_date = pd.Timestamp(end_date).date()
             
         params = {
             'view': 'alert',
@@ -187,6 +186,7 @@ class CloudAlertService:
         self,
         results_df: pd.DataFrame,
         start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
         alert_time: Optional[datetime] = None,
         recipient: str = None
     ) -> bool:
@@ -226,6 +226,7 @@ class CloudAlertService:
                 # Create deep link
                 deep_link = self._create_deep_link(
                     start_date,
+                    end_date,
                     alert_time or alert_point.name,
                     alert_point['transformer_id']
                 )
