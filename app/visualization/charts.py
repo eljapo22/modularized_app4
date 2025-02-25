@@ -31,20 +31,33 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Ensure timestamp is datetime
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df = df.set_index('timestamp')
     
-    # Create threshold lines
-    df['120% (Critical)'] = 120
-    df['100% (Overloaded)'] = 100
-    df['80% (Warning)'] = 80
-    df['50% (Pre-Warning)'] = 50
+    # Create the data with status column for coloring
+    chart_data = pd.DataFrame()
+    chart_data['timestamp'] = df['timestamp']
+    chart_data['value'] = df['loading_percentage']
     
-    # Add the loading percentage
-    df['Loading'] = df['loading_percentage']
+    # Add status column for coloring
+    def get_status(value):
+        if value >= 120:
+            return STATUS_COLORS['Critical']
+        elif value >= 100:
+            return STATUS_COLORS['Overloaded']
+        elif value >= 80:
+            return STATUS_COLORS['Warning']
+        elif value >= 50:
+            return STATUS_COLORS['Pre-Warning']
+        else:
+            return STATUS_COLORS['Normal']
     
-    # Create the chart with threshold lines and loading
+    chart_data['status'] = chart_data['value'].apply(get_status)
+    
+    # Create the chart with custom colors
     st.line_chart(
-        df[['120% (Critical)', '100% (Overloaded)', '80% (Warning)', '50% (Pre-Warning)', 'Loading']],
+        data=chart_data,
+        x='timestamp',
+        y='value',
+        color='status',
         height=400
     )
 
