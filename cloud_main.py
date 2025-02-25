@@ -187,7 +187,7 @@ def main():
 
         # Automatically trigger search if coming from alert link
         if alert_view or search_clicked:
-            logger.info(f"Fetching data for Transformer={selected_transformer}, Feeder={selected_feeder}, Date={selected_start_date}, Hour={selected_hour}")
+            logger.info(f"Alert view triggered. alert_view={alert_view}, search_clicked={search_clicked}")
             with st.spinner("Loading data..."):
                 # Get and display transformer data
                 transformer_data = data_service.get_transformer_data(
@@ -198,60 +198,75 @@ def main():
                 )
 
                 if transformer_data is not None:
-                    # If search button was clicked, check for alerts
-                    if search_clicked:
-                        # Get data for the entire date range
-                        date_range_data = data_service.get_transformer_data_by_range(
-                            selected_transformer,
-                            selected_start_date,
-                            selected_end_date,
-                            selected_hour,
-                            selected_feeder
-                        )
-                        
-                        # Get values directly from sidebar
-                        url_params = {
-                            'view': 'alert',
-                            'id': selected_transformer,
-                            'start_date': selected_start_date.isoformat(),
-                            'end_date': selected_end_date.isoformat(),
-                            'hour': str(selected_hour),
-                            'feeder': str(selected_feeder)
-                        }
-                        
-                        # Update query parameters to match sidebar
-                        st.experimental_set_query_params(**url_params)
-                        
-                        # Send alert with the sidebar selections
-                        alert_service.check_and_send_alerts(
-                            date_range_data,
-                            start_date=selected_start_date,
-                            end_date=selected_end_date,
-                            alert_time=datetime.combine(selected_start_date, datetime.min.time().replace(hour=selected_hour)),
-                            hour=selected_hour,
-                            feeder=selected_feeder
-                        )
+                    logger.info(f"Data loaded successfully. Shape: {transformer_data.shape}")
+                    # Display transformer data
+                    st.markdown("## Transformer Data")
+                    st.dataframe(transformer_data)
+                    
+                    # Display loading chart
+                    if 'loading_percentage' in transformer_data.columns:
+                        st.markdown("## Loading Chart")
+                        fig = px.line(transformer_data, x='timestamp', y='loading_percentage',
+                                    title=f'Loading Percentage for {selected_transformer}')
+                        st.plotly_chart(fig)
+                else:
+                    logger.error("No data returned from get_transformer_data")
+                    st.error("No data available for the selected parameters")
 
-                    # Loading Status
-                    st.subheader("Loading Status")
-                    fig_loading = px.line(transformer_data, x='timestamp', y='loading_percentage')
-                    st.plotly_chart(fig_loading, use_container_width=True)
+                # If search button was clicked, check for alerts
+                if search_clicked:
+                    # Get data for the entire date range
+                    date_range_data = data_service.get_transformer_data_by_range(
+                        selected_transformer,
+                        selected_start_date,
+                        selected_end_date,
+                        selected_hour,
+                        selected_feeder
+                    )
+                    
+                    # Get values directly from sidebar
+                    url_params = {
+                        'view': 'alert',
+                        'id': selected_transformer,
+                        'start_date': selected_start_date.isoformat(),
+                        'end_date': selected_end_date.isoformat(),
+                        'hour': str(selected_hour),
+                        'feeder': str(selected_feeder)
+                    }
+                    
+                    # Update query parameters to match sidebar
+                    st.experimental_set_query_params(**url_params)
+                    
+                    # Send alert with the sidebar selections
+                    alert_service.check_and_send_alerts(
+                        date_range_data,
+                        start_date=selected_start_date,
+                        end_date=selected_end_date,
+                        alert_time=datetime.combine(selected_start_date, datetime.min.time().replace(hour=selected_hour)),
+                        hour=selected_hour,
+                        feeder=selected_feeder
+                    )
 
-                    # Power Consumption
-                    st.subheader("Power Consumption")
-                    fig_power = px.line(transformer_data, x='timestamp', y='power_consumption')
-                    st.plotly_chart(fig_power, use_container_width=True)
+                # Loading Status
+                st.subheader("Loading Status")
+                fig_loading = px.line(transformer_data, x='timestamp', y='loading_percentage')
+                st.plotly_chart(fig_loading, use_container_width=True)
 
-                    # Current and Voltage
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.subheader("Current")
-                        fig_current = px.line(transformer_data, x='timestamp', y='current')
-                        st.plotly_chart(fig_current, use_container_width=True)
-                    with col2:
-                        st.subheader("Voltage")
-                        fig_voltage = px.line(transformer_data, x='timestamp', y='voltage')
-                        st.plotly_chart(fig_voltage, use_container_width=True)
+                # Power Consumption
+                st.subheader("Power Consumption")
+                fig_power = px.line(transformer_data, x='timestamp', y='power_consumption')
+                st.plotly_chart(fig_power, use_container_width=True)
+
+                # Current and Voltage
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("Current")
+                    fig_current = px.line(transformer_data, x='timestamp', y='current')
+                    st.plotly_chart(fig_current, use_container_width=True)
+                with col2:
+                    st.subheader("Voltage")
+                    fig_voltage = px.line(transformer_data, x='timestamp', y='voltage')
+                    st.plotly_chart(fig_voltage, use_container_width=True)
 
             if search_clicked:  # Only show success message if manually clicked
                 st.success("Search completed!")
