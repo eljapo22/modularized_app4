@@ -368,20 +368,28 @@ class CloudAlertService:
             return None
 
     def _create_deep_link(self, start_date: date, end_date: date, alert_time: datetime, transformer_id: str, hour: int = None, feeder: int = None) -> str:
-        """Create deep link back to app with context"""
-        # Create URL parameters with None checks
+        """Create deep link back to app with context
+        
+        Args:
+            start_date (date): Start date from the search range
+            end_date (date): End date from the search range
+            alert_time (datetime): Time when the alert occurred
+            transformer_id (str): ID of the transformer
+            hour (int, optional): Specific hour to view
+            feeder (int, optional): Feeder number
+            
+        Returns:
+            str: URL with parameters for viewing the alert context
+        """
+        # Create base URL parameters
         params = {
             'view': 'alert',
-            'id': transformer_id
+            'id': transformer_id,
+            'start_date': start_date.isoformat(),  # Always include start_date
+            'end_date': end_date.isoformat()      # Always include end_date
         }
         
-        # Only add dates if they exist
-        if start_date:
-            params['start_date'] = start_date.isoformat()
-        if end_date:
-            params['end_date'] = end_date.isoformat()
-            
-        # Add hour from parameter or alert time
+        # Add hour parameter (prefer explicit hour over alert_time.hour)
         if hour is not None:
             params['hour'] = str(hour)
         elif alert_time:
@@ -391,9 +399,9 @@ class CloudAlertService:
         if feeder is not None:
             params['feeder'] = str(feeder)
             
-        # Create query string
-        query_string = '&'.join(f"{k}={v}" for k, v in params.items())
-        return f"{self.app_url}?{query_string}"
+        # Construct the URL with parameters
+        param_string = '&'.join(f"{k}={v}" for k, v in params.items())
+        return f"{self.app_url}/?{param_string}"
 
     def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
         """
