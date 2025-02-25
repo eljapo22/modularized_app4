@@ -45,7 +45,14 @@ def display_loading_status(results_df: pd.DataFrame):
     st.line_chart(
         chart_data,
         height=400,
-        use_container_width=True
+        use_container_width=True,
+        color=[
+            '#32cd32',  # Loading - Lime green
+            STATUS_COLORS['Critical'],  # Critical - Red
+            STATUS_COLORS['Overloaded'],  # Overloaded - Orange
+            STATUS_COLORS['Warning'],  # Warning - Gold
+            STATUS_COLORS['Pre-Warning']  # Pre-Warning - Purple
+        ]
     )
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
