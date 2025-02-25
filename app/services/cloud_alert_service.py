@@ -38,15 +38,8 @@ def get_status_emoji(status: str) -> str:
 class CloudAlertService:
     def __init__(self):
         """Initialize the alert service"""
-        # Get the current server URL when running in cloud
-        server_url = st.get_option('server.baseUrlPath')
-        if server_url:
-            # We're in the cloud, use the full server URL
-            self.app_url = f"https://{st.get_option('browser.serverAddress')}{server_url}"
-        else:
-            # Fallback for local development
-            self.app_url = "http://localhost:8501"
-            
+        # Always use the cloud URL since alerts should direct back to the cloud instance
+        self.app_url = "https://modularized-app4-cloud.streamlit.app"
         self.email = st.secrets.get("DEFAULT_EMAIL", "jhnapo2213@gmail.com")
         self.app_password = st.secrets.get("GMAIL_APP_PASSWORD")
         self.email_enabled = self.app_password is not None
