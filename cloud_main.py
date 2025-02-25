@@ -195,18 +195,15 @@ def main():
                             selected_feeder
                         )
                         
-                        # Create URL parameters from sidebar selections
+                        # Get values directly from sidebar
                         url_params = {
                             'view': 'alert',
                             'id': selected_transformer,
-                            'start_date': selected_start_date.isoformat() if selected_start_date else None,
-                            'end_date': selected_end_date.isoformat() if selected_end_date else None,
-                            'hour': str(selected_hour) if selected_hour is not None else None,
-                            'feeder': str(selected_feeder) if selected_feeder is not None else None
+                            'start_date': selected_start_date.isoformat(),
+                            'end_date': selected_end_date.isoformat(),
+                            'hour': str(selected_hour),
+                            'feeder': str(selected_feeder)
                         }
-                        
-                        # Remove None values
-                        url_params = {k: v for k, v in url_params.items() if v is not None}
                         
                         # Update query parameters to match sidebar
                         st.experimental_set_query_params(**url_params)
@@ -216,7 +213,7 @@ def main():
                             date_range_data,
                             start_date=selected_start_date,
                             end_date=selected_end_date,
-                            alert_time=datetime.combine(selected_start_date, datetime.min.time().replace(hour=selected_hour)) if selected_start_date else None,
+                            alert_time=datetime.combine(selected_start_date, datetime.min.time().replace(hour=selected_hour)),
                             hour=selected_hour,
                             feeder=selected_feeder
                         )

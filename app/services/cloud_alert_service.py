@@ -89,31 +89,15 @@ class CloudAlertService:
 
     def _create_deep_link(self, start_date: date, end_date: date, alert_time: datetime, transformer_id: str, hour: int = None, feeder: int = None) -> str:
         """Create deep link back to app with context"""
-        # Get current URL parameters
-        params = {}
-        try:
-            current_params = st.experimental_get_query_params()
-            params = {k: v[0] for k, v in current_params.items() if v and v[0]}
-        except:
-            # If we can't get query params, create new ones
-            pass
-        
-        # Update with any missing parameters
-        if 'view' not in params:
-            params['view'] = 'alert'
-        if 'id' not in params:
-            params['id'] = transformer_id
-        if 'start_date' not in params and start_date:
-            params['start_date'] = start_date.isoformat()
-        if 'end_date' not in params and end_date:
-            params['end_date'] = end_date.isoformat()
-        if 'hour' not in params:
-            if hour is not None:
-                params['hour'] = str(hour)
-            elif alert_time:
-                params['hour'] = str(alert_time.hour)
-        if 'feeder' not in params and feeder is not None:
-            params['feeder'] = str(feeder)
+        # Create URL parameters
+        params = {
+            'view': 'alert',
+            'id': transformer_id,
+            'start_date': start_date.isoformat(),
+            'end_date': end_date.isoformat(),
+            'hour': str(hour) if hour is not None else str(alert_time.hour),
+            'feeder': str(feeder) if feeder is not None else '1'
+        }
             
         # Create query string
         query_string = '&'.join(f"{k}={v}" for k, v in params.items())
