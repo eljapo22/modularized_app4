@@ -37,16 +37,23 @@ def display_loading_status(results_df: pd.DataFrame):
     # Create the scatter plot
     fig = go.Figure()
     
-    # Add scatter plot for loading percentages
+    # Add scatter plot for loading percentages with explicit line and marker settings
     fig.add_trace(go.Scatter(
         x=df['timestamp'],
         y=df['loading_percentage'],
-        mode='markers',
+        mode='markers',  # Only show markers, no lines
         name='Loading %',
+        marker=dict(
+            size=6,
+            color='blue',
+            line=dict(width=1, color='darkblue')
+        ),
         hovertemplate='<b>Loading:</b> %{y}%<br>' +
                      '<b>Time:</b> %{x}<br>' +
                      '<b>Power:</b> %{customdata[0]:.1f} kW<extra></extra>',
-        customdata=df[['power_kw']]
+        customdata=df[['power_kw']],
+        connectgaps=False,  # Don't connect gaps in data
+        line=dict(width=0)  # Ensure no lines are drawn
     ))
 
     # Add horizontal lines for thresholds with labels
@@ -84,10 +91,16 @@ def display_loading_status(results_df: pd.DataFrame):
             font=dict(size=10)
         )
 
-    # Update layout
+    # Update layout with explicit time axis settings
     fig.update_layout(
         title=dict(text="Loading Status", x=0.5),
-        xaxis=dict(title="Time", showgrid=True),
+        xaxis=dict(
+            title="Time",
+            showgrid=True,
+            type='date',
+            tickformat='%Y-%m-%d %H:%M',
+            dtick='H2'  # Show tick every 2 hours
+        ),
         yaxis=dict(
             title="Loading Percentage (%)",
             showgrid=True,
@@ -95,7 +108,9 @@ def display_loading_status(results_df: pd.DataFrame):
         ),
         height=500,
         showlegend=False,
-        margin=dict(r=150)  # Add right margin for threshold labels
+        margin=dict(r=150),  # Add right margin for threshold labels
+        plot_bgcolor='white',
+        paper_bgcolor='white',
     )
 
     # Display the chart
