@@ -26,8 +26,9 @@ def display_loading_status(results_df: pd.DataFrame):
         st.warning("No data available for loading status chart")
         return
 
-    # Create a copy of the dataframe
+    # Create a copy and ensure timestamp handling
     df = results_df.copy()
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values('timestamp')
     
     # Create the scatter plot
@@ -35,23 +36,15 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Define categories in priority order (highest to lowest)
     categories = [
-        (120, float('inf'), ' Critical', 'rgb(255, 0, 0)'),
+        (120, float('inf'), 'Critical', 'rgb(255, 0, 0)'),
         (100, 120, 'Overloaded', 'rgb(255, 165, 0)'),
         (80, 100, 'Warning', 'rgb(255, 255, 0)'),
         (50, 80, 'Pre-Warning', 'rgb(147, 112, 219)'),
         (0, 50, 'Normal', 'rgb(0, 255, 0)')
     ]
     
-    # Initialize arrays for the single scatter plot
-    timestamps = []
-    loading_values = []
-    colors = []
-    hover_texts = []
-    categories_list = []
-    
-    # Process each timestamp once, in priority order
-    plotted_timestamps = set()
-    
+    # Plot each category
+    plotted_timestamps = set()  # Track plotted timestamps
     for min_load, max_load, name, color in categories:
         # Only consider timestamps we haven't plotted yet
         available_data = df[~df['timestamp'].isin(plotted_timestamps)]
@@ -61,61 +54,35 @@ def display_loading_status(results_df: pd.DataFrame):
         category_data = available_data[mask]
         
         if not category_data.empty:
-            timestamps.extend(category_data['timestamp'])
-            loading_values.extend(category_data['loading_percentage'])
-            colors.extend([color] * len(category_data))
-            categories_list.extend([name] * len(category_data))
+            # Create hover text
+            hover_text = [
+                f"Loading: {row['loading_percentage']:.1f}%<br>" +
+                f"Power: {row['power_kw']:.1f} kW<br>" +
+                f"Time: {row['timestamp']}"
+                for _, row in category_data.iterrows()
+            ]
             
-            # Create hover text for these points
-            hover_text = category_data.apply(
-                lambda row: f"Loading: {row['loading_percentage']:.1f}%<br>" +
-                           f"Time: {row['timestamp']}", 
-                axis=1
-            )
-            hover_texts.extend(hover_text)
-            
-            # Add these timestamps to our plotted set
-            plotted_timestamps.update(category_data['timestamp'].tolist())
-    
-    # Create a single scatter plot with all points
-    fig.add_trace(go.Scatter(
-        x=timestamps,
-        y=loading_values,
-        mode='markers',
-        marker=dict(
-            color=colors,
-            size=6,  # Slightly smaller markers
-            line=dict(
-                color='rgba(0,0,0,0.5)',  # Semi-transparent border
-                width=0.5
-            ),
-            opacity=0.8  # Slight transparency for better visibility
-        ),
-        text=hover_texts,
-        hoverinfo='text',
-        showlegend=False  # Hide this from legend
-    ))
-    
-    # Add proper legend entries
-    for min_load, max_load, name, color in categories:
-        # Add a sample point for each category in the legend
-        fig.add_trace(go.Scatter(
-            x=[timestamps[0]],  # Use first timestamp but make point invisible
-            y=[min_load],
-            mode='markers',
-            name=name,
-            marker=dict(
-                color=color,
-                size=8,
-                line=dict(
-                    color='black',
-                    width=1
+            # Add scatter plot for this category
+            fig.add_trace(go.Scatter(
+                x=category_data['timestamp'],
+                y=category_data['loading_percentage'],
+                mode='markers',
+                name=name,
+                marker=dict(
+                    color=color,
+                    size=6,
+                    line=dict(
+                        color='rgba(0,0,0,0.5)',
+                        width=0.5
+                    ),
+                    opacity=0.8
                 ),
-                opacity=1
-            ),
-            showlegend=True,
-            visible='legendonly'  # Only show in legend, not on plot
-        ))
+                text=hover_text,
+                hoverinfo='text'
+            ))
+            
+            # Update plotted timestamps
+            plotted_timestamps.update(category_data['timestamp'].tolist())
 
     # Update layout
     fig.update_layout(
@@ -124,21 +91,21 @@ def display_loading_status(results_df: pd.DataFrame):
         showlegend=True,
         height=400,
         template="plotly_white",
-        margin=dict(l=40, r=10, t=10, b=40),  # Tighter margins
-        paper_bgcolor='rgba(0,0,0,0)',  # Transparent background
-        plot_bgcolor='white',  # White plot area
+        margin=dict(l=40, r=10, t=10, b=40),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='white',
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
             tickformat='%Y-%m-%d %H:%M',
             dtick=3600000,  # 1 hour in milliseconds
             tickangle=45,
-            gridcolor='rgba(128,128,128,0.1)',  # Light grid lines
+            gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
-            rangeslider=dict(visible=False)  # Remove the range slider
+            rangeslider=dict(visible=False)
         ),
         yaxis=dict(
-            gridcolor='rgba(128,128,128,0.1)',  # Light grid lines
+            gridcolor='rgba(128,128,128,0.1)',
             showgrid=True
         ),
         legend=dict(
@@ -146,12 +113,12 @@ def display_loading_status(results_df: pd.DataFrame):
             y=0.99,
             xanchor="left",
             x=0.01,
-            bgcolor='rgba(255,255,255,0.8)'  # Semi-transparent white background
+            bgcolor='rgba(255,255,255,0.8)'
         )
     )
 
     # Add threshold lines
-    thresholds = [120, 100, 80, 50]  # Define thresholds explicitly
+    thresholds = [120, 100, 80, 50]
     threshold_colors = ['rgb(255, 0, 0)', 'rgb(255, 165, 0)', 'rgb(255, 255, 0)', 'rgb(147, 112, 219)']
     
     for threshold, color in zip(thresholds, threshold_colors):
@@ -162,8 +129,8 @@ def display_loading_status(results_df: pd.DataFrame):
                 width=1,
                 dash="dash"
             ),
-            opacity=0.7,  # More visible lines
-            layer='below'  # Place lines below the points
+            opacity=0.7,
+            layer='below'
         )
 
     # Display the plot
