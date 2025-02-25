@@ -124,7 +124,9 @@ def display_loading_status(results_df: pd.DataFrame):
         showlegend=True,
         height=400,
         template="plotly_white",
-        margin=dict(l=0, r=0, t=30, b=0),  # Add small top margin
+        margin=dict(l=40, r=10, t=10, b=40),  # Tighter margins
+        paper_bgcolor='rgba(0,0,0,0)',  # Transparent background
+        plot_bgcolor='white',  # White plot area
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
@@ -139,7 +141,6 @@ def display_loading_status(results_df: pd.DataFrame):
             gridcolor='rgba(128,128,128,0.1)',  # Light grid lines
             showgrid=True
         ),
-        plot_bgcolor='white',  # White background
         legend=dict(
             yanchor="top",
             y=0.99,
@@ -166,7 +167,7 @@ def display_loading_status(results_df: pd.DataFrame):
         )
 
     # Display the plot
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
