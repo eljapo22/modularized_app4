@@ -42,21 +42,8 @@ def display_loading_status(results_df: pd.DataFrame):
         (-float('inf'), 50, 'Normal', 'rgb(0, 255, 0)')  # Green
     ]
     
-    # First add a line plot for the trend
-    fig.add_trace(go.Scatter(
-        x=df['timestamp'],
-        y=df['loading_percentage'],
-        mode='lines',
-        name='Loading Trend',
-        line=dict(
-            color='rgba(128,128,128,0.3)',
-            width=1.5
-        ),
-        showlegend=False
-    ))
-    
-    # Then add colored scatter points for each category
-    for min_load, max_load, name, color in reversed(categories):
+    # Add colored scatter points for each category
+    for min_load, max_load, name, color in categories:  
         mask = (df['loading_percentage'] >= min_load) & (df['loading_percentage'] < max_load)
         category_data = df[mask]
         
@@ -73,16 +60,21 @@ def display_loading_status(results_df: pd.DataFrame):
             fig.add_trace(go.Scatter(
                 x=category_data['timestamp'],
                 y=category_data['loading_percentage'],
-                mode='markers',
-                name=f"{name} ({len(category_data)} points)",  # Add point count to legend
+                mode='markers+lines',  
+                name=f"{name} ({len(category_data)} points)",
                 marker=dict(
                     color=color,
-                    size=8,  # Slightly smaller points to reduce overlap
+                    size=8,
                     line=dict(
                         color='rgba(255,255,255,0.8)',
                         width=1
                     ),
                     opacity=0.8
+                ),
+                line=dict(
+                    color=color,
+                    width=1,
+                    dash='dot'  
                 ),
                 text=hover_text,
                 hoverinfo='text'
@@ -92,9 +84,10 @@ def display_loading_status(results_df: pd.DataFrame):
             fig.add_trace(go.Scatter(
                 x=[],
                 y=[],
-                mode='markers',
-                name=f"{name} (0 points)",  # Consistent legend format
+                mode='markers+lines',
+                name=f"{name} (0 points)",
                 marker=dict(color=color, size=8),
+                line=dict(color=color, width=1, dash='dot'),
                 showlegend=True
             ))
 
@@ -111,8 +104,8 @@ def display_loading_status(results_df: pd.DataFrame):
         font=dict(color='#2f4f4f'),
         xaxis=dict(
             type='date',
-            tickformat='%Y-%m-%d',  # Simplified date format
-            dtick='D2',  # Show every other day
+            tickformat='%Y-%m-%d',  
+            dtick='D2',  
             tickangle=45,
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
@@ -122,17 +115,17 @@ def display_loading_status(results_df: pd.DataFrame):
             gridcolor='rgba(128,128,128,0.1)',
             showgrid=True,
             range=[0, max(150, df['loading_percentage'].max() * 1.1)],
-            dtick=20  # Show grid lines every 20%
+            dtick=20  
         ),
         legend=dict(
             yanchor="top",
             y=0.99,
             xanchor="right",
             x=0.99,
-            bgcolor='rgba(255,255,255,0.9)',  # Slightly more opaque
+            bgcolor='rgba(255,255,255,0.9)',  
             bordercolor='rgba(128,128,128,0.3)',
             borderwidth=1,
-            itemsizing='constant'  # Keep legend item sizes consistent
+            itemsizing='constant'  
         )
     )
 
