@@ -91,34 +91,6 @@ WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
 ORDER BY hours.hour, c."customer_id"
 """
 
-TRANSFORMER_LIST_QUERY = """
-SELECT DISTINCT transformer_id
-FROM {table_name}
-ORDER BY transformer_id;
-"""
-
-CUSTOMER_AGGREGATION_QUERY = """
-WITH RECURSIVE hours AS (
-    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
-    UNION ALL
-    SELECT hour + INTERVAL '1 hour'
-    FROM hours
-    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
-)
-SELECT 
-    hours.hour::DATE as date,
-    c."customer_id",
-    CAST(AVG(c."power_kw") AS DECIMAL(4,3)) as avg_power_kw,
-    CAST(MAX(c."power_kw") AS DECIMAL(4,3)) as max_power_kw,
-    CAST(MIN(c."power_kw") AS DECIMAL(4,3)) as min_power_kw,
-    CAST(AVG(c."power_factor") AS DECIMAL(4,3)) as avg_power_factor
-FROM hours
-LEFT JOIN {table_name} c ON c."timestamp" = hours.hour AND c."transformer_id" = ?
-WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
-GROUP BY hours.hour::DATE, c."customer_id"
-ORDER BY hours.hour::DATE, c."customer_id"
-"""
-
 CUSTOMER_DATA_QUERY_NEW = """
 SELECT 
     c."timestamp",
@@ -147,6 +119,35 @@ WHERE c."transformer_id" = ?
   AND c."timestamp" <= ?
 GROUP BY DATE_TRUNC('hour', c."timestamp")
 ORDER BY hour
+"""
+
+TRANSFORMER_LIST_QUERY = """
+SELECT DISTINCT transformer_id
+FROM {table_name}
+WHERE transformer_id LIKE 'F' || ? || '_%'
+ORDER BY transformer_id;
+"""
+
+CUSTOMER_AGGREGATION_QUERY = """
+WITH RECURSIVE hours AS (
+    SELECT DATE_TRUNC('hour', ?::timestamp) as hour
+    UNION ALL
+    SELECT hour + INTERVAL '1 hour'
+    FROM hours
+    WHERE hour < DATE_TRUNC('hour', ?::timestamp + INTERVAL '1 day')
+)
+SELECT 
+    hours.hour::DATE as date,
+    c."customer_id",
+    CAST(AVG(c."power_kw") AS DECIMAL(4,3)) as avg_power_kw,
+    CAST(MAX(c."power_kw") AS DECIMAL(4,3)) as max_power_kw,
+    CAST(MIN(c."power_kw") AS DECIMAL(4,3)) as min_power_kw,
+    CAST(AVG(c."power_factor") AS DECIMAL(4,3)) as avg_power_factor
+FROM hours
+LEFT JOIN {table_name} c ON c."timestamp" = hours.hour AND c."transformer_id" = ?
+WHERE hours.hour::DATE BETWEEN ?::DATE AND ?::DATE
+GROUP BY hours.hour::DATE, c."customer_id"
+ORDER BY hours.hour::DATE, c."customer_id"
 """
 
 # Query to get feeder names

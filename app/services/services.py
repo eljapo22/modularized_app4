@@ -29,13 +29,6 @@ from app.config.database_config import (
 # Initialize logger with module name
 logger = logging.getLogger(__name__)
 
-# Ensure logger has at least one handler
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
-
 """
 Combined services for the Transformer Loading Analysis Application
 """
