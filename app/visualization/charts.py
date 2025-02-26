@@ -243,10 +243,27 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         
         # For transformer view, just show constant voltage lines
         if is_transformer_view:
-            # Create constant voltage lines for all phases at 400V
-            voltage_data['Phase A'] = base_voltage
-            voltage_data['Phase B'] = base_voltage
-            voltage_data['Phase C'] = base_voltage
+            # Create the same variation as for customer view but with different phasing
+            # Create time-based index for sinusoidal patterns
+            time_idx = np.linspace(0, 4*np.pi, len(df))
+            
+            # Define the range (+/- 8% of 400V) but with very minimal variation
+            variation_pct = 0.005  # 0.5% - almost flat but still has slight variation
+            
+            # Create three phases with slight shifts but similar patterns
+            # All phases will stay within +/- 0.5% of 400V
+            
+            # Phase A - centered around 400V
+            phase_a = base_voltage + base_voltage * variation_pct * np.sin(time_idx)
+            voltage_data['Phase A'] = phase_a
+            
+            # Phase B - also centered around 400V with minimal offset
+            phase_b = base_voltage + base_voltage * variation_pct * np.sin(time_idx - 0.2)
+            voltage_data['Phase B'] = phase_b
+            
+            # Phase C - also centered around 400V with minimal offset
+            phase_c = base_voltage + base_voltage * variation_pct * np.sin(time_idx - 0.4)
+            voltage_data['Phase C'] = phase_c
         else:
             # Create time-based index for sinusoidal patterns for customer view
             time_idx = np.linspace(0, 4*np.pi, len(df))
