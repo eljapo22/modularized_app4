@@ -126,65 +126,13 @@ def display_loading_status(results_df: pd.DataFrame):
     # Round loading percentages to 1 decimal place for consistent display
     df['loading_percentage'] = df['loading_percentage'].round(1)
     
-    # Find min and max timestamp for the backgrounds
-    min_time = df['timestamp'].min()
-    max_time = df['timestamp'].max()
-    
-    # Create timestamp dataframe for background rectangles
-    time_df = pd.DataFrame({
-        'start': [min_time],
-        'end': [max_time]
-    })
-    
-    # Create background charts for each threshold level
-    # Critical: >= 120%
-    critical_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='red').encode(
-        x='start:T',
-        x2='end:T',
-        y=alt.value(0),  # Bottom of chart (pixels)
-        y2=alt.datum(120)  # The value threshold
-    )
-    
-    # Overloaded: 100-120%
-    overloaded_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='orange').encode(
-        x='start:T',
-        x2='end:T',
-        y=alt.datum(120),
-        y2=alt.datum(100)
-    )
-    
-    # Warning: 80-100%
-    warning_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='yellow').encode(
-        x='start:T',
-        x2='end:T',
-        y=alt.datum(100),
-        y2=alt.datum(80)
-    )
-    
-    # Pre-Warning: 50-80%
-    prewarning_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='purple').encode(
-        x='start:T',
-        x2='end:T',
-        y=alt.datum(80),
-        y2=alt.datum(50)
-    )
-    
-    # Normal: 0-50%
-    normal_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='green').encode(
-        x='start:T',
-        x2='end:T',
-        y=alt.datum(50),
-        y2=alt.datum(0)
-    )
-    
-    # Create main line chart
-    line_chart = alt.Chart(df).mark_line(
+    # Create an Altair chart for loading percentage
+    base_chart = alt.Chart(df).mark_line(
         point=True,
         strokeWidth=2,
         color='#1f77b4'
     ).encode(
         x=alt.X('timestamp:T', 
-            scale=alt.Scale(domain=[min_time, max_time]),
             axis=alt.Axis(
                 format='%m/%d/%y',
                 title='Date',
@@ -203,17 +151,17 @@ def display_loading_status(results_df: pd.DataFrame):
                 titleColor='#333333',
                 labelFontSize=12,
                 titleFontSize=14,
-                tickCount=7
+                tickCount=7,
+                grid=True
             )
         ),
         tooltip=['timestamp:T', alt.Tooltip('loading_percentage:Q', format='.1f', title='Loading %')]
     ).properties(
         title="Loading Percentage Over Time",
-        width=600,
         height=400
     )
     
-    # Add threshold lines
+    # Add threshold lines to the chart
     threshold_rules = [
         {'value': 120, 'color': 'red', 'label': 'Critical'},
         {'value': 100, 'color': 'orange', 'label': 'Overloaded'},
@@ -221,29 +169,23 @@ def display_loading_status(results_df: pd.DataFrame):
         {'value': 50, 'color': 'purple', 'label': 'Pre-Warning'}
     ]
     
-    # Create threshold lines
+    # Add threshold lines to the chart
     threshold_lines = []
     for rule in threshold_rules:
         threshold_line = alt.Chart(pd.DataFrame({'threshold': [rule['value']]})).mark_rule(
             color=rule['color'],
             strokeWidth=1,
-            strokeDash=[4, 4]
+            strokeDash=[4, 4]  # Dashed line
         ).encode(
             y='threshold:Q'
         )
         threshold_lines.append(threshold_line)
     
-    # Combine background, line chart, and threshold lines
-    # Layer order: background first, then threshold lines, then data line
-    final_chart = alt.layer(
-        critical_bg, overloaded_bg, warning_bg, prewarning_bg, normal_bg,
-        *threshold_lines, line_chart
-    ).resolve_scale(
-        y='shared'
-    )
+    # Combine all chart elements - only using threshold lines
+    chart = alt.layer(base_chart, *threshold_lines)
     
-    # Display the chart with explicit height
-    st.altair_chart(final_chart, use_container_width=True)
+    # Display the chart
+    st.altair_chart(chart, use_container_width=True)
     
     # Add threshold annotations with colored text
     threshold_rows = []
@@ -311,59 +253,14 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         return
         
     try:
-        # For transformer view, we don't need the database values at all
-        # Just create a completely synthetic dataset with timestamps
-        if is_transformer_view:
-            # Create mock dataset with consistent timestamps
-            # Use 24 data points (hourly data for a day) for consistent display
-            import numpy as np
-            
-            # Create a base timestamp and a range of 24 hours
-            base_timestamp = pd.Timestamp('2025-02-26')
-            timestamps = [base_timestamp + pd.Timedelta(hours=i) for i in range(24)]
-            
-            # Create empty dataframe with timestamps only
-            voltage_data = pd.DataFrame()
-            voltage_data['timestamp'] = timestamps
-            
-            # Base voltage is 400V
-            base_voltage = 400
-            
-            # Constant voltage for all three phases
-            voltage_data['Phase A'] = base_voltage
-            voltage_data['Phase B'] = base_voltage
-            voltage_data['Phase C'] = base_voltage
-            
-            # Define the column mapping for the multi-line chart
-            column_dict = {
-                'Phase A': 'Phase A',
-                'Phase B': 'Phase B',
-                'Phase C': 'Phase C'
-            }
-            
-            # Create a multi-line chart with Altair
-            chart = create_multi_line_chart(
-                voltage_data, 
-                column_dict,
-                title="Voltage (V)"
-            )
-            
-            # Display the chart with streamlit
-            st.altair_chart(chart, use_container_width=True)
-            return
-        
-        # For customer view, still create synthetic data but based on timestamps from the database
+        # Common code for both transformer and customer views
         df = results_df.copy()
-            
-        # Check if voltage_v column exists (only needed for customer view)
-        if 'voltage_v' not in df.columns:
-            st.error("Voltage data not available: missing 'voltage_v' column")
-            return
-            
+        
+        # Ensure timestamp is formatted correctly
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df = df.sort_values('timestamp')
         
-        # Create mock data for 3 phases based on actual voltage, but within specific range
+        # Create synthetic data for 3 phases
         voltage_data = pd.DataFrame()
         voltage_data['timestamp'] = df['timestamp']
         
@@ -373,7 +270,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Base voltage is 400V
         base_voltage = 400
         
-        # Create variations for customer view
+        # Create variations for both views
         # Time-based index for sinusoidal patterns
         time_idx = np.linspace(0, 4*np.pi, len(df))
         
@@ -819,9 +716,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             size_kw = size_kva * avg_pf
             
             # Create a horizontal rule at the size_kw value
-            capacity_rule = alt.Chart(pd.DataFrame({
-                'y': [size_kw]
-            })).mark_rule(
+            capacity_rule = alt.Chart(pd.DataFrame({'y': [size_kw]})).mark_rule(
                 color='red',
                 strokeWidth=2,
                 strokeDash=[5, 5]
