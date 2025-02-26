@@ -113,7 +113,8 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status visualization with thresholds."""
+    """Display loading status visualization with thresholds and background colors."""
+    # Deployment test - Feb 26 13:00
     if results_df is None or results_df.empty:
         st.warning("No data available for loading status visualization.")
         return
@@ -127,13 +128,98 @@ def display_loading_status(results_df: pd.DataFrame):
     df['loading_percentage'] = df['loading_percentage'].round(1)
     
     # Create an Altair chart for loading percentage
-    chart = create_altair_chart(
-        df, 
-        'loading_percentage',
+    base_chart = alt.Chart(df).mark_line(point=True).encode(
+        x=alt.X('timestamp:T', 
+            axis=alt.Axis(
+                format='%m/%d/%y',
+                title='Date',
+                labelAngle=-45,
+                labelColor='#333333',
+                titleColor='#333333',
+                labelFontSize=12,
+                titleFontSize=14
+            )
+        ),
+        y=alt.Y('loading_percentage:Q',
+            axis=alt.Axis(
+                title='Loading Percentage',
+                labelColor='#333333',
+                titleColor='#333333',
+                labelFontSize=12,
+                titleFontSize=14
+            )
+        ),
+        tooltip=['timestamp:T', 'loading_percentage:Q']
+    ).properties(
+        width='container',
+        height=250,
         title="Loading Percentage Over Time"
     )
     
-    # Add threshold rules for different loading levels
+    # Create colored background sections
+    background_areas = []
+    
+    # Critical: >= 120%
+    critical_area = alt.Chart(pd.DataFrame({
+        'y1': [120], 'y2': [200]  # Upper limit set to 200% for visual purposes
+    })).mark_area(
+        color='red',
+        opacity=0.1
+    ).encode(
+        y='y1:Q',
+        y2='y2:Q'
+    )
+    background_areas.append(critical_area)
+    
+    # Overloaded: 100-120%
+    overloaded_area = alt.Chart(pd.DataFrame({
+        'y1': [100], 'y2': [120]
+    })).mark_area(
+        color='orange',
+        opacity=0.1
+    ).encode(
+        y='y1:Q',
+        y2='y2:Q'
+    )
+    background_areas.append(overloaded_area)
+    
+    # Warning: 80-100%
+    warning_area = alt.Chart(pd.DataFrame({
+        'y1': [80], 'y2': [100]
+    })).mark_area(
+        color='yellow',
+        opacity=0.1
+    ).encode(
+        y='y1:Q',
+        y2='y2:Q'
+    )
+    background_areas.append(warning_area)
+    
+    # Pre-Warning: 50-80%
+    prewarning_area = alt.Chart(pd.DataFrame({
+        'y1': [50], 'y2': [80]
+    })).mark_area(
+        color='purple',
+        opacity=0.1
+    ).encode(
+        y='y1:Q',
+        y2='y2:Q'
+    )
+    background_areas.append(prewarning_area)
+    
+    # Normal: 0-50%
+    normal_area = alt.Chart(pd.DataFrame({
+        'y1': [0], 'y2': [50]
+    })).mark_area(
+        color='green',
+        opacity=0.1
+    ).encode(
+        y='y1:Q',
+        y2='y2:Q'
+    )
+    background_areas.append(normal_area)
+    
+    # Add threshold lines to the chart
     threshold_rules = [
         {'value': 120, 'color': 'red', 'label': 'Critical'},
         {'value': 100, 'color': 'orange', 'label': 'Overloaded'},
@@ -142,6 +228,7 @@ def display_loading_status(results_df: pd.DataFrame):
     ]
     
     # Add threshold lines to the chart
+    threshold_lines = []
     for rule in threshold_rules:
         threshold_line = alt.Chart(pd.DataFrame({'threshold': [rule['value']]})).mark_rule(
             color=rule['color'],
@@ -150,7 +237,10 @@ def display_loading_status(results_df: pd.DataFrame):
         ).encode(
             y='threshold:Q'
         )
-        chart += threshold_line
+        threshold_lines.append(threshold_line)
+    
+    # Combine all chart elements
+    chart = alt.layer(*background_areas, base_chart, *threshold_lines)
     
     # Display the chart with streamlit
     st.altair_chart(chart, use_container_width=True)
@@ -163,8 +253,9 @@ def display_loading_status(results_df: pd.DataFrame):
         (100, 'Overloaded', 'orange'),
         (80, 'Warning', 'yellow'),
         (50, 'Pre-Warning', 'purple'),
+        (0, 'Normal', 'green'),
     ]:
-        threshold_rows.append(f"<span style='color:{color}'>{label} ≥ {threshold}%</span>")
+        threshold_rows.append(f"<span style='color:{color}'>{label} {'>=' if threshold > 0 else '<'} {threshold}%</span>")
     
     # Create a container for the thresholds
     st.markdown("<div style='text-align: right'>" + "<br>".join(threshold_rows) + "</div>", unsafe_allow_html=True)
@@ -992,23 +1083,23 @@ def create_altair_chart(df, y_column, title=None, color=None):
     """
     # Base configuration for line chart
     chart = alt.Chart(df).mark_line(point=True).encode(
-        x=alt.X('timestamp:T', 
+        x=alt.X('timestamp:T',
                 axis=alt.Axis(
-                    format='%m/%d/%y',     # Format as mm/dd/yy
+                    format='%m/%d/%y',
                     title='Date',
-                    labelAngle=-45,        # Angle labels to prevent overlap
-                    labelColor='#333333',  # Darker font color
-                    titleColor='#333333',  # Darker font color
-                    labelFontSize=12,      # Slightly larger font size
-                    titleFontSize=14       # Slightly larger font size for title
+                    labelAngle=-45,
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=12,
+                    titleFontSize=14
                 )),
         y=alt.Y(y_column, 
                 axis=alt.Axis(
                     title=y_column.replace('_', ' ').title(), # Format title nicely
-                    labelColor='#333333',  # Darker font color
-                    titleColor='#333333',  # Darker font color
-                    labelFontSize=12,      # Slightly larger font size
-                    titleFontSize=14       # Slightly larger font size for title
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=12,
+                    titleFontSize=14
                 )),
         tooltip=['timestamp:T', f'{y_column}:Q']
     )
