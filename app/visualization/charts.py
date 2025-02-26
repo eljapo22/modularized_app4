@@ -308,11 +308,19 @@ def display_transformer_dashboard(
                     st.warning(f"No data available for Customer {selected_customer_id}")
                     return
                 
-                # Add back button
-                if st.button("← Back to Dashboard"):
-                    # No need to set any session state, just clear the current one
-                    st.session_state.show_customer_details = False
-                    st.experimental_rerun()
+                # Add navigation buttons in columns
+                col1, col2, col3 = st.columns([1, 1, 2])
+                with col1:
+                    if st.button("← Back to Dashboard"):
+                        # No need to set any session state, just clear the current one
+                        st.session_state.show_customer_details = False
+                        st.experimental_rerun()
+                with col2:
+                    if st.button("← Back to Customer List"):
+                        # Go back to bridge view
+                        st.session_state.show_customer_bridge = True
+                        st.session_state.show_customer_details = False
+                        st.experimental_rerun()
                 
                 # Display the detailed view for this customer
                 st.header(f"Customer {selected_customer_id} Details")
