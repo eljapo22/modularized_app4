@@ -87,6 +87,38 @@ class CloudAlertService:
     def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
         """Create a deep link to the dashboard with alert parameters"""
         try:
+            # Handle None values first
+            if start_date is None:
+                logger.warning("start_date is None in _create_deep_link")
+                # Use a default date (today)
+                start_date = datetime.now().date()
+                
+            if alert_time is None:
+                logger.warning("alert_time is None in _create_deep_link")
+                # Use a default time (now)
+                alert_time = datetime.now()
+                
+            # Convert numpy or pandas types to Python datetime objects
+            if hasattr(alert_time, 'dtype'):
+                try:
+                    alert_time = pd.Timestamp(alert_time).to_pydatetime()
+                except Exception as e:
+                    logger.warning(f"Failed to convert alert_time: {e}")
+                    alert_time = datetime.now()
+                    
+            if hasattr(start_date, 'dtype'):
+                try:
+                    start_date = pd.Timestamp(start_date).date()
+                except Exception as e:
+                    logger.warning(f"Failed to convert start_date: {e}")
+                    start_date = datetime.now().date()
+            
+            # Additional safety check
+            if not hasattr(start_date, 'strftime') or not hasattr(alert_time, 'strftime'):
+                logger.warning(f"Invalid date types: start_date={type(start_date)}, alert_time={type(alert_time)}")
+                start_date = datetime.now().date() if not hasattr(start_date, 'strftime') else start_date
+                alert_time = datetime.now() if not hasattr(alert_time, 'strftime') else alert_time
+            
             # Format the parameters
             params = {
                 'view': 'alert',
