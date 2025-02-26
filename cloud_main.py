@@ -62,8 +62,10 @@ def main():
         # Ensure dashboard is always the first view by resetting relevant session state
         if 'app_initialized' not in st.session_state:
             # Reset any view-related session state on first load
-            st.session_state.show_customer_details = False
-            st.session_state.show_customer_bridge = False
+            # Ensure we start with the transformer dashboard view (first view)
+            st.session_state.show_customer_details = False  # Hide individual customer view (third view)
+            st.session_state.show_customer_bridge = False   # Hide customer list/bridge view (second view)
+            # Remove any selected customer to start fresh
             if 'selected_customer_id' in st.session_state:
                 del st.session_state['selected_customer_id']
             st.session_state.app_initialized = True

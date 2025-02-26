@@ -348,9 +348,9 @@ def display_transformer_dashboard(
     try:
         # Ensure session state variables exist (set defaults if not)
         if 'show_customer_details' not in st.session_state:
-            st.session_state.show_customer_details = False
+            st.session_state.show_customer_details = False  # Third view (individual customer)
         if 'show_customer_bridge' not in st.session_state:
-            st.session_state.show_customer_bridge = False
+            st.session_state.show_customer_bridge = False   # Second view (customer list)
             
         # Check for alert timestamp to highlight
         alert_timestamp = None
@@ -379,15 +379,16 @@ def display_transformer_dashboard(
                 col1, col2, col3 = st.columns([1, 1, 2])
                 with col1:
                     if st.button("← Back to Dashboard"):
-                        # No need to set any session state, just clear the current one
-                        st.session_state.show_customer_details = False
+                        # Reset all view-related session state to go back to dashboard (first view)
+                        st.session_state.show_customer_details = False  # Hide individual customer view (third view)
+                        st.session_state.show_customer_bridge = False   # Hide customer list view (second view)
                         st.experimental_rerun()
                 with col2:
                     if st.button("← Back to Customer List"):
-                        # Go back to bridge view - reset the proper session state variables
+                        # Go back to customer bridge view (second view)
                         st.session_state.show_customer_bridge = True  # Show the bridge/list view
                         st.session_state.show_customer_details = False  # Hide detailed view
-                        # Keep the customer_id in session state but don't show details for it
+                        # Don't clear selected_customer_id to maintain context
                         st.experimental_rerun()
                 
                 # Display the detailed view for this customer
@@ -571,9 +572,9 @@ def display_customers_bridge_view(customer_df: pd.DataFrame):
     
     # Back button to return to transformer dashboard
     if st.button("← Back to Dashboard"):
-        # Clear session state
-        if 'show_customer_bridge' in st.session_state:
-            st.session_state.show_customer_bridge = False
+        # Reset all view-related session state to go back to dashboard (first view)
+        st.session_state.show_customer_bridge = False
+        st.session_state.show_customer_details = False
         st.experimental_rerun()
     
     # Get unique customers and prepare summary data
