@@ -364,7 +364,8 @@ def display_transformer_dashboard(
         
         # Show customer details if a specific customer was selected
         if 'show_customer_details' in st.session_state and st.session_state.show_customer_details:
-            st.session_state.show_customer_details = False  # Reset for next time
+            # Don't reset show_customer_details here - it causes navigation issues
+            # Will be reset by the navigation buttons when needed
             
             if customer_df is not None and 'selected_customer_id' in st.session_state:
                 # Filter for the selected customer
