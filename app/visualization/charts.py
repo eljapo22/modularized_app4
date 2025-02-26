@@ -620,6 +620,15 @@ def display_transformer_data(results_df: pd.DataFrame):
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values('timestamp')  # Sort by timestamp
     
+    # Add debug logging for dataframe content
+    logger.info(f"Transformer dataframe first few rows: {df.head(2).to_dict()}")
+    if 'size_kva' in df.columns:
+        logger.info(f"size_kva data type: {df['size_kva'].dtype}")
+        logger.info(f"size_kva first value: {df['size_kva'].iloc[0]}")
+        logger.info(f"size_kva unique values: {df['size_kva'].unique()}")
+    else:
+        logger.warning("size_kva column not found in dataframe")
+    
     # Loading Status at the top
     st.markdown("""
         <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
@@ -652,8 +661,8 @@ def display_transformer_data(results_df: pd.DataFrame):
             capacity_rule = alt.Chart().mark_rule(
                 color='red',
                 strokeWidth=2,
-                opacity=0.7,
-                strokeDash=[5, 5]  # Dashed line
+                strokeDash=[5, 5],
+                opacity=0.7
             ).encode(
                 y=alt.datum(size_kva)  # Use datum to specify a constant value
             )
@@ -662,10 +671,10 @@ def display_transformer_data(results_df: pd.DataFrame):
             capacity_text = alt.Chart().mark_text(
                 align='right',
                 baseline='middle',
-                dy=-10,
                 fontSize=12,
                 fontWeight='bold',
-                color='red'
+                color='red',
+                dy=-10  # Offset a bit above the line
             ).encode(
                 y=alt.datum(size_kva),  # Position at the size_kva value
                 x=alt.datum(1),  # Position at the right edge (normalized 0-1 scale)
@@ -680,6 +689,7 @@ def display_transformer_data(results_df: pd.DataFrame):
     except Exception as e:
         logger.error(f"Could not add transformer capacity line: {str(e)}")
     
+    # Display the chart with the capacity line
     st.altair_chart(power_chart, use_container_width=True)
 
     # Current and Voltage in columns
@@ -802,6 +812,9 @@ def create_altair_chart(df, y_column, title=None, color=None):
     if title:
         chart = chart.properties(title=title)
         
+    # Set chart width to responsive
+    chart = chart.properties(width='container')
+    
     # Highlight alert timestamp if it exists in session state
     if 'highlight_timestamp' in st.session_state:
         try:
