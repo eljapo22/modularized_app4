@@ -39,7 +39,7 @@ def get_status_emoji(status: str) -> str:
 class CloudAlertService:
     def __init__(self):
         """Initialize the alert service"""
-        self.app_url = st.secrets.get("APP_URL", "https://eljapo22-modularized-app4-cloudmain-56xo5y.streamlit.app")
+        self.app_url = st.secrets.get("APP_URL", "https://transformer-dashboard.streamlit.app")
         self.email = st.secrets.get("DEFAULT_EMAIL", "jhnapo2213@gmail.com")
         self.app_password = st.secrets.get("GMAIL_APP_PASSWORD")
         self.email_enabled = self.app_password is not None
@@ -108,8 +108,14 @@ class CloudAlertService:
             # Create the query string
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
             
-            deep_link = f"{self.app_url}?{query_string}"
-            logger.info(f"Created deep link: {deep_link}")
+            # Ensure base URL doesn't have trailing slash before adding query parameters
+            base_url = self.app_url.rstrip('/')
+            deep_link = f"{base_url}/?{query_string}"
+            
+            logger.info(f"Created deep link with base URL: {base_url}")
+            logger.info(f"Full deep link: {deep_link}")
+            logger.info(f"Query parameters: {params}")
+            
             return deep_link
             
         except Exception as e:
