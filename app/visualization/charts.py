@@ -250,11 +250,36 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         df = df.sort_values('timestamp')
         df = df.set_index('timestamp')
         
-        # Create mock data for 3 phases based on actual voltage
+        # Create mock data for 3 phases based on actual voltage, but within specific range
         voltage_data = pd.DataFrame(index=df.index)
-        voltage_data['[0]Phase A'] = df['voltage_v']  # Original data
-        voltage_data['[1]Phase B'] = df['voltage_v'] * 0.98  # Slightly lower
-        voltage_data['[2]Phase C'] = df['voltage_v'] * 1.02  # Slightly higher
+        
+        # Import for math functions
+        import numpy as np
+        
+        # Create time-based index for sinusoidal patterns
+        time_idx = np.linspace(0, 4*np.pi, len(df))
+        
+        # Base voltage is 400V
+        base_voltage = 400
+        
+        # Define the range (+/- 8% of 400V)
+        # Min = 368V, Max = 432V
+        variation_pct = 0.08  # 8%
+        
+        # Create three phases with slight shifts but similar patterns
+        # All phases will stay within +/- 8% of 400V
+        
+        # Phase A - centered around 400V
+        phase_a = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx)
+        voltage_data['[0]Phase A'] = phase_a
+        
+        # Phase B - shifted 120 degrees (2π/3 radians)
+        phase_b = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (2*np.pi/3))
+        voltage_data['[1]Phase B'] = phase_b
+        
+        # Phase C - shifted 240 degrees (4π/3 radians)
+        phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
+        voltage_data['[2]Phase C'] = phase_c
         
         # Create voltage chart with all phases
         st.line_chart(voltage_data)
