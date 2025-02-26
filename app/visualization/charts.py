@@ -506,31 +506,28 @@ def display_customer_tab(df: pd.DataFrame):
     customer_df['voltage_v'] = customer_df['voltage_v'].round(1)  # xxx.x
 
     # Display customer metrics in tiles
-    cols = st.columns(4)
+    cols = st.columns(3)  # Changed from 4 to 3 columns as we're removing the last tile
     latest = customer_df.iloc[-1]
+    
+    # Get the customer ID from the dataframe
+    customer_id = customer_df['customer_id'].iloc[0]
     
     with cols[0]:
         create_tile(
-            "Current (A)",
-            f"{latest['current_a']:.{DECIMAL_PLACES['current_a']}f}",
+            "Customer ID",
+            f"{customer_id}",
             is_clickable=True
         )
     with cols[1]:
         create_tile(
-            "Power (kW)",
-            f"{latest['power_kw']:.{DECIMAL_PLACES['power_kw']}f}",
+            "X Coordinate",
+            "43.6532° N",
             is_clickable=True
         )
     with cols[2]:
         create_tile(
-            "Power (kVA)",
-            f"{latest['power_kva']:.{DECIMAL_PLACES['power_kva']}f}",
-            is_clickable=True
-        )
-    with cols[3]:
-        create_tile(
-            "Voltage (V)",
-            f"{latest['voltage_v']:.{DECIMAL_PLACES['voltage_v']}f}",
+            "Y Coordinate",
+            "79.3832° W",
             is_clickable=True
         )
     
@@ -949,10 +946,27 @@ def display_customer_data(results_df: pd.DataFrame):
         st.warning("No data available for customer visualization.")
         return
 
-    # Display mock coordinates
+    # Get customer ID
+    customer_id = results_df['customer_id'].iloc[0] if 'customer_id' in results_df.columns else "N/A"
+    
+    # Display customer ID
+    st.markdown(f"""
+        <div style='padding: 10px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
+            <p style='margin: 0; color: #666666; font-size: 14px'>Customer ID: {customer_id}</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Display X coordinate
     st.markdown("""
         <div style='padding: 10px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-            <p style='margin: 0; color: #666666; font-size: 14px'>X: 43.6532° N, Y: 79.3832° W</p>
+            <p style='margin: 0; color: #666666; font-size: 14px'>X Coordinate: 43.6532° N</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Display Y coordinate
+    st.markdown("""
+        <div style='padding: 10px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
+            <p style='margin: 0; color: #666666; font-size: 14px'>Y Coordinate: 79.3832° W</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -972,23 +986,9 @@ def display_customer_data(results_df: pd.DataFrame):
     )
     st.altair_chart(power_chart, use_container_width=True)
 
-    # Current and Voltage in columns
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        create_colored_banner("Current")
-        
-        # Create current chart with Altair
-        current_chart = create_altair_chart(
-            df,
-            'current_a',
-            color="#ff7f0e"  # Orange color for current
-        )
-        st.altair_chart(current_chart, use_container_width=True)
-        
-    with col2:
-        create_colored_banner("Voltage")
-        display_voltage_time_series(results_df)
+    # Only show Voltage chart, removing the Current chart
+    create_colored_banner("Voltage")
+    display_voltage_time_series(results_df)
 
 def create_altair_chart(df, y_column, title=None, color=None):
     """
