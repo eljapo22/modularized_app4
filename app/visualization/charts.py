@@ -811,11 +811,11 @@ def display_transformer_data(results_df: pd.DataFrame):
             # Add text annotation for the capacity line
             capacity_text = alt.Chart(pd.DataFrame({
                 'y': [size_kw],
-                'text': [f'Capacity: {size_kva:.0f} kVA ({size_kw:.1f} kW)']
+                'text': [f'Capacity: {size_kva:.0f} kVA']
             })).mark_text(
-                align='right',
+                align='left',
                 baseline='bottom',
-                dx=-5,
+                dx=5,
                 dy=-5,
                 fontSize=12,
                 fontWeight='bold',
@@ -823,7 +823,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             ).encode(
                 y='y:Q',
                 text='text:N',
-                x=alt.value(5)  # Position near left edge
+                x=alt.value(570)  # Position near right edge
             )
             
             # Combine charts
