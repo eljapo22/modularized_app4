@@ -238,30 +238,37 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Import for math functions
         import numpy as np
         
-        # Create time-based index for sinusoidal patterns
-        time_idx = np.linspace(0, 4*np.pi, len(df))
-        
         # Base voltage is 400V
         base_voltage = 400
         
-        # Define the range (+/- 8% of 400V)
-        # Min = 368V, Max = 432V
-        variation_pct = 0.08  # 8%
-        
-        # Create three phases with slight shifts but similar patterns
-        # All phases will stay within +/- 8% of 400V
-        
-        # Phase A - centered around 400V
-        phase_a = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx)
-        voltage_data['Phase A'] = phase_a
-        
-        # Phase B - shifted 120 degrees (2π/3 radians)
-        phase_b = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (2*np.pi/3))
-        voltage_data['Phase B'] = phase_b
-        
-        # Phase C - shifted 240 degrees (4π/3 radians)
-        phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
-        voltage_data['Phase C'] = phase_c
+        # For transformer view, just show constant voltage lines
+        if is_transformer_view:
+            # Create constant voltage lines for all phases at 400V
+            voltage_data['Phase A'] = base_voltage
+            voltage_data['Phase B'] = base_voltage
+            voltage_data['Phase C'] = base_voltage
+        else:
+            # Create time-based index for sinusoidal patterns for customer view
+            time_idx = np.linspace(0, 4*np.pi, len(df))
+            
+            # Define the range (+/- 8% of 400V)
+            # Min = 368V, Max = 432V
+            variation_pct = 0.08  # 8%
+            
+            # Create three phases with slight shifts but similar patterns
+            # All phases will stay within +/- 8% of 400V
+            
+            # Phase A - centered around 400V
+            phase_a = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx)
+            voltage_data['Phase A'] = phase_a
+            
+            # Phase B - shifted 120 degrees (2π/3 radians)
+            phase_b = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (2*np.pi/3))
+            voltage_data['Phase B'] = phase_b
+            
+            # Phase C - shifted 240 degrees (4π/3 radians)
+            phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
+            voltage_data['Phase C'] = phase_c
         
         # Define the column mapping for the multi-line chart
         column_dict = {
