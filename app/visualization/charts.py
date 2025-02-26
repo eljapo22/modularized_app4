@@ -808,22 +808,26 @@ def display_transformer_data(results_df: pd.DataFrame):
                 y='y:Q'
             )
             
-            # Add text annotation for the capacity line
-            capacity_text = alt.Chart(pd.DataFrame({
-                'y': [size_kw],
-                'text': [f'Capacity: {size_kva:.0f} kVA']
-            })).mark_text(
+            # Create a new DataFrame with timestamp domain information
+            domain_df = pd.DataFrame({
+                'timestamp': [power_df['timestamp'].min(), power_df['timestamp'].max()],
+                'y': [size_kw, size_kw],
+                'text': ['', f'Capacity: {size_kva:.0f} kVA']  # Text only on the right point
+            })
+            
+            # Add text annotation for the capacity line, positioned at the max timestamp
+            capacity_text = alt.Chart(domain_df).mark_text(
                 align='right',
                 baseline='bottom',
-                dx=-10,
+                dx=-5,
                 dy=-5,
                 fontSize=12,
                 fontWeight='bold',
                 color='red'
             ).encode(
+                x='timestamp:T',  # Use the actual timestamp instead of a fixed position
                 y='y:Q',
-                text='text:N',
-                x=alt.value(1000)  # Position at far right edge of chart
+                text='text:N'
             )
             
             # Combine charts
