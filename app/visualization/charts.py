@@ -752,19 +752,11 @@ def display_transformer_data(results_df: pd.DataFrame):
         logger.warning("size_kva column not found in dataframe")
     
     # Loading Status at the top
-    st.markdown("""
-        <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-            <h3 style='margin: 0px; color: #262626; font-size: 18px'>Loading Status</h3>
-        </div>
-    """, unsafe_allow_html=True)
+    create_colored_banner("Loading Status")
     display_loading_status(df)
 
     # Power Consumption
-    st.markdown("""
-        <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-            <h3 style='margin: 0px; color: #262626; font-size: 18px'>Power Consumption</h3>
-        </div>
-    """, unsafe_allow_html=True)
+    create_colored_banner("Power Consumption")
     
     # Create power chart with Altair - using standard function for consistent styling
     power_df = df.copy()
@@ -849,8 +841,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
                 color='red',
                 strokeWidth=2,
-                opacity=0.7,
-                strokeDash=[5, 5]  # Dashed line
+                strokeDash=[5, 5]
             ).encode(
                 x='alert_time:T'
             )
@@ -883,12 +874,7 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("""
-            <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-                <h3 style='margin: 0px; color: #262626; font-size: 18px'>Current</h3>
-            </div>
-        """, unsafe_allow_html=True)
-        
+        create_colored_banner("Current")
         # Create current chart with direct Altair
         current_base = alt.Chart(df).mark_line(point=True, color="#ff7f0e").encode(
             x=alt.X('timestamp:T', 
@@ -961,12 +947,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         st.altair_chart(current_chart, use_container_width=True)
     
     with col2:
-        st.markdown("""
-            <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-                <h3 style='margin: 0px; color: #262626; font-size: 18px'>Voltage</h3>
-            </div>
-        """, unsafe_allow_html=True)
-        
+        create_colored_banner("Voltage")
         # Create voltage chart with direct Altair
         voltage_base = alt.Chart(df).mark_line(point=True, color="#2ca02c").encode(
             x=alt.X('timestamp:T', 
