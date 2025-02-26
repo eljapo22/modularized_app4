@@ -264,7 +264,14 @@ def main():
                 
                 # Highlight alert time if provided
                 if param_alert_time:
-                    st.session_state.highlight_timestamp = param_alert_time
+                    try:
+                        # Parse the ISO format timestamp
+                        alert_time_parsed = pd.to_datetime(param_alert_time)
+                        # Store the parsed timestamp in session state
+                        st.session_state.highlight_timestamp = alert_time_parsed
+                        logger.info(f"Set highlight timestamp to {alert_time_parsed}")
+                    except Exception as e:
+                        logger.error(f"Failed to parse alert timestamp {param_alert_time}: {str(e)}")
                 
             except Exception as e:
                 logger.error(f"Auto-triggered search: Error getting customer data: {str(e)}")

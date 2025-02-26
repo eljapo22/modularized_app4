@@ -626,6 +626,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         logger.info(f"size_kva data type: {df['size_kva'].dtype}")
         logger.info(f"size_kva first value: {df['size_kva'].iloc[0]}")
         logger.info(f"size_kva unique values: {df['size_kva'].unique()}")
+        logger.info(f"power_kw range: {df['power_kw'].min()} to {df['power_kw'].max()}")
     else:
         logger.warning("size_kva column not found in dataframe")
     
@@ -644,57 +645,134 @@ def display_transformer_data(results_df: pd.DataFrame):
         </div>
     """, unsafe_allow_html=True)
     
-    # Create power chart with Altair
-    power_chart = create_altair_chart(
-        df,
-        'power_kw',
-        color="#1f77b4"  # Blue color for power
+    # Create a base chart with the power data
+    base = alt.Chart(df).mark_line(point=True, color="#1f77b4").encode(
+        x=alt.X('timestamp:T', 
+            axis=alt.Axis(
+                format='%m/%d/%y',
+                title='Date',
+                labelAngle=-45,
+                labelColor='#333333',
+                titleColor='#333333',
+                labelFontSize=12,
+                titleFontSize=14
+            )
+        ),
+        y=alt.Y('power_kw:Q', 
+            axis=alt.Axis(
+                title='Power kW',
+                labelColor='#333333',
+                titleColor='#333333',
+                labelFontSize=12,
+                titleFontSize=14
+            )
+        ),
+        tooltip=['timestamp:T', 'power_kw:Q']
+    ).properties(
+        width='container'
     )
     
-    # Get the size_kva value for the transformer
-    try:
-        # Check if size_kva exists and is a sensible value
-        if 'size_kva' in df.columns and not df['size_kva'].isna().all():
-            size_kva = df['size_kva'].iloc[0]  # Use the first value
+    # Add horizontal capacity line if size_kva exists
+    if 'size_kva' in df.columns and not df['size_kva'].isna().all():
+        try:
+            size_kva = float(df['size_kva'].iloc[0])
             
-            # Create a horizontal rule at the size_kva value
-            capacity_rule = alt.Chart().mark_rule(
+            # Create a data frame for the horizontal line
+            line_df = pd.DataFrame({
+                'y': [size_kva],
+                'timestamp': [df['timestamp'].min(), df['timestamp'].max()]
+            })
+            
+            # Create the capacity line
+            capacity_line = alt.Chart(line_df).mark_rule(
                 color='red',
                 strokeWidth=2,
-                strokeDash=[5, 5],
-                opacity=0.7
+                strokeDash=[5, 5]
             ).encode(
-                y=alt.datum(size_kva)  # Use datum to specify a constant value
+                y='y:Q'
             )
             
-            # Add text annotation for the capacity line
-            capacity_text = alt.Chart().mark_text(
+            # Create the text annotation
+            text_df = pd.DataFrame({
+                'timestamp': [df['timestamp'].max()],
+                'y': [size_kva],
+                'text': [f'Capacity: {size_kva:.0f} kVA']
+            })
+            
+            capacity_text = alt.Chart(text_df).mark_text(
                 align='right',
-                baseline='middle',
+                baseline='bottom',
                 fontSize=12,
                 fontWeight='bold',
                 color='red',
-                dy=-10  # Offset a bit above the line
+                dx=-5,
+                dy=-5
             ).encode(
-                y=alt.datum(size_kva),  # Position at the size_kva value
-                x=alt.datum(1),  # Position at the right edge (normalized 0-1 scale)
-                text=alt.value(f'Transformer Capacity: {size_kva:.0f} kVA')
+                x='timestamp:T',
+                y='y:Q',
+                text='text:N'
             )
             
-            # Combine the base chart with rule and text
-            power_chart = power_chart + capacity_rule + capacity_text
+            # Add the capacity line and text to the base chart
+            chart = alt.layer(base, capacity_line, capacity_text)
             logger.info(f"Added transformer capacity line at {size_kva:.1f} kVA")
-        else:
-            logger.warning("size_kva column not found or contains only NA values")
-    except Exception as e:
-        logger.error(f"Could not add transformer capacity line: {str(e)}")
+        except Exception as e:
+            logger.error(f"Could not add transformer capacity line: {str(e)}")
+            chart = base
+    else:
+        chart = base
     
-    # Display the chart with the capacity line
-    st.altair_chart(power_chart, use_container_width=True)
+    # Add alert timestamp if in session state
+    if 'highlight_timestamp' in st.session_state:
+        try:
+            alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+            
+            # Create a data frame for the vertical rule
+            alert_df = pd.DataFrame({
+                'alert_time': [alert_time]
+            })
+            
+            # Create the vertical alert line
+            alert_line = alt.Chart(alert_df).mark_rule(
+                color='red',
+                strokeWidth=2,
+                strokeDash=[5, 5]
+            ).encode(
+                x='alert_time:T'
+            )
+            
+            # Create text data frame
+            alert_text_df = pd.DataFrame({
+                'alert_time': [alert_time],
+                'y': [df['power_kw'].max()],
+                'text': ['⚠️ Alert']
+            })
+            
+            # Create the alert text annotation
+            alert_text = alt.Chart(alert_text_df).mark_text(
+                align='left',
+                baseline='top',
+                fontSize=12,
+                fontWeight='bold',
+                color='red',
+                dy=-5
+            ).encode(
+                x='alert_time:T',
+                y='y:Q',
+                text='text:N'
+            )
+            
+            # Add the alert line and text to the chart
+            chart = alt.layer(chart, alert_line, alert_text)
+            logger.info(f"Added alert timestamp line at {alert_time}")
+        except Exception as e:
+            logger.error(f"Could not add alert timestamp: {str(e)}")
+    
+    # Display the final chart
+    st.altair_chart(chart, use_container_width=True)
 
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
-    
     with col1:
         st.markdown("""
             <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
