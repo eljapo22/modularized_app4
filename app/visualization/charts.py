@@ -305,148 +305,172 @@ def display_transformer_dashboard(
     customer_df: pd.DataFrame = None
 ):
     """
-    Display comprehensive transformer dashboard
-   
-    Args:
-        transformer_df: Transformer data DataFrame
-        customer_df: Optional customer data DataFrame
+    Display transformer dashboard with information tiles.
+    If customer_df is provided and a customer is selected in session state, it will show customer data.
     """
     # Validate input data
     if transformer_df is None or transformer_df.empty:
         st.warning("No transformer data available for dashboard.")
         return
 
-    try:
-        # Check for alert timestamp to highlight
-        alert_timestamp = None
-        if 'highlight_timestamp' in st.session_state:
-            try:
-                alert_timestamp_str = st.session_state.highlight_timestamp
-                alert_timestamp = pd.to_datetime(alert_timestamp_str)
-                st.info(f" Showing alert data for: {alert_timestamp.strftime('%Y-%m-%d %H:%M')}")
-            except Exception as e:
-                logger.error(f"Error parsing alert timestamp: {e}")
+    # Check if we should show a specific customer's detail
+    if (customer_df is not None and not customer_df.empty and 
+        'selected_customer_id' in st.session_state and 
+        st.session_state.get('show_customer_details', False)):
         
-        # Show customer details if a specific customer was selected
-        if 'show_customer_details' in st.session_state and st.session_state.show_customer_details:
-            st.session_state.show_customer_details = False  # Reset for next time
-            
-            if customer_df is not None and 'selected_customer_id' in st.session_state:
-                # Filter for the selected customer
-                selected_customer_id = st.session_state.selected_customer_id
-                selected_customer_df = customer_df[customer_df['customer_id'] == selected_customer_id].copy()
-                
-                if selected_customer_df.empty:
-                    st.warning(f"No data available for Customer {selected_customer_id}")
-                    return
-                
-                # Add navigation buttons in columns
-                col1, col2, col3 = st.columns([1, 1, 2])
-                with col1:
-                    if st.button("← Back to Dashboard"):
-                        # No need to set any session state, just clear the current one
-                        st.session_state.show_customer_details = False
-                        st.experimental_rerun()
-                with col2:
-                    if st.button("← Back to Customer List"):
-                        # Go back to bridge view
-                        st.session_state.show_customer_bridge = True
-                        st.session_state.show_customer_details = False
-                        st.experimental_rerun()
-                
-                # Display the detailed view for this customer
-                st.header(f"Customer {selected_customer_id} Details")
-                display_customer_tab(selected_customer_df)
-                return
-            else:
-                st.warning("No customer data available for the selected customer.")
-                return
-                
-        # Show customer bridge view if requested
-        if 'show_customer_bridge' in st.session_state and st.session_state.show_customer_bridge:
-            if customer_df is not None:
-                # Display the bridge view
-                display_customers_bridge_view(customer_df)
-                return
-            else:
-                st.warning("No customer data available for this transformer.")
-                st.session_state.show_customer_bridge = False
-                return
+        # Get the selected customer ID
+        customer_id = st.session_state['selected_customer_id']
         
-        # Reset index if timestamp is the index
-        if isinstance(transformer_df.index, pd.DatetimeIndex):
-            transformer_df = transformer_df.reset_index()
-
-        # Ensure timestamp is datetime
-        if 'timestamp' not in transformer_df.columns:
-            logger.error("No timestamp column in transformer data")
-            st.error("Invalid transformer data: Missing timestamp column")
+        # Filter customer data for the selected customer
+        customer_data = customer_df[customer_df['customer_id'] == customer_id]
+        
+        if not customer_data.empty:
+            # Show customer data view
+            display_customer_data(customer_data)
             return
-
-        transformer_df['timestamp'] = pd.to_datetime(transformer_df['timestamp'])
-       
-        # Log diagnostic information
-        logger.info(f"Transformer Data - Shape: {transformer_df.shape}")
-        logger.info(f"Transformer Data - Columns: {transformer_df.columns}")
-        logger.info(f"Timestamp Range: {transformer_df['timestamp'].min()} to {transformer_df['timestamp'].max()}")
-       
-        # Get latest record for metrics
-        latest = transformer_df.iloc[-1]
-       
-        # Customer count (with additional safety checks)
-        customer_count = 'N/A'
+    
+    # If no specific customer is selected or view is reset, show transformer dashboard
+    # Create dashboard title with transformer ID
+    transformer_id = transformer_df['transformer_id'].iloc[0] if 'transformer_id' in transformer_df.columns else "Unknown"
+    
+    col1, col2 = st.columns([7, 3])
+    with col1:
+        st.title(f"Transformer: {transformer_id}")
+    with col2:
+        if st.button("→ View Customer List", key="view_customer_list"):
+            # Set session state to show customer list
+            st.session_state.show_customer_bridge = True
+            st.session_state.show_customer_details = False
+    
+    # Show dashboard tiles in 4 columns
+    col1, col2, col3, col4 = st.columns(4)
+    
+    # Tile 1: Total Customers
+    with col1:
         if customer_df is not None and not customer_df.empty:
-            if 'customer_id' in customer_df.columns:
-                customer_count = len(customer_df['customer_id'].unique())
-            else:
-                logger.warning("Customer data does not have 'customer_id' column")
-       
-        # Create columns for metrics
-        cols = st.columns(4)
-       
-        with cols[0]:
-            create_tile(
-                "Transformer ID",
-                str(latest.get('transformer_id', 'N/A')),
-                is_clickable=False
-            )
-       
-        with cols[1]:
-            if create_tile(
-                "Customers",
-                str(customer_count),
-                is_clickable=True
-            ):
-                # Show customer bridge view
-                st.session_state.show_customer_bridge = True
-                st.experimental_rerun()
-       
-        with cols[2]:
-            create_tile(
-                "X Coordinate",
-                "43.6532° N",
-                is_clickable=False
-            )
-       
-        with cols[3]:
-            create_tile(
-                "Y Coordinate",
-                "79.3832° W",
-                is_clickable=False
-            )
-
-        # Display transformer data visualizations
-        display_transformer_data(transformer_df)
-
-    except KeyError as ke:
-        logger.error(f"Key error in dashboard display: {str(ke)}")
-        st.error(f"Missing required column: {str(ke)}")
-    except ValueError as ve:
-        logger.error(f"Value error in dashboard display: {str(ve)}")
-        st.error(f"Invalid data format: {str(ve)}")
-    except Exception as e:
-        logger.error(f"Unexpected dashboard display error: {str(e)}")
-        st.error(f"Failed to display transformer dashboard: {str(e)}")
+            customer_count = len(customer_df['customer_id'].unique())
+        else:
+            customer_count = "N/A"
+            
+        display_metric_tile(
+            title="Total Customers",
+            value=customer_count,
+            delta=None,
+            icon="👥"
+        )
+    
+    # Tile 2: X Coordinate (replacing Size kVA)
+    with col2:
+        display_metric_tile(
+            title="X Coordinate",
+            value="43.6532° N",
+            delta=None,
+            icon="📍"
+        )
+    
+    # Tile 3: Y Coordinate (replacing Loading %)
+    with col3:
+        display_metric_tile(
+            title="Y Coordinate",
+            value="79.3832° W",
+            delta=None,
+            icon="📍"
+        )
+    
+    # Tile 4: Alert Status
+    with col4:
+        # Determine status from loading percentage
+        alert_status = "Normal"
+        alert_icon = "✅"
+        
+        if 'size_kva' in transformer_df.columns and 'power_kw' in transformer_df.columns:
+            try:
+                size_kva = float(transformer_df['size_kva'].iloc[0])
+                latest_power = float(transformer_df['power_kw'].iloc[-1])
+                
+                # Convert kVA to kW assuming 0.9 power factor
+                capacity_kw = size_kva * 0.9
+                
+                if capacity_kw > 0:
+                    loading_pct = (latest_power / capacity_kw) * 100
+                    
+                    # Determine alert status based on loading threshold constants
+                    for status, threshold in LOADING_THRESHOLDS.items():
+                        if loading_pct >= threshold:
+                            alert_status = status
+                            break
+                    
+                    # Set icon based on status
+                    if alert_status == "Critical":
+                        alert_icon = "🚨"
+                    elif alert_status == "Overloaded":
+                        alert_icon = "⚠️"
+                    elif alert_status == "Warning":
+                        alert_icon = "⚠️"
+                    elif alert_status == "Pre-Warning":
+                        alert_icon = "📊"
+            except Exception as e:
+                logger.error(f"Error calculating loading status: {str(e)}")
+                
+        display_metric_tile(
+            title="Alert Status",
+            value=alert_status,
+            delta=None,
+            icon=alert_icon
+        )
+    
+    # Show the main transformer data visualization
+    display_transformer_data(transformer_df)
+    
+    # If customer data is available, display the list of customers
+    if customer_df is not None and not customer_df.empty:
+        # Check if we need to show the customer bridge (list of customers)
+        if st.session_state.get('show_customer_bridge', True):
+            display_customer_bridge(customer_df)
+            
+def display_metric_tile(title, value, delta=None, icon=None):
+    """Display a metric tile with consistent styling."""
+    # Container for metric box
+    st.markdown("""
+        <div style='padding: 10px; border: 1px solid #d1d1d1; border-radius: 5px; margin: 5px 0px; background-color: #ffffff'>
+    """, unsafe_allow_html=True)
+    
+    # Icon and title row
+    if icon:
+        st.markdown(f"""
+            <div style='display: flex; align-items: center; margin-bottom: 5px;'>
+                <span style='font-size: 20px; margin-right: 8px;'>{icon}</span>
+                <span style='color: #666666; font-size: 14px; font-weight: 500;'>{title}</span>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+            <div style='margin-bottom: 5px;'>
+                <span style='color: #666666; font-size: 14px; font-weight: 500;'>{title}</span>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Value display
+    st.markdown(f"""
+        <div style='margin-top: 5px;'>
+            <span style='font-size: 24px; font-weight: bold; color: #333333;'>{value}</span>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Delta display if provided
+    if delta is not None:
+        delta_color = "#4CAF50" if float(delta) >= 0 else "#F44336"  # Green for positive, red for negative
+        delta_arrow = "↑" if float(delta) >= 0 else "↓"
+        st.markdown(f"""
+            <div style='margin-top: 5px;'>
+                <span style='font-size: 14px; color: {delta_color};'>{delta_arrow} {delta}%</span>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Close container
+    st.markdown("""
+        </div>
+    """, unsafe_allow_html=True)
 
 def display_customer_tab(df: pd.DataFrame):
     # Display customer analysis tab
@@ -622,20 +646,31 @@ def display_transformer_data(results_df: pd.DataFrame):
     
     # Add random variation to voltage data (for better visualization)
     if 'voltage_v' in df.columns:
-        # Get base voltage value (nominal 120V or 240V typical)
-        base_voltage = 120 if df['voltage_v'].mean() < 150 else 240
+        # Set a realistic base voltage value for a nominal 240V system with fluctuations
+        base_voltage = 240
         
-        # Create a time-varying pattern (fluctuating more realistically)
+        # Create time indices for a more natural pattern
         timestamps = df['timestamp'].astype(np.int64)
         time_factor = (timestamps - timestamps.min()) / (timestamps.max() - timestamps.min())
         
-        # Create a sine wave pattern + random noise
+        # Create a multi-frequency pattern for more natural voltage behavior
         np.random.seed(42)  # For reproducibility
-        sine_pattern = 0.03 * np.sin(time_factor * 6 * np.pi)  # 3% sine wave with 3 cycles
-        random_noise = np.random.uniform(low=-0.02, high=0.02, size=len(df))  # 2% random noise
         
-        # Apply both patterns to create realistic voltage fluctuation
-        df['voltage_v'] = base_voltage * (1 + sine_pattern + random_noise)
+        # Primary sine wave (longer period)
+        primary_wave = 4 * np.sin(time_factor * 4 * np.pi)
+        
+        # Secondary wave (medium period)
+        secondary_wave = 2 * np.sin(time_factor * 10 * np.pi)
+        
+        # Tertiary wave (short period)
+        tertiary_wave = 1 * np.sin(time_factor * 20 * np.pi)
+        
+        # Random noise component (very small)
+        noise = np.random.normal(0, 0.5, size=len(df))
+        
+        # Combine all components and center around the base voltage
+        variation = primary_wave + secondary_wave + tertiary_wave + noise
+        df['voltage_v'] = base_voltage + variation
         
         logger.info(f"Added realistic voltage variation. Range: {df['voltage_v'].min():.1f}V to {df['voltage_v'].max():.1f}V")
     
@@ -649,26 +684,13 @@ def display_transformer_data(results_df: pd.DataFrame):
     else:
         logger.warning("size_kva column not found in dataframe")
     
-    # Loading Status at the top
-    st.markdown("""
-        <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-            <h3 style='margin: 0px; color: #262626; font-size: 18px'>Loading Status</h3>
-        </div>
-    """, unsafe_allow_html=True)
-    display_loading_status(df)
+    # Format the datetime for display
+    df['formatted_date'] = df['timestamp'].dt.strftime('%m/%d/%y')
 
-    # Power Consumption
-    st.markdown("""
-        <div style='padding: 6px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
-            <h3 style='margin: 0px; color: #262626; font-size: 18px'>Power Consumption</h3>
-        </div>
-    """, unsafe_allow_html=True)
+    st.subheader("Transformer Power Consumption")
     
-    # Create power chart with Altair - using standard function for consistent styling
-    power_df = df.copy()
-    
-    # Create base chart with proper dimensions
-    base = alt.Chart(power_df).mark_line(point=True, color="#1f77b4").encode(
+    # Create base power chart
+    power_base = alt.Chart(df).mark_line(point=True, color="#1f77b4", strokeWidth=2).encode(
         x=alt.X('timestamp:T', 
             axis=alt.Axis(
                 format='%m/%d/%y',
@@ -677,7 +699,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                 labelColor='#333333',
                 titleColor='#333333',
                 labelFontSize=12,
-                titleFontSize=14
+                titleFontSize=14,
+                grid=True,
+                gridColor='#eeeeee',
+                gridWidth=0.5
             )
         ),
         y=alt.Y('power_kw:Q', 
@@ -686,66 +711,108 @@ def display_transformer_data(results_df: pd.DataFrame):
                 labelColor='#333333',
                 titleColor='#333333',
                 labelFontSize=12,
-                titleFontSize=14
+                titleFontSize=14,
+                grid=True,
+                gridColor='#eeeeee',
+                gridWidth=0.5
             )
         ),
         tooltip=['timestamp:T', 'power_kw:Q']
     ).properties(
         width="container",
-        height=300
+        height=250
     )
     
-    # Add horizontal capacity line if size_kva exists
-    chart = base
-    if 'size_kva' in power_df.columns and not power_df['size_kva'].isna().all():
-        try:
-            # Get the size_kva value and convert to equivalent power in kW
-            # Assuming power factor of 0.9 for conversion if not specified
-            size_kva = float(power_df['size_kva'].iloc[0])
-            avg_pf = power_df['power_factor'].mean() if 'power_factor' in power_df.columns else 0.9
-            size_kw = size_kva * avg_pf
-            
-            # Create a horizontal rule at the size_kw value
-            capacity_rule = alt.Chart(pd.DataFrame({
-                'y': [size_kw]
-            })).mark_rule(
-                color='red',
-                strokeWidth=2,
-                strokeDash=[5, 5]
-            ).encode(
-                y='y:Q'
-            )
-            
-            # Add text annotation for the capacity line
-            capacity_text = alt.Chart(pd.DataFrame({
-                'y': [size_kw],
-                'text': [f'Capacity: {size_kva:.0f} kVA ({size_kw:.1f} kW)']
-            })).mark_text(
-                align='right',
-                baseline='bottom',
-                dx=-5,
-                dy=-5,
-                fontSize=12,
-                fontWeight='bold',
-                color='red'
-            ).encode(
-                y='y:Q',
-                text='text:N',
-                x=alt.value(5)  # Position near left edge
-            )
-            
-            # Combine charts
-            chart = alt.layer(base, capacity_rule, capacity_text)
-            logger.info(f"Added transformer capacity line at {size_kw:.1f} kW (from {size_kva:.1f} kVA with PF={avg_pf:.2f})")
-        except Exception as e:
-            logger.error(f"Could not add transformer capacity line: {str(e)}")
+    # Create colored background for thresholds if size_kva exists
+    threshold_layers = []
+    if 'size_kva' in df.columns and df['size_kva'].iloc[0] > 0:
+        # Get transformer size and convert to power using 0.9 power factor
+        size_kva = df['size_kva'].iloc[0]
+        size_kw = size_kva * 0.9
+        
+        # Get max power value for scaling
+        max_power = max(df['power_kw'].max() * 1.1, size_kw * 1.3)
+        
+        # Create background layers for each threshold with matching colors
+        for status, threshold_pct in LOADING_THRESHOLDS.items():
+            if status != 'Normal':  # Skip the lowest level
+                # Calculate threshold value
+                threshold_kw = size_kw * threshold_pct / 100
+                prev_threshold = 0
+                for prev_status, prev_pct in LOADING_THRESHOLDS.items():
+                    if prev_pct < threshold_pct:
+                        prev_threshold = size_kw * prev_pct / 100
+                        break
+                
+                # Only create layers for thresholds that are within the visible range
+                if threshold_kw <= max_power:
+                    # Create a rectangle from previous threshold to this threshold
+                    color = STATUS_COLORS[status]
+                    
+                    threshold_layer = alt.Chart(pd.DataFrame({
+                        'timestamp': [df['timestamp'].min(), df['timestamp'].max()],
+                    })).mark_rect(
+                        color=color,
+                        opacity=0.1
+                    ).encode(
+                        x='timestamp:T',
+                        x2=alt.value(0),
+                        y=alt.Y(datum=prev_threshold),
+                        y2=alt.Y(datum=threshold_kw)
+                    )
+                    threshold_layers.append(threshold_layer)
+    
+    # Add transformer capacity line
+    capacity_lines = []
+    if 'size_kva' in df.columns and df['size_kva'].iloc[0] > 0:
+        # Get transformer size and convert to power using 0.9 power factor
+        size_kva = df['size_kva'].iloc[0]
+        size_kw = size_kva * 0.9
+        
+        # Create capacity line
+        capacity_line = alt.Chart(pd.DataFrame({
+            'timestamp': [df['timestamp'].min(), df['timestamp'].max()],
+            'size_kw': [size_kw, size_kw]
+        })).mark_rule(
+            color='red',
+            strokeDash=[5, 5],
+            strokeWidth=2
+        ).encode(
+            x='timestamp:T',
+            y='size_kw:Q'
+        )
+        
+        # Add text annotation for capacity
+        capacity_text = alt.Chart(pd.DataFrame({
+            'timestamp': [df['timestamp'].min()],
+            'size_kw': [size_kw],
+            'text': [f"Capacity: {size_kva:.0f} kVA ({size_kw:.1f} kW)"]
+        })).mark_text(
+            align='left',
+            baseline='bottom',
+            dx=5,
+            dy=-5,
+            fontSize=12,
+            fontWeight='bold',
+            color='red'
+        ).encode(
+            x='timestamp:T',
+            y='size_kw:Q',
+            text='text:N'
+        )
+        
+        capacity_lines.extend([capacity_line, capacity_text])
     
     # Add alert timestamp if in session state
+    alert_lines = []
     if 'highlight_timestamp' in st.session_state:
         try:
             alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
             
-            # Create a vertical rule at the alert timestamp
+            # Get y range
+            max_y = max(df['power_kw'].max() * 1.1, size_kw * 1.3 if 'size_kva' in df.columns else df['power_kw'].max() * 1.3)
+            
+            # Create vertical rule at alert time
             alert_rule = alt.Chart(pd.DataFrame({
                 'timestamp': [alert_time]
             })).mark_rule(
@@ -756,10 +823,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                 x='timestamp:T'
             )
             
-            # Add text annotation for the alert point
+            # Add alert text
             alert_text = alt.Chart(pd.DataFrame({
                 'timestamp': [alert_time],
-                'y': [power_df['power_kw'].max()],
+                'y': [max_y * 0.9],  # Position near top
                 'text': ['⚠️ Alert point']
             })).mark_text(
                 align='left',
@@ -775,15 +842,27 @@ def display_transformer_data(results_df: pd.DataFrame):
                 text='text:N'
             )
             
-            # Combine with existing chart
-            chart = alt.layer(chart, alert_rule, alert_text)
-            logger.info(f"Added alert timestamp line at {alert_time}")
+            alert_lines.extend([alert_rule, alert_text])
         except Exception as e:
             logger.error(f"Could not add alert timestamp: {str(e)}")
     
+    # Combine all chart elements in the correct order
+    # First threshold backgrounds, then capacity line, then the data, then alert markers
+    chart_layers = []
+    chart_layers.extend(threshold_layers)
+    chart_layers.append(power_base)
+    chart_layers.extend(capacity_lines)
+    chart_layers.extend(alert_lines)
+    
+    # Create the final layered chart
+    if chart_layers:
+        power_chart = alt.layer(*chart_layers)
+    else:
+        power_chart = power_base
+    
     # Display the chart
-    st.altair_chart(chart, use_container_width=True)
-
+    st.altair_chart(power_chart, use_container_width=True)
+    
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
     with col1:
@@ -794,7 +873,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         """, unsafe_allow_html=True)
         
         # Create current chart with direct Altair
-        current_base = alt.Chart(df).mark_line(point=True, color="#ff7f0e").encode(
+        current_base = alt.Chart(df).mark_line(point=True, color="#ff7f0e", strokeWidth=2).encode(
             x=alt.X('timestamp:T', 
                 axis=alt.Axis(
                     format='%m/%d/%y',
@@ -803,7 +882,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                     labelColor='#333333',
                     titleColor='#333333',
                     labelFontSize=12,
-                    titleFontSize=14
+                    titleFontSize=14,
+                    grid=True,
+                    gridColor='#eeeeee',
+                    gridWidth=0.5
                 )
             ),
             y=alt.Y('current_a:Q', 
@@ -812,7 +894,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                     labelColor='#333333',
                     titleColor='#333333',
                     labelFontSize=12,
-                    titleFontSize=14
+                    titleFontSize=14,
+                    grid=True,
+                    gridColor='#eeeeee',
+                    gridWidth=0.5
                 )
             ),
             tooltip=['timestamp:T', 'current_a:Q']
@@ -872,7 +957,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         """, unsafe_allow_html=True)
         
         # Create voltage chart with direct Altair
-        voltage_base = alt.Chart(df).mark_line(point=True, color="#2ca02c").encode(
+        voltage_base = alt.Chart(df).mark_line(point=True, color="#2ca02c", strokeWidth=2).encode(
             x=alt.X('timestamp:T', 
                 axis=alt.Axis(
                     format='%m/%d/%y',
@@ -881,7 +966,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                     labelColor='#333333',
                     titleColor='#333333',
                     labelFontSize=12,
-                    titleFontSize=14
+                    titleFontSize=14,
+                    grid=True,
+                    gridColor='#eeeeee',
+                    gridWidth=0.5
                 )
             ),
             y=alt.Y('voltage_v:Q', 
@@ -890,7 +978,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                     labelColor='#333333',
                     titleColor='#333333',
                     labelFontSize=12,
-                    titleFontSize=14
+                    titleFontSize=14,
+                    grid=True,
+                    gridColor='#eeeeee',
+                    gridWidth=0.5
                 )
             ),
             tooltip=['timestamp:T', 'voltage_v:Q']
