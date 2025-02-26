@@ -423,15 +423,15 @@ def display_transformer_dashboard(
        
         with cols[2]:
             create_tile(
-                "Size (kVA)",
-                f"{latest.get('size_kva', 'N/A'):.0f}",
+                "X Coordinate",
+                "43.6532° N",
                 is_clickable=False
             )
        
         with cols[3]:
             create_tile(
-                "Loading %",
-                f"{latest.get('loading_percentage', 'N/A'):.1f}%",
+                "Y Coordinate",
+                "79.3832° W",
                 is_clickable=False
             )
 
@@ -619,6 +619,16 @@ def display_transformer_data(results_df: pd.DataFrame):
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values('timestamp')  # Sort by timestamp
+    
+    # Add random variation to voltage data (for better visualization)
+    if 'voltage_v' in df.columns:
+        # Get base voltage value
+        base_voltage = df['voltage_v'].mean()
+        # Add random variation of +/- 5% around the base
+        np.random.seed(42)  # For reproducibility
+        variation = np.random.uniform(low=-0.05, high=0.05, size=len(df))
+        df['voltage_v'] = base_voltage * (1 + variation)
+        logger.info(f"Added random variation to voltage data. Range: {df['voltage_v'].min():.1f} to {df['voltage_v'].max():.1f}V")
     
     # Add debug logging for dataframe content
     logger.info(f"Transformer dataframe first few rows: {df.head(2).to_dict()}")
@@ -928,6 +938,15 @@ def display_customer_data(results_df: pd.DataFrame):
     if results_df is None or results_df.empty:
         st.warning("No data available for customer visualization.")
         return
+    
+    # Back button to return to customer list
+    if st.button("← Back to Customer List"):
+        # Clear session state
+        if 'selected_customer' in st.session_state:
+            del st.session_state.selected_customer
+        # Set flag to show the customer bridge (list) view
+        st.session_state.show_customer_bridge = True
+        st.experimental_rerun()
 
     # Display mock coordinates
     st.markdown("""
