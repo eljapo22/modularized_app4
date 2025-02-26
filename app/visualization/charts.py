@@ -161,6 +161,59 @@ def display_loading_status(results_df: pd.DataFrame):
         height=400
     )
     
+    # Define threshold areas for background colors with light opacity
+    threshold_areas = []
+    
+    # Get min and max timestamps to create background rectangles
+    min_time = df['timestamp'].min()
+    max_time = df['timestamp'].max()
+    
+    # Create threshold areas from highest to lowest to ensure proper layering
+    # Critical area (120%+) - Red background
+    critical_area = alt.Chart(pd.DataFrame({
+        'x1': [min_time], 'x2': [max_time], 
+        'y1': [120], 'y2': [130]
+    })).mark_rect(color='red', opacity=0.1).encode(
+        x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
+    )
+    threshold_areas.append(critical_area)
+    
+    # Overloaded area (100-120%) - Orange background
+    overloaded_area = alt.Chart(pd.DataFrame({
+        'x1': [min_time], 'x2': [max_time], 
+        'y1': [100], 'y2': [120]
+    })).mark_rect(color='orange', opacity=0.1).encode(
+        x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
+    )
+    threshold_areas.append(overloaded_area)
+    
+    # Warning area (80-100%) - Yellow background
+    warning_area = alt.Chart(pd.DataFrame({
+        'x1': [min_time], 'x2': [max_time], 
+        'y1': [80], 'y2': [100]
+    })).mark_rect(color='yellow', opacity=0.1).encode(
+        x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
+    )
+    threshold_areas.append(warning_area)
+    
+    # Pre-Warning area (50-80%) - Purple background
+    prewarning_area = alt.Chart(pd.DataFrame({
+        'x1': [min_time], 'x2': [max_time], 
+        'y1': [50], 'y2': [80]
+    })).mark_rect(color='purple', opacity=0.1).encode(
+        x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
+    )
+    threshold_areas.append(prewarning_area)
+    
+    # Normal area (0-50%) - Green background
+    normal_area = alt.Chart(pd.DataFrame({
+        'x1': [min_time], 'x2': [max_time], 
+        'y1': [0], 'y2': [50]
+    })).mark_rect(color='green', opacity=0.1).encode(
+        x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
+    )
+    threshold_areas.append(normal_area)
+    
     # Add threshold lines to the chart
     threshold_rules = [
         {'value': 120, 'color': 'red', 'label': 'Critical'},
@@ -182,25 +235,58 @@ def display_loading_status(results_df: pd.DataFrame):
         threshold_lines.append(threshold_line)
     
     # Combine all chart elements - only using threshold lines
-    chart = alt.layer(base_chart, *threshold_lines)
+    chart = alt.layer(base_chart, *threshold_areas, *threshold_lines)
     
     # Display the chart
     st.altair_chart(chart, use_container_width=True)
     
-    # Add threshold annotations with colored text
-    threshold_rows = []
-    
-    for threshold, label, color in [
-        (120, 'Critical', 'red'),
-        (100, 'Overloaded', 'orange'),
-        (80, 'Warning', 'yellow'),
-        (50, 'Pre-Warning', 'purple'),
-        (0, 'Normal', 'green'),
-    ]:
-        threshold_rows.append(f"<span style='color:{color}'>{label} {'>=' if threshold > 0 else '<'} {threshold}%</span>")
-    
-    # Create a container for the thresholds
-    st.markdown("<div style='text-align: right'>" + "<br>".join(threshold_rows) + "</div>", unsafe_allow_html=True)
+    # Add threshold legend in a better position - right aligned with proper formatting
+    st.markdown("""
+    <style>
+    .threshold-legend {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: -20px;
+        padding: 5px;
+        border-radius: 4px;
+    }
+    .threshold-item {
+        display: flex;
+        align-items: center;
+        margin-left: 10px;
+    }
+    .color-box {
+        width: 12px;
+        height: 12px;
+        margin-right: 5px;
+        display: inline-block;
+    }
+    </style>
+    <div class="threshold-legend">
+        <div class="threshold-item">
+            <span class="color-box" style="background-color:red;"></span>
+            <span>Critical ≥ 120%</span>
+        </div>
+        <div class="threshold-item">
+            <span class="color-box" style="background-color:orange;"></span>
+            <span>Overloaded ≥ 100%</span>
+        </div>
+        <div class="threshold-item">
+            <span class="color-box" style="background-color:yellow;"></span>
+            <span>Warning ≥ 80%</span>
+        </div>
+        <div class="threshold-item">
+            <span class="color-box" style="background-color:purple;"></span>
+            <span>Pre-Warning ≥ 50%</span>
+        </div>
+        <div class="threshold-item">
+            <span class="color-box" style="background-color:green;"></span>
+            <span>Normal < 50%</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
@@ -770,7 +856,10 @@ def display_transformer_data(results_df: pd.DataFrame):
             )
             
             # Add text annotation for the alert
-            text = alt.Chart(pd.DataFrame({'alert_time': [alert_time], 'y': [df['power_kw'].max()]})).mark_text(
+            text = alt.Chart(pd.DataFrame({
+                'alert_time': [alert_time],
+                'y': [df['power_kw'].max()]
+            })).mark_text(
                 align='left',
                 baseline='top',
                 dy=-10,
