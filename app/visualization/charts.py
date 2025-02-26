@@ -622,13 +622,22 @@ def display_transformer_data(results_df: pd.DataFrame):
     
     # Add random variation to voltage data (for better visualization)
     if 'voltage_v' in df.columns:
-        # Get base voltage value
-        base_voltage = df['voltage_v'].mean()
-        # Add random variation of +/- 5% around the base
+        # Get base voltage value (nominal 120V or 240V typical)
+        base_voltage = 120 if df['voltage_v'].mean() < 150 else 240
+        
+        # Create a time-varying pattern (fluctuating more realistically)
+        timestamps = df['timestamp'].astype(np.int64)
+        time_factor = (timestamps - timestamps.min()) / (timestamps.max() - timestamps.min())
+        
+        # Create a sine wave pattern + random noise
         np.random.seed(42)  # For reproducibility
-        variation = np.random.uniform(low=-0.05, high=0.05, size=len(df))
-        df['voltage_v'] = base_voltage * (1 + variation)
-        logger.info(f"Added random variation to voltage data. Range: {df['voltage_v'].min():.1f} to {df['voltage_v'].max():.1f}V")
+        sine_pattern = 0.03 * np.sin(time_factor * 6 * np.pi)  # 3% sine wave with 3 cycles
+        random_noise = np.random.uniform(low=-0.02, high=0.02, size=len(df))  # 2% random noise
+        
+        # Apply both patterns to create realistic voltage fluctuation
+        df['voltage_v'] = base_voltage * (1 + sine_pattern + random_noise)
+        
+        logger.info(f"Added realistic voltage variation. Range: {df['voltage_v'].min():.1f}V to {df['voltage_v'].max():.1f}V")
     
     # Add debug logging for dataframe content
     logger.info(f"Transformer dataframe first few rows: {df.head(2).to_dict()}")
@@ -941,11 +950,12 @@ def display_customer_data(results_df: pd.DataFrame):
     
     # Back button to return to customer list
     if st.button("← Back to Customer List"):
-        # Clear session state
-        if 'selected_customer' in st.session_state:
-            del st.session_state.selected_customer
         # Set flag to show the customer bridge (list) view
         st.session_state.show_customer_bridge = True
+        st.session_state.show_customer_details = False
+        # Clear selected customer
+        if 'selected_customer_id' in st.session_state:
+            del st.session_state.selected_customer_id
         st.experimental_rerun()
 
     # Display mock coordinates
