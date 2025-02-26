@@ -173,7 +173,7 @@ def display_loading_status(results_df: pd.DataFrame):
     critical_area = alt.Chart(pd.DataFrame({
         'x1': [min_time], 'x2': [max_time], 
         'y1': [120], 'y2': [130]
-    })).mark_rect(color='red', opacity=0.1).encode(
+    })).mark_rect(color='red', opacity=0.2).encode(
         x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
     )
     threshold_areas.append(critical_area)
@@ -182,7 +182,7 @@ def display_loading_status(results_df: pd.DataFrame):
     overloaded_area = alt.Chart(pd.DataFrame({
         'x1': [min_time], 'x2': [max_time], 
         'y1': [100], 'y2': [120]
-    })).mark_rect(color='orange', opacity=0.1).encode(
+    })).mark_rect(color='orange', opacity=0.2).encode(
         x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
     )
     threshold_areas.append(overloaded_area)
