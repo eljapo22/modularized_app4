@@ -242,6 +242,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         base_voltage = 400
         
         # Create constant voltage for transformer view and variations for customer view
+        # Updated Feb 26 2025 12:57 - Force deployment
         if is_transformer_view:
             # Create constant voltage lines for all phases at exactly 400V for transformer view
             voltage_data['Phase A'] = base_voltage
