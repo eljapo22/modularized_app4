@@ -813,9 +813,9 @@ def display_transformer_data(results_df: pd.DataFrame):
                 'y': [size_kw],
                 'text': [f'Capacity: {size_kva:.0f} kVA']
             })).mark_text(
-                align='left',
+                align='right',
                 baseline='bottom',
-                dx=5,
+                dx=-10,
                 dy=-5,
                 fontSize=12,
                 fontWeight='bold',
@@ -823,7 +823,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             ).encode(
                 y='y:Q',
                 text='text:N',
-                x=alt.value(800)  # Position further to the right edge
+                x=alt.value(1000)  # Position at far right edge of chart
             )
             
             # Combine charts
