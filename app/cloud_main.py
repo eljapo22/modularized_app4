@@ -163,7 +163,13 @@ def main():
                 # Process alerts if service is available
                 if alert_service and transformer_data is not None:
                     try:
-                        alert_service.check_and_send_alerts(transformer_data)
+                        alert_service.check_and_send_alerts(
+                            transformer_data,
+                            start_date=start_date,  # Original search start date
+                            alert_time=None,  # Will use alert point time for highlighting
+                            recipient=None,
+                            search_end_date=end_date  # Add original search end date
+                        )
                     except Exception as e:
                         logger.error(f"Alert processing error: {str(e)}")
                         st.warning("Could not process alerts.")

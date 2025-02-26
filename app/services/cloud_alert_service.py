@@ -84,49 +84,27 @@ class CloudAlertService:
             logger.error(f"Error selecting alert point: {str(e)}")
             return None
 
-    def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
+    def _create_deep_link(self, start_date: date, alert_time: datetime, 
+                         transformer_id: str, search_end_date: Optional[date] = None) -> str:
         """Create a deep link to the dashboard with alert parameters"""
         try:
-            # Handle None values first
+            # Make sure start_date is not None
             if start_date is None:
                 logger.warning("start_date is None in _create_deep_link")
-                # Use a default date (today)
-                start_date = datetime.now().date()
-                
-            if alert_time is None:
-                logger.warning("alert_time is None in _create_deep_link")
-                # Use a default time (now)
-                alert_time = datetime.now()
-                
-            # Convert numpy or pandas types to Python datetime objects
-            if hasattr(alert_time, 'dtype'):
-                try:
-                    alert_time = pd.Timestamp(alert_time).to_pydatetime()
-                except Exception as e:
-                    logger.warning(f"Failed to convert alert_time: {e}")
-                    alert_time = datetime.now()
-                    
-            if hasattr(start_date, 'dtype'):
-                try:
-                    start_date = pd.Timestamp(start_date).date()
-                except Exception as e:
-                    logger.warning(f"Failed to convert start_date: {e}")
-                    start_date = datetime.now().date()
+                start_date = date.today()
             
-            # Additional safety check
-            if not hasattr(start_date, 'strftime') or not hasattr(alert_time, 'strftime'):
-                logger.warning(f"Invalid date types: start_date={type(start_date)}, alert_time={type(alert_time)}")
-                start_date = datetime.now().date() if not hasattr(start_date, 'strftime') else start_date
-                alert_time = datetime.now() if not hasattr(alert_time, 'strftime') else alert_time
-            
-            # Format the parameters
+            # Create parameters with original search dates
             params = {
                 'view': 'alert',
                 'id': transformer_id,
-                'start': start_date.strftime('%Y-%m-%d'),  
-                'alert_time': alert_time.strftime('%Y-%m-%dT%H:%M:%S')
+                'start': start_date.strftime('%Y-%m-%d'),
+                'alert_time': alert_time.strftime('%Y-%m-%dT%H:%M:%S') if isinstance(alert_time, datetime) else datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
             }
             
+            # Add end date if provided
+            if search_end_date:
+                params['end'] = search_end_date.strftime('%Y-%m-%d')
+                
             # Create the query string
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
             
@@ -136,7 +114,7 @@ class CloudAlertService:
             
         except Exception as e:
             logger.error(f"Error creating deep link: {str(e)}")
-            return "#"  
+            return "#"  # Return a safe default
 
     def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
         """
@@ -216,7 +194,8 @@ class CloudAlertService:
         results_df: pd.DataFrame,
         start_date: Optional[date] = None,
         alert_time: Optional[datetime] = None,
-        recipient: str = None
+        recipient: str = None,
+        search_end_date: Optional[date] = None
     ) -> bool:
         """Check loading conditions and send alert if needed"""
         logger.info("Starting alert check process...")
@@ -259,7 +238,8 @@ class CloudAlertService:
                 deep_link = self._create_deep_link(
                     start_date,
                     alert_time or alert_point.name,
-                    alert_point['transformer_id']
+                    alert_point['transformer_id'],
+                    search_end_date
                 )
                 logger.info(f"Created deep link: {deep_link}")
                 
