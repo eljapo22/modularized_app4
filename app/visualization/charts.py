@@ -128,7 +128,11 @@ def display_loading_status(results_df: pd.DataFrame):
     df['loading_percentage'] = df['loading_percentage'].round(1)
     
     # Create an Altair chart for loading percentage
-    base_chart = alt.Chart(df).mark_line(point=True).encode(
+    base_chart = alt.Chart(df).mark_line(
+        point=True,
+        strokeWidth=2,
+        color='#1f77b4'
+    ).encode(
         x=alt.X('timestamp:T', 
             axis=alt.Axis(
                 format='%m/%d/%y',
@@ -141,19 +145,28 @@ def display_loading_status(results_df: pd.DataFrame):
             )
         ),
         y=alt.Y('loading_percentage:Q',
+            scale=alt.Scale(domain=[0, 130]),  # Set y-axis range from 0 to 130%
             axis=alt.Axis(
-                title='Loading Percentage',
+                title='Loading Percentage (%)',
                 labelColor='#333333',
                 titleColor='#333333',
                 labelFontSize=12,
-                titleFontSize=14
+                titleFontSize=14,
+                grid=True,
+                gridColor='#f0f0f0'
             )
         ),
-        tooltip=['timestamp:T', 'loading_percentage:Q']
+        tooltip=['timestamp:T', alt.Tooltip('loading_percentage:Q', format='.1f', title='Loading %')]
     ).properties(
         width='container',
-        height=250,
-        title="Loading Percentage Over Time"
+        height=300,  # Increase height for better visualization
+        title={
+            "text": "Loading Percentage Over Time", 
+            "fontSize": 16,
+            "font": "Arial",
+            "anchor": "start",
+            "color": "#333333"
+        }
     )
     
     # Create colored background sections
@@ -164,7 +177,7 @@ def display_loading_status(results_df: pd.DataFrame):
         'y1': [120], 'y2': [200]  # Upper limit set to 200% for visual purposes
     })).mark_area(
         color='red',
-        opacity=0.1
+        opacity=0.25
     ).encode(
         y='y1:Q',
         y2='y2:Q'
@@ -176,7 +189,7 @@ def display_loading_status(results_df: pd.DataFrame):
         'y1': [100], 'y2': [120]
     })).mark_area(
         color='orange',
-        opacity=0.1
+        opacity=0.25
     ).encode(
         y='y1:Q',
         y2='y2:Q'
@@ -188,7 +201,7 @@ def display_loading_status(results_df: pd.DataFrame):
         'y1': [80], 'y2': [100]
     })).mark_area(
         color='yellow',
-        opacity=0.1
+        opacity=0.25
     ).encode(
         y='y1:Q',
         y2='y2:Q'
@@ -200,7 +213,7 @@ def display_loading_status(results_df: pd.DataFrame):
         'y1': [50], 'y2': [80]
     })).mark_area(
         color='purple',
-        opacity=0.1
+        opacity=0.25
     ).encode(
         y='y1:Q',
         y2='y2:Q'
@@ -212,7 +225,7 @@ def display_loading_status(results_df: pd.DataFrame):
         'y1': [0], 'y2': [50]
     })).mark_area(
         color='green',
-        opacity=0.1
+        opacity=0.25
     ).encode(
         y='y1:Q',
         y2='y2:Q'
