@@ -652,8 +652,8 @@ def display_transformer_data(results_df: pd.DataFrame):
             capacity_rule = alt.Chart().mark_rule(
                 color='red',
                 strokeWidth=2,
-                strokeDash=[5, 5],
-                opacity=0.7
+                opacity=0.7,
+                strokeDash=[5, 5]  # Dashed line
             ).encode(
                 y=alt.datum(size_kva)  # Use datum to specify a constant value
             )
@@ -662,18 +662,17 @@ def display_transformer_data(results_df: pd.DataFrame):
             capacity_text = alt.Chart().mark_text(
                 align='right',
                 baseline='middle',
+                dy=-10,
                 fontSize=12,
                 fontWeight='bold',
-                color='red',
-                dx=-5,  # Offset a bit to the left
-                dy=-10  # Offset a bit above the line
+                color='red'
             ).encode(
                 y=alt.datum(size_kva),  # Position at the size_kva value
                 x=alt.datum(1),  # Position at the right edge (normalized 0-1 scale)
                 text=alt.value(f'Transformer Capacity: {size_kva:.0f} kVA')
             )
             
-            # Combine the base chart with the capacity rule and text
+            # Combine the base chart with rule and text
             power_chart = power_chart + capacity_rule + capacity_text
             logger.info(f"Added transformer capacity line at {size_kva:.1f} kVA")
         else:
@@ -776,13 +775,21 @@ def create_altair_chart(df, y_column, title=None, color=None):
     chart = alt.Chart(df).mark_line(point=True).encode(
         x=alt.X('timestamp:T', 
                 axis=alt.Axis(
-                    format='%m/%d/%y',  # Format as mm/dd/yy
+                    format='%m/%d/%y',     # Format as mm/dd/yy
                     title='Date',
-                    labelAngle=-45,     # Angle labels to prevent overlap
+                    labelAngle=-45,        # Angle labels to prevent overlap
+                    labelColor='#333333',  # Darker font color
+                    titleColor='#333333',  # Darker font color
+                    labelFontSize=12,      # Slightly larger font size
+                    titleFontSize=14       # Slightly larger font size for title
                 )),
         y=alt.Y(y_column, 
                 axis=alt.Axis(
-                    title=y_column.replace('_', ' ').title() # Format title nicely
+                    title=y_column.replace('_', ' ').title(), # Format title nicely
+                    labelColor='#333333',  # Darker font color
+                    titleColor='#333333',  # Darker font color
+                    labelFontSize=12,      # Slightly larger font size
+                    titleFontSize=14       # Slightly larger font size for title
                 )),
         tooltip=['timestamp:T', f'{y_column}:Q']
     )
