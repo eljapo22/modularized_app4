@@ -13,6 +13,35 @@ from app.config.table_config import DECIMAL_PLACES
 # Configure logging
 logger = logging.getLogger(__name__)
 
+def format_chart_dates(df, timestamp_col='timestamp', format='%m/%d/%y'):
+    """
+    Format DataFrame timestamps for consistent display in Streamlit charts.
+    
+    Args:
+        df: DataFrame containing timestamp data
+        timestamp_col: Name of the timestamp column (default: 'timestamp')
+        format: String format for the date (default: '%m/%d/%y')
+        
+    Returns:
+        DataFrame with formatted timestamps as index
+    """
+    # Make a copy to avoid modifying the original
+    chart_df = df.copy()
+    
+    # Ensure timestamp column is datetime
+    chart_df[timestamp_col] = pd.to_datetime(chart_df[timestamp_col])
+    
+    # Sort by timestamp
+    chart_df = chart_df.sort_values(timestamp_col)
+    
+    # Create a new column with formatted timestamps
+    chart_df['formatted_date'] = chart_df[timestamp_col].dt.strftime(format)
+    
+    # Set the formatted date as index
+    chart_df = chart_df.set_index('formatted_date')
+    
+    return chart_df
+
 def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     """Helper function to normalize timestamps and validate data in a DataFrame"""
     logger.warning("Starting timestamp normalization - Investigating potential linear pattern")
@@ -112,11 +141,11 @@ def display_loading_status(results_df: pd.DataFrame):
     # Round loading percentages to 1 decimal place for consistent display
     df['loading_percentage'] = df['loading_percentage'].round(1)
     
-    # Set index to timestamp for Streamlit chart
-    df = df.set_index('timestamp')
+    # Format timestamps for chart display (mm/dd/yy)
+    chart_df = format_chart_dates(df)
     
     # Display the loading percentage chart
-    st.line_chart(df['loading_percentage'], use_container_width=True)
+    st.line_chart(chart_df['loading_percentage'], use_container_width=True)
     
     # Add threshold annotations with colored text
     threshold_rows = []
@@ -138,15 +167,12 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         st.warning("No data available for power consumption visualization.")
         return
     
-    # Ensure timestamp is datetime and set as index
-    results_df = results_df.copy()
-    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
-    results_df = results_df.sort_values('timestamp')  # Sort by timestamp
-    results_df = results_df.set_index('timestamp')
+    # Format timestamps for chart display (mm/dd/yy)
+    chart_df = format_chart_dates(results_df)
     
     # Create power chart
     st.line_chart(
-        results_df['power_kw'],
+        chart_df['power_kw'],
         use_container_width=True
     )
 
@@ -156,15 +182,12 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
         st.warning("No data available for current visualization.")
         return
         
-    # Ensure timestamp is datetime and set as index
-    results_df = results_df.copy()
-    results_df['timestamp'] = pd.to_datetime(results_df['timestamp'])
-    results_df = results_df.sort_values('timestamp')  # Sort by timestamp
-    results_df = results_df.set_index('timestamp')
+    # Format timestamps for chart display (mm/dd/yy)
+    chart_df = format_chart_dates(results_df)
     
     # Create current chart
     st.line_chart(
-        results_df['current_a'],
+        chart_df['current_a'],
         use_container_width=True
     )
 
@@ -185,10 +208,10 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df = df.sort_values('timestamp')
-        df = df.set_index('timestamp')
         
         # Create mock data for 3 phases based on actual voltage, but within specific range
-        voltage_data = pd.DataFrame(index=df.index)
+        voltage_data = pd.DataFrame()
+        voltage_data['timestamp'] = df['timestamp']
         
         # Import for math functions
         import numpy as np
@@ -218,8 +241,11 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
         voltage_data['[2]Phase C'] = phase_c
         
+        # Format timestamps for chart display (mm/dd/yy)
+        chart_df = format_chart_dates(voltage_data)
+        
         # Create voltage chart with all phases
-        st.line_chart(voltage_data)
+        st.line_chart(chart_df[['[0]Phase A', '[1]Phase B', '[2]Phase C']])
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
         st.error(f"Error displaying voltage chart: {str(e)}")
@@ -564,8 +590,11 @@ def display_transformer_data(results_df: pd.DataFrame):
             <h3 style='margin: 0px; color: #262626; font-size: 18px'>Power Consumption</h3>
         </div>
     """, unsafe_allow_html=True)
-    df = df.set_index('timestamp')
-    st.line_chart(df['power_kw'])
+    
+    # Format timestamps for chart display (mm/dd/yy)
+    chart_df = format_chart_dates(df)
+    
+    st.line_chart(chart_df['power_kw'])
 
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
@@ -576,7 +605,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 <h3 style='margin: 0px; color: #262626; font-size: 18px'>Current</h3>
             </div>
         """, unsafe_allow_html=True)
-        st.line_chart(df['current_a'])
+        st.line_chart(chart_df['current_a'])
         
     with col2:
         st.markdown("""
@@ -586,7 +615,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         """, unsafe_allow_html=True)
         # Use the display_voltage_time_series function to show 3-phase data
         # Create a temporary DataFrame with timestamp as a column for the function
-        temp_df = df.reset_index().copy()
+        temp_df = df.reset_index().copy() if 'timestamp' not in df.columns else df.copy()
         display_voltage_time_series(temp_df, is_transformer_view=True)
 
 def display_customer_data(results_df: pd.DataFrame):
@@ -604,22 +633,18 @@ def display_customer_data(results_df: pd.DataFrame):
 
     # Power Consumption
     create_colored_banner("Power Consumption")
-    df_power = results_df.copy()
-    df_power['timestamp'] = pd.to_datetime(df_power['timestamp'])
-    df_power = df_power.sort_values('timestamp')  # Sort by timestamp
-    df_power = df_power.set_index('timestamp')
-    st.line_chart(df_power['power_kw'])
+    
+    # Format timestamps for chart display (mm/dd/yy)
+    chart_df = format_chart_dates(results_df)
+    
+    st.line_chart(chart_df['power_kw'])
 
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
     
     with col1:
         create_colored_banner("Current")
-        df_current = results_df.copy()
-        df_current['timestamp'] = pd.to_datetime(df_current['timestamp'])
-        df_current = df_current.sort_values('timestamp')  # Sort by timestamp
-        df_current = df_current.set_index('timestamp')
-        st.line_chart(df_current['current_a'])
+        st.line_chart(chart_df['current_a'])
         
     with col2:
         create_colored_banner("Voltage")
