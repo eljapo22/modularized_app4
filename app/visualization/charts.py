@@ -309,8 +309,9 @@ def display_transformer_dashboard(
                     return
                 
                 # Add back button
-                if st.button("← Back to Customer List"):
-                    st.session_state.show_customer_bridge = True
+                if st.button("← Back to Dashboard"):
+                    # No need to set any session state, just clear the current one
+                    st.session_state.show_customer_details = False
                     st.experimental_rerun()
                 
                 # Display the detailed view for this customer
