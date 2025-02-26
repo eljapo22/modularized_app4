@@ -643,7 +643,8 @@ def display_customer_tab(df: pd.DataFrame):
     st.markdown("### Customer Details")
     st.dataframe(
         customer_df[['timestamp', 'power_kw', 'current_a', 'voltage_v']].sort_values('timestamp', ascending=False),
-        use_container_width=True
+        use_container_width=True,
+        hide_index=True
     )
 
 def display_customers_bridge_view(customer_df: pd.DataFrame):
