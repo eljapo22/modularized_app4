@@ -4,7 +4,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import logging
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile, create_colored_banner, create_bordered_header
@@ -113,87 +112,25 @@ def display_loading_status(results_df: pd.DataFrame):
     # Round loading percentages to 1 decimal place for consistent display
     df['loading_percentage'] = df['loading_percentage'].round(1)
     
-    # Create the scatter plot
-    fig = go.Figure()
+    # Set index to timestamp for Streamlit chart
+    df = df.set_index('timestamp')
     
-    # Add scatter plot for loading percentages with explicit line and marker settings
-    fig.add_trace(go.Scatter(
-        x=df['timestamp'],
-        y=df['loading_percentage'],
-        mode='markers',  # Only show markers, no lines
-        name='Loading %',
-        marker=dict(
-            size=6,
-            color='blue',
-            line=dict(width=1, color='darkblue')
-        ),
-        hovertemplate='<b>Loading:</b> %{y}%<br>' +
-                     '<b>Time:</b> %{x}<br>' +
-                     '<b>Power:</b> %{customdata[0]:.1f} kW<extra></extra>',
-        customdata=df[['power_kw']],
-        connectgaps=False,  # Don't connect gaps in data
-        line=dict(width=0)  # Ensure no lines are drawn
-    ))
-
-    # Add horizontal lines for thresholds with labels
-    thresholds = [
+    # Display the loading percentage chart
+    st.line_chart(df['loading_percentage'], use_container_width=True)
+    
+    # Add threshold annotations with colored text
+    threshold_rows = []
+    
+    for threshold, label, color in [
         (120, 'Critical', 'red'),
         (100, 'Overloaded', 'orange'),
         (80, 'Warning', 'yellow'),
         (50, 'Pre-Warning', 'purple'),
-    ]
-
-    for threshold, label, color in thresholds:
-        # Add horizontal line
-        fig.add_shape(
-            type="line",
-            x0=0,
-            x1=1,
-            y0=threshold,
-            y1=threshold,
-            xref="paper",
-            yref="y",
-            line=dict(
-                color=color,
-                width=1,
-                dash="dash",
-            )
-        )
-        # Add label
-        fig.add_annotation(
-            text=f"{label} ≥ {threshold}%",
-            xref="paper",
-            yref="y",
-            x=1.02,
-            y=threshold,
-            showarrow=False,
-            font=dict(size=10)
-        )
-
-    # Update layout with explicit time axis settings
-    fig.update_layout(
-        title=dict(text="Loading Status", x=0.5),
-        xaxis=dict(
-            title="Time",
-            showgrid=True,
-            type='date',
-            tickformat='%Y-%m-%d %H:%M',
-            dtick='H2'  # Show tick every 2 hours
-        ),
-        yaxis=dict(
-            title="Loading Percentage (%)",
-            showgrid=True,
-            range=[0, max(125, df['loading_percentage'].max() * 1.1)]
-        ),
-        height=500,
-        showlegend=False,
-        margin=dict(r=150),  # Add right margin for threshold labels
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-    )
-
-    # Display the chart
-    st.plotly_chart(fig, use_container_width=True)
+    ]:
+        threshold_rows.append(f"<span style='color:{color}'>{label} ≥ {threshold}%</span>")
+    
+    # Create a container for the thresholds
+    st.markdown("<div style='text-align: right'>" + "<br>".join(threshold_rows) + "</div>", unsafe_allow_html=True)
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
