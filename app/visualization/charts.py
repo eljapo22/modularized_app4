@@ -8,7 +8,7 @@ import altair as alt  # Added for enhanced chart capabilities
 from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile, create_colored_banner, create_bordered_header
-from app.config.constants import STATUS_COLORS, CHART_COLORS
+from app.config.constants import STATUS_COLORS, CHART_COLORS, LOADING_THRESHOLDS
 from app.config.table_config import DECIMAL_PLACES
 
 # Configure logging
