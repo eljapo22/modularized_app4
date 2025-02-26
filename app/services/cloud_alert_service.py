@@ -85,23 +85,26 @@ class CloudAlertService:
             return None
 
     def _create_deep_link(self, start_date: date, alert_time: datetime, transformer_id: str) -> str:
-        """Create deep link back to app with context"""
-        # Convert numpy.int64 to datetime if needed
-        if hasattr(alert_time, 'dtype') and alert_time.dtype == 'int64':
-            alert_time = pd.Timestamp(alert_time).to_pydatetime()
-        if hasattr(start_date, 'dtype') and start_date.dtype == 'int64':
-            start_date = pd.Timestamp(start_date).date()
+        """Create a deep link to the dashboard with alert parameters"""
+        try:
+            # Format the parameters
+            params = {
+                'view': 'alert',
+                'id': transformer_id,
+                'start': start_date.strftime('%Y-%m-%d'),  
+                'alert_time': alert_time.strftime('%Y-%m-%dT%H:%M:%S')
+            }
             
-        params = {
-            'view': 'alert',
-            'id': transformer_id,
-            'start': start_date.isoformat() if start_date else None,
-            'alert_time': alert_time.isoformat() if alert_time else None
-        }
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
-        query_string = '&'.join(f"{k}={v}" for k, v in params.items())
-        return f"{self.app_url}?{query_string}"
+            # Create the query string
+            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+            
+            deep_link = f"{self.app_url}?{query_string}"
+            logger.info(f"Created deep link: {deep_link}")
+            return deep_link
+            
+        except Exception as e:
+            logger.error(f"Error creating deep link: {str(e)}")
+            return "#"  
 
     def _create_email_content(self, data: pd.Series, status: str, color: str, deep_link: str) -> str:
         """
