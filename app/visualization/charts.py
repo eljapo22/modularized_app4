@@ -1,9 +1,10 @@
 # Visualization components for the Transformer Loading Analysis Application
 
-import streamlit as st
+import logging
 import pandas as pd
 import numpy as np
-import logging
+import streamlit as st
+import altair as alt  # Added for enhanced chart capabilities
 from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile, create_colored_banner, create_bordered_header
@@ -112,40 +113,47 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def display_loading_status(results_df: pd.DataFrame):
-    """Display loading status chart showing loading percentages over time."""
+    """Display loading status visualization with thresholds."""
     if results_df is None or results_df.empty:
-        st.warning("No data available for loading status chart")
+        st.warning("No data available for loading status visualization.")
         return
-
-    # Create a copy and ensure timestamp handling
+        
+    # Ensure we have a clean working copy with proper timestamp format
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
-    # Debug: Check for duplicate timestamps
-    duplicate_times = df[df.duplicated(subset=['timestamp'], keep=False)]
-    if not duplicate_times.empty:
-        st.warning("Found duplicate timestamps in data:")
-        st.write(duplicate_times.sort_values('timestamp')[['timestamp', 'loading_percentage']].head(10))
-    
-    # Remove duplicates, keeping first occurrence
-    df = df.drop_duplicates(subset=['timestamp'], keep='first')
-    
-    # Debug: Show value ranges
-    st.write("Loading percentage range:", 
-             f"Min: {df['loading_percentage'].min():.1f}%, ",
-             f"Max: {df['loading_percentage'].max():.1f}%, ",
-             f"Mean: {df['loading_percentage'].mean():.1f}%")
-    
-    df = df.sort_values('timestamp')  # Ensure data is sorted by time
+    df = df.sort_values('timestamp')
     
     # Round loading percentages to 1 decimal place for consistent display
     df['loading_percentage'] = df['loading_percentage'].round(1)
     
-    # Format timestamps for chart display (mm/dd/yy)
-    chart_df = format_chart_dates(df)
+    # Create an Altair chart for loading percentage
+    chart = create_altair_chart(
+        df, 
+        'loading_percentage',
+        title="Loading Percentage Over Time"
+    )
     
-    # Display the loading percentage chart
-    st.line_chart(chart_df['loading_percentage'], use_container_width=True)
+    # Add threshold rules for different loading levels
+    threshold_rules = [
+        {'value': 120, 'color': 'red', 'label': 'Critical'},
+        {'value': 100, 'color': 'orange', 'label': 'Overloaded'},
+        {'value': 80, 'color': 'yellow', 'label': 'Warning'},
+        {'value': 50, 'color': 'purple', 'label': 'Pre-Warning'}
+    ]
+    
+    # Add threshold lines to the chart
+    for rule in threshold_rules:
+        threshold_line = alt.Chart(pd.DataFrame({'threshold': [rule['value']]})).mark_rule(
+            color=rule['color'],
+            strokeWidth=1,
+            strokeDash=[4, 4]  # Dashed line
+        ).encode(
+            y='threshold:Q'
+        )
+        chart += threshold_line
+    
+    # Display the chart with streamlit
+    st.altair_chart(chart, use_container_width=True)
     
     # Add threshold annotations with colored text
     threshold_rows = []
@@ -167,14 +175,21 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         st.warning("No data available for power consumption visualization.")
         return
     
-    # Format timestamps for chart display (mm/dd/yy)
-    chart_df = format_chart_dates(results_df)
+    # Ensure we have a clean working copy with proper timestamps
+    df = results_df.copy()
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.sort_values('timestamp')
     
-    # Create power chart
-    st.line_chart(
-        chart_df['power_kw'],
-        use_container_width=True
+    # Create power chart with Altair
+    chart = create_altair_chart(
+        df,
+        'power_kw',
+        title="Power Consumption (kW)" if is_transformer_view else None,
+        color="#1f77b4"  # Blue color for power
     )
+    
+    # Display the chart with streamlit
+    st.altair_chart(chart, use_container_width=True)
 
 def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display current time series visualization."""
@@ -182,14 +197,21 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
         st.warning("No data available for current visualization.")
         return
         
-    # Format timestamps for chart display (mm/dd/yy)
-    chart_df = format_chart_dates(results_df)
+    # Ensure we have a clean working copy with proper timestamps
+    df = results_df.copy()
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.sort_values('timestamp')
     
-    # Create current chart
-    st.line_chart(
-        chart_df['current_a'],
-        use_container_width=True
+    # Create current chart with Altair
+    chart = create_altair_chart(
+        df,
+        'current_a',
+        title="Current (A)" if is_transformer_view else None,
+        color="#ff7f0e"  # Orange color for current
     )
+    
+    # Display the chart with streamlit
+    st.altair_chart(chart, use_container_width=True)
 
 def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display voltage time series visualization."""
@@ -231,21 +253,33 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         
         # Phase A - centered around 400V
         phase_a = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx)
-        voltage_data['[0]Phase A'] = phase_a
+        voltage_data['Phase A'] = phase_a
         
         # Phase B - shifted 120 degrees (2π/3 radians)
         phase_b = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (2*np.pi/3))
-        voltage_data['[1]Phase B'] = phase_b
+        voltage_data['Phase B'] = phase_b
         
         # Phase C - shifted 240 degrees (4π/3 radians)
         phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
-        voltage_data['[2]Phase C'] = phase_c
+        voltage_data['Phase C'] = phase_c
         
-        # Format timestamps for chart display (mm/dd/yy)
-        chart_df = format_chart_dates(voltage_data)
+        # Define the column mapping for the multi-line chart
+        column_dict = {
+            'Phase A': 'Phase A',
+            'Phase B': 'Phase B',
+            'Phase C': 'Phase C'
+        }
         
-        # Create voltage chart with all phases
-        st.line_chart(chart_df[['[0]Phase A', '[1]Phase B', '[2]Phase C']])
+        # Create a multi-line chart with Altair
+        chart = create_multi_line_chart(
+            voltage_data, 
+            column_dict,
+            title="Voltage (V)" if is_transformer_view else None
+        )
+        
+        # Display the chart
+        st.altair_chart(chart, use_container_width=True)
+        
     except Exception as e:
         logger.error(f"Error displaying voltage time series: {str(e)}")
         st.error(f"Error displaying voltage chart: {str(e)}")
@@ -591,10 +625,13 @@ def display_transformer_data(results_df: pd.DataFrame):
         </div>
     """, unsafe_allow_html=True)
     
-    # Format timestamps for chart display (mm/dd/yy)
-    chart_df = format_chart_dates(df)
-    
-    st.line_chart(chart_df['power_kw'])
+    # Create power chart with Altair
+    power_chart = create_altair_chart(
+        df,
+        'power_kw',
+        color="#1f77b4"  # Blue color for power
+    )
+    st.altair_chart(power_chart, use_container_width=True)
 
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
@@ -605,7 +642,14 @@ def display_transformer_data(results_df: pd.DataFrame):
                 <h3 style='margin: 0px; color: #262626; font-size: 18px'>Current</h3>
             </div>
         """, unsafe_allow_html=True)
-        st.line_chart(chart_df['current_a'])
+        
+        # Create current chart with Altair
+        current_chart = create_altair_chart(
+            df,
+            'current_a',
+            color="#ff7f0e"  # Orange color for current
+        )
+        st.altair_chart(current_chart, use_container_width=True)
         
     with col2:
         st.markdown("""
@@ -631,21 +675,139 @@ def display_customer_data(results_df: pd.DataFrame):
         </div>
     """, unsafe_allow_html=True)
 
+    # Ensure timestamp is datetime
+    df = results_df.copy()
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.sort_values('timestamp')
+
     # Power Consumption
     create_colored_banner("Power Consumption")
     
-    # Format timestamps for chart display (mm/dd/yy)
-    chart_df = format_chart_dates(results_df)
-    
-    st.line_chart(chart_df['power_kw'])
+    # Create power chart with Altair
+    power_chart = create_altair_chart(
+        df,
+        'power_kw',
+        color="#1f77b4"  # Blue color for power
+    )
+    st.altair_chart(power_chart, use_container_width=True)
 
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
     
     with col1:
         create_colored_banner("Current")
-        st.line_chart(chart_df['current_a'])
+        
+        # Create current chart with Altair
+        current_chart = create_altair_chart(
+            df,
+            'current_a',
+            color="#ff7f0e"  # Orange color for current
+        )
+        st.altair_chart(current_chart, use_container_width=True)
         
     with col2:
         create_colored_banner("Voltage")
         display_voltage_time_series(results_df)
+
+def create_altair_chart(df, y_column, title=None, color=None):
+    """
+    Create a standardized Altair chart for time series data.
+    
+    Args:
+        df (pd.DataFrame): DataFrame with timestamp column and data column
+        y_column (str): Name of the column to plot on the y-axis
+        title (str, optional): Chart title
+        color (str, optional): Line color (hex code or named color)
+        
+    Returns:
+        alt.Chart: Configured Altair chart
+    """
+    # Base configuration for line chart
+    chart = alt.Chart(df).mark_line(point=True).encode(
+        x=alt.X('timestamp:T', 
+                axis=alt.Axis(
+                    format='%m/%d/%y',  # Format as mm/dd/yy
+                    title='Date',
+                    labelAngle=-45,     # Angle labels to prevent overlap
+                    grid=False,         # Remove gridlines for cleaner look
+                    tickCount=10        # Limit number of ticks for readability
+                )),
+        y=alt.Y(f'{y_column}:Q', 
+                axis=alt.Axis(
+                    title=y_column.replace('_', ' ').title(),  # Clean title
+                    grid=True
+                )),
+        tooltip=[
+            alt.Tooltip('timestamp:T', title='Date', format='%m/%d/%y %H:%M'),
+            alt.Tooltip(f'{y_column}:Q', title=y_column.replace('_', ' ').title())
+        ]
+    )
+    
+    # Add color if specified
+    if color:
+        chart = chart.configure_mark(color=color)
+    
+    # Add title if specified
+    if title:
+        chart = chart.properties(title=title)
+    
+    # Set chart width to responsive (uses container width)
+    chart = chart.properties(width='container')
+    
+    return chart
+
+def create_multi_line_chart(df, column_dict, title=None):
+    """
+    Create a multi-line Altair chart from wide-format data.
+    
+    Args:
+        df (pd.DataFrame): DataFrame with timestamp and multiple data columns
+        column_dict (dict): Dictionary mapping column names to display names
+        title (str, optional): Chart title
+        
+    Returns:
+        alt.Chart: Configured Altair chart with multiple lines
+    """
+    # First, convert data to long format for Altair
+    id_vars = ['timestamp']
+    value_vars = list(column_dict.keys())
+    
+    # Melt the DataFrame to convert from wide to long format
+    long_df = pd.melt(
+        df, 
+        id_vars=id_vars,
+        value_vars=value_vars,
+        var_name='series',
+        value_name='value'
+    )
+    
+    # Create mapping for series names
+    long_df['series_name'] = long_df['series'].map(column_dict)
+    
+    # Create chart
+    chart = alt.Chart(long_df).mark_line().encode(
+        x=alt.X('timestamp:T',
+                axis=alt.Axis(
+                    format='%m/%d/%y',
+                    title='Date',
+                    labelAngle=-45,
+                    grid=False,
+                    tickCount=10
+                )),
+        y=alt.Y('value:Q'),
+        color=alt.Color('series_name:N', legend=alt.Legend(title="Series")),
+        tooltip=[
+            alt.Tooltip('timestamp:T', title='Date', format='%m/%d/%y %H:%M'),
+            alt.Tooltip('value:Q', title='Value'),
+            alt.Tooltip('series_name:N', title='Series')
+        ]
+    )
+    
+    # Add title if specified
+    if title:
+        chart = chart.properties(title=title)
+        
+    # Set chart width to responsive
+    chart = chart.properties(width='container')
+    
+    return chart
