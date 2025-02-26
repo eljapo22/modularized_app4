@@ -103,7 +103,6 @@ def main():
         )
         
         # Feeder selection with comprehensive error handling
-        st.subheader("Feeder Selection")
         try:
             feeders = data_service.get_feeder_options()
             if not feeders:
@@ -116,13 +115,12 @@ def main():
 
         # Ensure a valid selection
         feeder = st.selectbox(
-            "Select Feeder",
+            "Feeder",
             options=feeders,
             index=0
         )
 
         # Transformer selection with comprehensive error handling
-        st.subheader("Transformer Selection")
         try:
             # Ensure feeder is a string and extract number if needed
             feeder_str = str(feeder)
@@ -145,7 +143,7 @@ def main():
             logger.info(f"Auto-selecting transformer from URL: {param_transformer_id}")
             
         transformer_id = st.selectbox(
-            "Select Transformer",
+            "Transformer",
             options=transformers,
             index=default_index
         )
