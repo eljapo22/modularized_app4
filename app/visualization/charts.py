@@ -311,10 +311,51 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         return
         
     try:
-        # Ensure timestamp is datetime and set as index
-        df = results_df.copy()
+        # For transformer view, we don't need the database values at all
+        # Just create a completely synthetic dataset with timestamps
+        if is_transformer_view:
+            # Create mock dataset with consistent timestamps
+            # Use 24 data points (hourly data for a day) for consistent display
+            import numpy as np
+            
+            # Create a base timestamp and a range of 24 hours
+            base_timestamp = pd.Timestamp('2025-02-26')
+            timestamps = [base_timestamp + pd.Timedelta(hours=i) for i in range(24)]
+            
+            # Create empty dataframe with timestamps only
+            voltage_data = pd.DataFrame()
+            voltage_data['timestamp'] = timestamps
+            
+            # Base voltage is 400V
+            base_voltage = 400
+            
+            # Constant voltage for all three phases
+            voltage_data['Phase A'] = base_voltage
+            voltage_data['Phase B'] = base_voltage
+            voltage_data['Phase C'] = base_voltage
+            
+            # Define the column mapping for the multi-line chart
+            column_dict = {
+                'Phase A': 'Phase A',
+                'Phase B': 'Phase B',
+                'Phase C': 'Phase C'
+            }
+            
+            # Create a multi-line chart with Altair
+            chart = create_multi_line_chart(
+                voltage_data, 
+                column_dict,
+                title="Voltage (V)"
+            )
+            
+            # Display the chart with streamlit
+            st.altair_chart(chart, use_container_width=True)
+            return
         
-        # Check if voltage_v column exists
+        # For customer view, still create synthetic data but based on timestamps from the database
+        df = results_df.copy()
+            
+        # Check if voltage_v column exists (only needed for customer view)
         if 'voltage_v' not in df.columns:
             st.error("Voltage data not available: missing 'voltage_v' column")
             return
@@ -332,34 +373,27 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Base voltage is 400V
         base_voltage = 400
         
-        # Create constant voltage for transformer view and variations for customer view
-        # Updated Feb 26 2025 12:57 - Force deployment
-        if is_transformer_view:
-            # Create constant voltage lines for all phases at exactly 400V for transformer view
-            voltage_data['Phase A'] = base_voltage
-            voltage_data['Phase B'] = base_voltage
-            voltage_data['Phase C'] = base_voltage
-        else:
-            # Create time-based index for sinusoidal patterns
-            time_idx = np.linspace(0, 4*np.pi, len(df))
-            
-            # Define the range (+/- 8% of 400V)
-            variation_pct = 0.08  # 8%
-            
-            # Create three phases with slight shifts but similar patterns
-            # All phases will stay within +/- 8% of 400V
-            
-            # Phase A - centered around 400V
-            phase_a = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx)
-            voltage_data['Phase A'] = phase_a
-            
-            # Phase B - shifted 120 degrees (2π/3 radians)
-            phase_b = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (2*np.pi/3))
-            voltage_data['Phase B'] = phase_b
-            
-            # Phase C - shifted 240 degrees (4π/3 radians)
-            phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
-            voltage_data['Phase C'] = phase_c
+        # Create variations for customer view
+        # Time-based index for sinusoidal patterns
+        time_idx = np.linspace(0, 4*np.pi, len(df))
+        
+        # Define the range (+/- 8% of 400V)
+        variation_pct = 0.08  # 8%
+        
+        # Create three phases with slight shifts but similar patterns
+        # All phases will stay within +/- 8% of 400V
+        
+        # Phase A - centered around 400V
+        phase_a = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx)
+        voltage_data['Phase A'] = phase_a
+        
+        # Phase B - shifted 120 degrees (2π/3 radians)
+        phase_b = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (2*np.pi/3))
+        voltage_data['Phase B'] = phase_b
+        
+        # Phase C - shifted 240 degrees (4π/3 radians)
+        phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
+        voltage_data['Phase C'] = phase_c
         
         # Define the column mapping for the multi-line chart
         column_dict = {
@@ -372,15 +406,15 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         chart = create_multi_line_chart(
             voltage_data, 
             column_dict,
-            title="Voltage (V)" if is_transformer_view else None
+            title="Voltage (V)"
         )
         
-        # Display the chart
+        # Display the chart with streamlit
         st.altair_chart(chart, use_container_width=True)
-        
+    
     except Exception as e:
-        logger.error(f"Error displaying voltage time series: {str(e)}")
-        st.error(f"Error displaying voltage chart: {str(e)}")
+        st.error(f"Error displaying voltage visualization: {e}")
+        logger.error(f"Error in display_voltage_time_series: {e}")
 
 def display_power_consumption(results_df: pd.DataFrame):
     """Display power consumption visualization."""
@@ -824,41 +858,34 @@ def display_transformer_data(results_df: pd.DataFrame):
         try:
             alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
             
-            # Create a vertical rule at the alert timestamp
-            alert_rule = alt.Chart(pd.DataFrame({
-                'timestamp': [alert_time]
-            })).mark_rule(
+            # Create a vertical rule to mark the alert time
+            rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
                 color='red',
                 strokeWidth=2,
-                strokeDash=[5, 5]
+                opacity=0.7,
+                strokeDash=[5, 5]  # Dashed line
             ).encode(
-                x='timestamp:T'
+                x='alert_time:T'
             )
             
-            # Add text annotation for the alert point
-            alert_text = alt.Chart(pd.DataFrame({
-                'timestamp': [alert_time],
-                'y': [power_df['power_kw'].max()],
-                'text': ['⚠️ Alert point']
-            })).mark_text(
+            # Add text annotation for the alert
+            text = alt.Chart(pd.DataFrame({'alert_time': [alert_time], 'y': [df['power_kw'].max()]})).mark_text(
                 align='left',
                 baseline='top',
-                dx=5,
-                dy=-5,
+                dy=-10,
                 fontSize=12,
-                fontWeight='bold',
                 color='red'
             ).encode(
-                x='timestamp:T',
+                x='alert_time:T',
                 y='y:Q',
-                text='text:N'
+                text=alt.value('⚠️ Alert point')
             )
             
             # Combine with existing chart
-            chart = alt.layer(chart, alert_rule, alert_text)
+            chart = alt.layer(chart, rule, text)
             logger.info(f"Added alert timestamp line at {alert_time}")
         except Exception as e:
-            logger.error(f"Could not add alert timestamp: {str(e)}")
+            logger.error(f"Error highlighting alert timestamp: {e}")
     
     # Display the chart
     st.altair_chart(chart, use_container_width=True)
