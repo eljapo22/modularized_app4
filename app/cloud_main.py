@@ -27,6 +27,15 @@ def main():
     
     st.title("Transformer Loading Analysis")
     
+    # Process URL parameters for deep links
+    params = st.experimental_get_query_params()
+    auto_search = False
+    param_view = params.get("view", [""])[0]
+    param_transformer_id = params.get("id", [""])[0]
+    param_start = params.get("start", [""])[0]
+    param_end = params.get("end", [""])[0]
+    param_alert_time = params.get("alert_time", [""])[0]
+    
     # Initialize services with error handling
     try:
         data_service = CloudDataService()
@@ -56,15 +65,39 @@ def main():
         
         # Date range selection
         st.subheader("Date Range")
+        
+        # Use URL param for start date if available
+        default_start = min_date
+        if param_start and param_view == "alert":
+            try:
+                default_start = datetime.strptime(param_start, "%Y-%m-%d").date()
+                # Keep within bounds
+                default_start = max(min_date, default_start)
+                default_start = min(max_date, default_start)
+            except ValueError:
+                logger.warning(f"Invalid start date parameter: {param_start}")
+        
         start_date = st.date_input(
             "Start Date",
-            value=min_date,
+            value=default_start,
             min_value=min_date,
             max_value=max_date
         )
+        
+        # Use URL param for end date if available
+        default_end = max_date
+        if param_end and param_view == "alert":
+            try:
+                default_end = datetime.strptime(param_end, "%Y-%m-%d").date()
+                # Keep within bounds
+                default_end = max(min_date, default_end)
+                default_end = min(max_date, default_end)
+            except ValueError:
+                logger.warning(f"Invalid end date parameter: {param_end}")
+        
         end_date = st.date_input(
             "End Date",
-            value=max_date,
+            value=default_end,
             min_value=min_date,
             max_value=max_date
         )
@@ -106,10 +139,15 @@ def main():
             st.warning(f"Error loading transformers: {str(e)}. Using default.")
 
         # Ensure a valid transformer selection
+        default_index = 0
+        if param_transformer_id and param_view == "alert" and param_transformer_id in transformers:
+            default_index = transformers.index(param_transformer_id)
+            logger.info(f"Auto-selecting transformer from URL: {param_transformer_id}")
+            
         transformer_id = st.selectbox(
             "Select Transformer",
             options=transformers,
-            index=0
+            index=default_index
         )
         
         # Search & Alert button
@@ -186,6 +224,57 @@ def main():
             except Exception as e:
                 logger.error(f"Comprehensive data retrieval error: {str(e)}")
                 st.error(f"Failed to retrieve data: {str(e)}")
+    
+    # Auto-trigger search if coming from a deep link
+    if param_view == "alert" and param_transformer_id and param_start and not 'search_triggered' in st.session_state:
+        logger.info(f"Auto-triggering search from deep link: view={param_view}, id={param_transformer_id}, start={param_start}, end={param_end}")
+        
+        # Set flag to prevent repeated triggering on the same session
+        st.session_state.search_triggered = True
+        
+        try:
+            # Get transformer data with detailed logging
+            transformer_data = data_service.get_transformer_data_range(
+                start_date=start_date,
+                end_date=end_date,
+                feeder=feeder,
+                transformer_id=transformer_id
+            )
+            
+            # Log detailed information about retrieved transformer data
+            if transformer_data is not None and not transformer_data.empty:
+                logger.info(f"Auto-triggered search: Transformer data retrieved successfully")
+                logger.info(f"Data shape: {transformer_data.shape}")
+                logger.info(f"Columns: {transformer_data.columns}")
+                logger.info(f"Timestamp range: {transformer_data.index.min()} to {transformer_data.index.max()}")
+            else:
+                logger.warning("Auto-triggered search: No transformer data retrieved")
+            
+            # Get customer data
+            try:
+                customer_data = data_service.get_customer_data(
+                    transformer_id=transformer_id,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                
+                # Store data in session state
+                st.session_state.transformer_data = transformer_data
+                st.session_state.customer_data = customer_data
+                st.session_state.current_transformer = transformer_id
+                st.session_state.current_feeder = feeder
+                
+                # Highlight alert time if provided
+                if param_alert_time:
+                    st.session_state.highlight_timestamp = param_alert_time
+                
+            except Exception as e:
+                logger.error(f"Auto-triggered search: Error getting customer data: {str(e)}")
+                st.warning(f"Could not retrieve customer data: {str(e)}")
+                
+        except Exception as e:
+            logger.error(f"Auto-triggered search: Data retrieval error: {str(e)}")
+            st.error(f"Failed to retrieve data: {str(e)}")
     
     # Main content area
     if 'transformer_data' in st.session_state:

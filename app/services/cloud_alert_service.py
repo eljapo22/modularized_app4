@@ -39,7 +39,7 @@ def get_status_emoji(status: str) -> str:
 class CloudAlertService:
     def __init__(self):
         """Initialize the alert service"""
-        self.app_url = st.secrets.get("APP_URL", "https://modularized-app4.streamlit.app")
+        self.app_url = st.secrets.get("APP_URL", "https://transformer-dashboard.streamlit.app")
         self.email = st.secrets.get("DEFAULT_EMAIL", "jhnapo2213@gmail.com")
         self.app_password = st.secrets.get("GMAIL_APP_PASSWORD")
         self.email_enabled = self.app_password is not None

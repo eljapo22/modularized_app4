@@ -317,6 +317,16 @@ def display_transformer_dashboard(
         return
 
     try:
+        # Check for alert timestamp to highlight
+        alert_timestamp = None
+        if 'highlight_timestamp' in st.session_state:
+            try:
+                alert_timestamp_str = st.session_state.highlight_timestamp
+                alert_timestamp = pd.to_datetime(alert_timestamp_str)
+                st.info(f" Showing alert data for: {alert_timestamp.strftime('%Y-%m-%d %H:%M')}")
+            except Exception as e:
+                logger.error(f"Error parsing alert timestamp: {e}")
+        
         # Show customer details if a specific customer was selected
         if 'show_customer_details' in st.session_state and st.session_state.show_customer_details:
             st.session_state.show_customer_details = False  # Reset for next time
@@ -729,30 +739,55 @@ def create_altair_chart(df, y_column, title=None, color=None):
                     format='%m/%d/%y',  # Format as mm/dd/yy
                     title='Date',
                     labelAngle=-45,     # Angle labels to prevent overlap
-                    grid=False,         # Remove gridlines for cleaner look
-                    tickCount=10        # Limit number of ticks for readability
                 )),
-        y=alt.Y(f'{y_column}:Q', 
+        y=alt.Y(y_column, 
                 axis=alt.Axis(
-                    title=y_column.replace('_', ' ').title(),  # Clean title
-                    grid=True
+                    title=y_column.replace('_', ' ').title() # Format title nicely
                 )),
-        tooltip=[
-            alt.Tooltip('timestamp:T', title='Date', format='%m/%d/%y %H:%M'),
-            alt.Tooltip(f'{y_column}:Q', title=y_column.replace('_', ' ').title())
-        ]
+        tooltip=['timestamp:T', f'{y_column}:Q']
     )
     
-    # Add color if specified
+    # Apply custom color if provided
     if color:
-        chart = chart.configure_mark(color=color)
+        chart = chart.encode(color=alt.value(color))
     
-    # Add title if specified
+    # Add title if provided
     if title:
         chart = chart.properties(title=title)
-    
-    # Set chart width to responsive (uses container width)
-    chart = chart.properties(width='container')
+        
+    # Highlight alert timestamp if it exists in session state
+    if 'highlight_timestamp' in st.session_state:
+        try:
+            alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+            
+            # Create a vertical rule to mark the alert time
+            rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
+                color='red',
+                strokeWidth=2,
+                opacity=0.7,
+                strokeDash=[5, 5]  # Dashed line
+            ).encode(
+                x='alert_time:T'
+            )
+            
+            # Add text annotation for the alert
+            text = alt.Chart(pd.DataFrame({'alert_time': [alert_time], 'y': [df[y_column].max()]})).mark_text(
+                align='left',
+                baseline='top',
+                dy=-10,
+                fontSize=12,
+                color='red'
+            ).encode(
+                x='alert_time:T',
+                y='y:Q',
+                text=alt.value('⚠️ Alert point')
+            )
+            
+            # Combine the base chart with rule and text
+            return chart + rule + text
+            
+        except Exception as e:
+            logger.error(f"Error highlighting alert timestamp: {e}")
     
     return chart
 
