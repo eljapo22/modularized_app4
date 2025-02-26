@@ -114,7 +114,6 @@ def normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
 
 def display_loading_status(results_df: pd.DataFrame):
     """Display loading status visualization with thresholds and background colors."""
-    # Deployment test - Feb 26 13:00
     if results_df is None or results_df.empty:
         st.warning("No data available for loading status visualization.")
         return
@@ -152,21 +151,13 @@ def display_loading_status(results_df: pd.DataFrame):
                 titleColor='#333333',
                 labelFontSize=12,
                 titleFontSize=14,
-                grid=True,
-                gridColor='#f0f0f0'
+                tickCount=7,  # Add explicit tick count
+                grid=True
             )
         ),
         tooltip=['timestamp:T', alt.Tooltip('loading_percentage:Q', format='.1f', title='Loading %')]
     ).properties(
-        width='container',
-        height=300,  # Increase height for better visualization
-        title={
-            "text": "Loading Percentage Over Time", 
-            "fontSize": 16,
-            "font": "Arial",
-            "anchor": "start",
-            "color": "#333333"
-        }
+        title="Loading Percentage Over Time"
     )
     
     # Create colored background sections
@@ -174,7 +165,7 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Critical: >= 120%
     critical_area = alt.Chart(pd.DataFrame({
-        'y1': [120], 'y2': [200]  # Upper limit set to 200% for visual purposes
+        'y1': [120], 'y2': [130]  # Upper limit set to 130% to match y-axis scale
     })).mark_area(
         color='red',
         opacity=0.25
@@ -255,7 +246,7 @@ def display_loading_status(results_df: pd.DataFrame):
     # Combine all chart elements
     chart = alt.layer(*background_areas, base_chart, *threshold_lines)
     
-    # Display the chart with streamlit
+    # Display the chart with streamlit - explicitly set height and width
     st.altair_chart(chart, use_container_width=True)
     
     # Add threshold annotations with colored text
