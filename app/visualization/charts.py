@@ -346,6 +346,12 @@ def display_transformer_dashboard(
         return
 
     try:
+        # Ensure session state variables exist (set defaults if not)
+        if 'show_customer_details' not in st.session_state:
+            st.session_state.show_customer_details = False
+        if 'show_customer_bridge' not in st.session_state:
+            st.session_state.show_customer_bridge = False
+            
         # Check for alert timestamp to highlight
         alert_timestamp = None
         if 'highlight_timestamp' in st.session_state:
@@ -378,9 +384,10 @@ def display_transformer_dashboard(
                         st.experimental_rerun()
                 with col2:
                     if st.button("← Back to Customer List"):
-                        # Go back to bridge view
-                        st.session_state.show_customer_bridge = True
-                        st.session_state.show_customer_details = False
+                        # Go back to bridge view - reset the proper session state variables
+                        st.session_state.show_customer_bridge = True  # Show the bridge/list view
+                        st.session_state.show_customer_details = False  # Hide detailed view
+                        # Keep the customer_id in session state but don't show details for it
                         st.experimental_rerun()
                 
                 # Display the detailed view for this customer

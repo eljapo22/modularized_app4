@@ -59,6 +59,15 @@ def main():
         data_service = CloudDataService()
         alert_service = CloudAlertService()
         
+        # Ensure dashboard is always the first view by resetting relevant session state
+        if 'app_initialized' not in st.session_state:
+            # Reset any view-related session state on first load
+            st.session_state.show_customer_details = False
+            st.session_state.show_customer_bridge = False
+            if 'selected_customer_id' in st.session_state:
+                del st.session_state['selected_customer_id']
+            st.session_state.app_initialized = True
+        
         # Create header banner
         create_banner("Transformer Loading Analysis Dashboard")
         
