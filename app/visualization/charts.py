@@ -622,7 +622,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                 <h3 style='margin: 0px; color: #262626; font-size: 18px'>Voltage</h3>
             </div>
         """, unsafe_allow_html=True)
-        st.line_chart(df['voltage_v'])
+        # Use the display_voltage_time_series function to show 3-phase data
+        # Create a temporary DataFrame with timestamp as a column for the function
+        temp_df = df.reset_index().copy()
+        display_voltage_time_series(temp_df, is_transformer_view=True)
 
 def display_customer_data(results_df: pd.DataFrame):
     """Display customer data visualizations."""
@@ -658,8 +661,4 @@ def display_customer_data(results_df: pd.DataFrame):
         
     with col2:
         create_colored_banner("Voltage")
-        df_voltage = results_df.copy()
-        df_voltage['timestamp'] = pd.to_datetime(df_voltage['timestamp'])
-        df_voltage = df_voltage.sort_values('timestamp')  # Sort by timestamp
-        df_voltage = df_voltage.set_index('timestamp')
-        st.line_chart(df_voltage['voltage_v'])
+        display_voltage_time_series(results_df)
