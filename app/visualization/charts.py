@@ -699,11 +699,11 @@ def display_customers_bridge_view(customer_df: pd.DataFrame):
     
     # Table header
     col1, col2, col3, col4, col5 = st.columns([1, 2, 1, 1, 1])
-    col1.markdown("**Customer**")
+    col1.markdown("**Customer I.D.**")
     col2.markdown("**Timestamp**")
     col3.markdown("**Power (kW)**")
     col4.markdown("**Current (A)**")
-    col5.markdown("**Voltage (V)**")
+    col5.markdown("**Action**")
     
     st.markdown("---")
     
@@ -712,7 +712,7 @@ def display_customers_bridge_view(customer_df: pd.DataFrame):
         col1, col2, col3, col4, col5 = st.columns([1, 2, 1, 1, 1])
         
         with col1:
-            st.write(f"Customer {row.customer_id}")
+            st.write(f"{row.customer_id}")
         with col2:
             st.write(f"{row.timestamp}")
         with col3:
@@ -823,7 +823,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             ).encode(
                 y='y:Q',
                 text='text:N',
-                x=alt.value(570)  # Position near right edge
+                x=alt.value(800)  # Position further to the right edge
             )
             
             # Combine charts
@@ -1132,7 +1132,10 @@ def create_altair_chart(df, y_column, title=None, color=None):
             )
             
             # Add text annotation for the alert
-            text = alt.Chart(pd.DataFrame({'alert_time': [alert_time], 'y': [df[y_column].max()]})).mark_text(
+            text = alt.Chart(pd.DataFrame({
+                'alert_time': [alert_time],
+                'y': [df[y_column].max()]
+            })).mark_text(
                 align='left',
                 baseline='top',
                 dy=-10,
