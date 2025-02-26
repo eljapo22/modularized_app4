@@ -126,13 +126,65 @@ def display_loading_status(results_df: pd.DataFrame):
     # Round loading percentages to 1 decimal place for consistent display
     df['loading_percentage'] = df['loading_percentage'].round(1)
     
-    # Create an Altair chart for loading percentage
-    base_chart = alt.Chart(df).mark_line(
+    # Find min and max timestamp for the backgrounds
+    min_time = df['timestamp'].min()
+    max_time = df['timestamp'].max()
+    
+    # Create timestamp dataframe for background rectangles
+    time_df = pd.DataFrame({
+        'start': [min_time],
+        'end': [max_time]
+    })
+    
+    # Create background charts for each threshold level
+    # Critical: >= 120%
+    critical_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='red').encode(
+        x='start:T',
+        x2='end:T',
+        y=alt.value(0),  # Bottom of chart (pixels)
+        y2=alt.datum(120)  # The value threshold
+    )
+    
+    # Overloaded: 100-120%
+    overloaded_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='orange').encode(
+        x='start:T',
+        x2='end:T',
+        y=alt.datum(120),
+        y2=alt.datum(100)
+    )
+    
+    # Warning: 80-100%
+    warning_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='yellow').encode(
+        x='start:T',
+        x2='end:T',
+        y=alt.datum(100),
+        y2=alt.datum(80)
+    )
+    
+    # Pre-Warning: 50-80%
+    prewarning_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='purple').encode(
+        x='start:T',
+        x2='end:T',
+        y=alt.datum(80),
+        y2=alt.datum(50)
+    )
+    
+    # Normal: 0-50%
+    normal_bg = alt.Chart(time_df).mark_rect(opacity=0.25, color='green').encode(
+        x='start:T',
+        x2='end:T',
+        y=alt.datum(50),
+        y2=alt.datum(0)
+    )
+    
+    # Create main line chart
+    line_chart = alt.Chart(df).mark_line(
         point=True,
         strokeWidth=2,
         color='#1f77b4'
     ).encode(
         x=alt.X('timestamp:T', 
+            scale=alt.Scale(domain=[min_time, max_time]),
             axis=alt.Axis(
                 format='%m/%d/%y',
                 title='Date',
@@ -151,79 +203,17 @@ def display_loading_status(results_df: pd.DataFrame):
                 titleColor='#333333',
                 labelFontSize=12,
                 titleFontSize=14,
-                tickCount=7,  # Add explicit tick count
-                grid=True
+                tickCount=7
             )
         ),
         tooltip=['timestamp:T', alt.Tooltip('loading_percentage:Q', format='.1f', title='Loading %')]
     ).properties(
-        title="Loading Percentage Over Time"
+        title="Loading Percentage Over Time",
+        width=600,
+        height=400
     )
     
-    # Create colored background sections
-    background_areas = []
-    
-    # Critical: >= 120%
-    critical_area = alt.Chart(pd.DataFrame({
-        'y1': [120], 'y2': [130]  # Upper limit set to 130% to match y-axis scale
-    })).mark_area(
-        color='red',
-        opacity=0.25
-    ).encode(
-        y='y1:Q',
-        y2='y2:Q'
-    )
-    background_areas.append(critical_area)
-    
-    # Overloaded: 100-120%
-    overloaded_area = alt.Chart(pd.DataFrame({
-        'y1': [100], 'y2': [120]
-    })).mark_area(
-        color='orange',
-        opacity=0.25
-    ).encode(
-        y='y1:Q',
-        y2='y2:Q'
-    )
-    background_areas.append(overloaded_area)
-    
-    # Warning: 80-100%
-    warning_area = alt.Chart(pd.DataFrame({
-        'y1': [80], 'y2': [100]
-    })).mark_area(
-        color='yellow',
-        opacity=0.25
-    ).encode(
-        y='y1:Q',
-        y2='y2:Q'
-    )
-    background_areas.append(warning_area)
-    
-    # Pre-Warning: 50-80%
-    prewarning_area = alt.Chart(pd.DataFrame({
-        'y1': [50], 'y2': [80]
-    })).mark_area(
-        color='purple',
-        opacity=0.25
-    ).encode(
-        y='y1:Q',
-        y2='y2:Q'
-    )
-    background_areas.append(prewarning_area)
-    
-    # Normal: 0-50%
-    normal_area = alt.Chart(pd.DataFrame({
-        'y1': [0], 'y2': [50]
-    })).mark_area(
-        color='green',
-        opacity=0.25
-    ).encode(
-        y='y1:Q',
-        y2='y2:Q'
-    )
-    background_areas.append(normal_area)
-    
-    # Add threshold lines to the chart
+    # Add threshold lines
     threshold_rules = [
         {'value': 120, 'color': 'red', 'label': 'Critical'},
         {'value': 100, 'color': 'orange', 'label': 'Overloaded'},
@@ -231,23 +221,29 @@ def display_loading_status(results_df: pd.DataFrame):
         {'value': 50, 'color': 'purple', 'label': 'Pre-Warning'}
     ]
     
-    # Add threshold lines to the chart
+    # Create threshold lines
     threshold_lines = []
     for rule in threshold_rules:
         threshold_line = alt.Chart(pd.DataFrame({'threshold': [rule['value']]})).mark_rule(
             color=rule['color'],
             strokeWidth=1,
-            strokeDash=[4, 4]  # Dashed line
+            strokeDash=[4, 4]
         ).encode(
             y='threshold:Q'
         )
         threshold_lines.append(threshold_line)
     
-    # Combine all chart elements
-    chart = alt.layer(*background_areas, base_chart, *threshold_lines)
+    # Combine background, line chart, and threshold lines
+    # Layer order: background first, then threshold lines, then data line
+    final_chart = alt.layer(
+        critical_bg, overloaded_bg, warning_bg, prewarning_bg, normal_bg,
+        *threshold_lines, line_chart
+    ).resolve_scale(
+        y='shared'
+    )
     
-    # Display the chart with streamlit - explicitly set height and width
-    st.altair_chart(chart, use_container_width=True)
+    # Display the chart with explicit height
+    st.altair_chart(final_chart, use_container_width=True)
     
     # Add threshold annotations with colored text
     threshold_rows = []
@@ -1113,7 +1109,7 @@ def create_altair_chart(df, y_column, title=None, color=None):
         alt.Chart: Configured Altair chart
     """
     # Base configuration for line chart
-    chart = alt.Chart(df).mark_line(point=True).encode(
+    chart = alt.Chart(df).mark_line().encode(
         x=alt.X('timestamp:T',
                 axis=alt.Axis(
                     format='%m/%d/%y',
