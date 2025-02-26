@@ -423,15 +423,15 @@ def display_transformer_dashboard(
        
         with cols[2]:
             create_tile(
-                "Size (kVA)",
-                f"{latest.get('size_kva', 'N/A'):.0f}",
+                "X Coordinate",
+                "37.7749",
                 is_clickable=False
             )
        
         with cols[3]:
             create_tile(
-                "Loading %",
-                f"{latest.get('loading_percentage', 'N/A'):.1f}%",
+                "Y Coordinate",
+                "-122.4194",
                 is_clickable=False
             )
 
