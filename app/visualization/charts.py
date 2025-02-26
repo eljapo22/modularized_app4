@@ -139,8 +139,8 @@ def display_loading_status(results_df: pd.DataFrame):
                 labelAngle=-45,
                 labelColor='#333333',
                 titleColor='#333333',
-                labelFontSize=12,
-                titleFontSize=14
+                labelFontSize=14,
+                titleFontSize=16
             )
         ),
         y=alt.Y('loading_percentage:Q',
@@ -149,8 +149,8 @@ def display_loading_status(results_df: pd.DataFrame):
                 title='Loading Percentage (%)',
                 labelColor='#333333',
                 titleColor='#333333',
-                labelFontSize=12,
-                titleFontSize=14,
+                labelFontSize=14,
+                titleFontSize=16,
                 tickCount=7,
                 grid=True
             )
@@ -778,8 +778,8 @@ def display_transformer_data(results_df: pd.DataFrame):
                 labelAngle=-45,
                 labelColor='#333333',
                 titleColor='#333333',
-                labelFontSize=12,
-                titleFontSize=14
+                labelFontSize=14,
+                titleFontSize=16
             )
         ),
         y=alt.Y('power_kw:Q', 
@@ -787,8 +787,8 @@ def display_transformer_data(results_df: pd.DataFrame):
                 title='Power (kW)',
                 labelColor='#333333',
                 titleColor='#333333',
-                labelFontSize=12,
-                titleFontSize=14
+                labelFontSize=14,
+                titleFontSize=16
             )
         ),
         tooltip=['timestamp:T', 'power_kw:Q']
@@ -898,8 +898,8 @@ def display_transformer_data(results_df: pd.DataFrame):
                     labelAngle=-45,
                     labelColor='#333333',
                     titleColor='#333333',
-                    labelFontSize=12,
-                    titleFontSize=14
+                    labelFontSize=14,
+                    titleFontSize=16
                 )
             ),
             y=alt.Y('current_a:Q', 
@@ -907,8 +907,8 @@ def display_transformer_data(results_df: pd.DataFrame):
                     title='Current (A)',
                     labelColor='#333333',
                     titleColor='#333333',
-                    labelFontSize=12,
-                    titleFontSize=14
+                    labelFontSize=14,
+                    titleFontSize=16
                 )
             ),
             tooltip=['timestamp:T', 'current_a:Q']
@@ -976,8 +976,8 @@ def display_transformer_data(results_df: pd.DataFrame):
                     labelAngle=-45,
                     labelColor='#333333',
                     titleColor='#333333',
-                    labelFontSize=12,
-                    titleFontSize=14
+                    labelFontSize=14,
+                    titleFontSize=16
                 )
             ),
             y=alt.Y('voltage_v:Q', 
@@ -985,8 +985,8 @@ def display_transformer_data(results_df: pd.DataFrame):
                     title='Voltage (V)',
                     labelColor='#333333',
                     titleColor='#333333',
-                    labelFontSize=12,
-                    titleFontSize=14
+                    labelFontSize=14,
+                    titleFontSize=16
                 )
             ),
             tooltip=['timestamp:T', 'voltage_v:Q']
@@ -1110,16 +1110,16 @@ def create_altair_chart(df, y_column, title=None, color=None):
                     labelAngle=-45,
                     labelColor='#333333',
                     titleColor='#333333',
-                    labelFontSize=12,
-                    titleFontSize=14
+                    labelFontSize=14,
+                    titleFontSize=16
                 )),
         y=alt.Y(y_column, 
                 axis=alt.Axis(
                     title=y_column.replace('_', ' ').title(), # Format title nicely
                     labelColor='#333333',
                     titleColor='#333333',
-                    labelFontSize=12,
-                    titleFontSize=14
+                    labelFontSize=14,
+                    titleFontSize=16
                 )),
         tooltip=['timestamp:T', f'{y_column}:Q']
     )
@@ -1207,9 +1207,19 @@ def create_multi_line_chart(df, column_dict, title=None):
                     title='Date',
                     labelAngle=-45,
                     grid=False,
-                    tickCount=10
+                    tickCount=10,
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=14,
+                    titleFontSize=16
                 )),
-        y=alt.Y('value:Q'),
+        y=alt.Y('value:Q',
+                axis=alt.Axis(
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=14,
+                    titleFontSize=16
+                )),
         color=alt.Color('series_name:N', legend=alt.Legend(title="Series")),
         tooltip=[
             alt.Tooltip('timestamp:T', title='Date', format='%m/%d/%y %H:%M'),
