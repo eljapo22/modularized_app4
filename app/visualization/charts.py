@@ -644,41 +644,40 @@ def display_transformer_data(results_df: pd.DataFrame):
     
     # Get the size_kva value for the transformer
     try:
-        size_kva = df['size_kva'].iloc[0]  # Use the first value (should be the same for all rows)
-        
-        # Create a horizontal rule to show the transformer's rated capacity
-        capacity_rule = alt.Chart(pd.DataFrame({
-            'y': [size_kva],
-            'timestamp': [df['timestamp'].min(), df['timestamp'].max()]
-        })).mark_rule(
-            color='red',
-            strokeWidth=2,
-            strokeDash=[5, 5],
-            opacity=0.7
-        ).encode(
-            y='y:Q'
-        )
-        
-        # Add text annotation for the capacity line
-        capacity_text = alt.Chart(pd.DataFrame({
-            'timestamp': [df['timestamp'].max()],
-            'y': [size_kva + (size_kva * 0.05)],  # Position text slightly above the line
-            'text': [f'Transformer Capacity: {size_kva:.0f} kVA']
-        })).mark_text(
-            align='right',
-            baseline='middle',
-            fontSize=12,
-            fontWeight='bold',
-            color='red'
-        ).encode(
-            x='timestamp:T',
-            y='y:Q',
-            text='text:N'
-        )
-        
-        # Combine the base chart with the capacity rule and text
-        power_chart = power_chart + capacity_rule + capacity_text
-        logger.info(f"Added transformer capacity line at {size_kva} kVA")
+        # Check if size_kva exists and is a sensible value
+        if 'size_kva' in df.columns and not df['size_kva'].isna().all():
+            size_kva = df['size_kva'].iloc[0]  # Use the first value
+            
+            # Create a horizontal rule at the size_kva value
+            capacity_rule = alt.Chart().mark_rule(
+                color='red',
+                strokeWidth=2,
+                strokeDash=[5, 5],
+                opacity=0.7
+            ).encode(
+                y=alt.datum(size_kva)  # Use datum to specify a constant value
+            )
+            
+            # Add text annotation for the capacity line
+            capacity_text = alt.Chart().mark_text(
+                align='right',
+                baseline='middle',
+                fontSize=12,
+                fontWeight='bold',
+                color='red',
+                dx=-5,  # Offset a bit to the left
+                dy=-10  # Offset a bit above the line
+            ).encode(
+                y=alt.datum(size_kva),  # Position at the size_kva value
+                x=alt.datum(1),  # Position at the right edge (normalized 0-1 scale)
+                text=alt.value(f'Transformer Capacity: {size_kva:.0f} kVA')
+            )
+            
+            # Combine the base chart with the capacity rule and text
+            power_chart = power_chart + capacity_rule + capacity_text
+            logger.info(f"Added transformer capacity line at {size_kva:.1f} kVA")
+        else:
+            logger.warning("size_kva column not found or contains only NA values")
     except Exception as e:
         logger.error(f"Could not add transformer capacity line: {str(e)}")
     
