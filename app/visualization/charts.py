@@ -285,6 +285,16 @@ def display_transformer_dashboard(
         return
 
     try:
+        # Show customer analysis if tile was clicked
+        if 'show_customer_analysis' in st.session_state and st.session_state.show_customer_analysis:
+            st.session_state.show_customer_analysis = False  # Reset for next time
+            if customer_df is not None:
+                display_customer_tab(customer_df)
+                return
+            else:
+                st.warning("No customer data available for this transformer.")
+                return
+                
         # Reset index if timestamp is the index
         if isinstance(transformer_df.index, pd.DatetimeIndex):
             transformer_df = transformer_df.reset_index()
@@ -324,11 +334,14 @@ def display_transformer_dashboard(
             )
        
         with cols[1]:
-            create_tile(
+            if create_tile(
                 "Customers",
                 str(customer_count),
                 is_clickable=True
-            )
+            ):
+                # Show customer analysis
+                st.session_state.show_customer_analysis = True
+                st.experimental_rerun()
        
         with cols[2]:
             create_tile(
