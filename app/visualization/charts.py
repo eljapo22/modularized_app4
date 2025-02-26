@@ -237,20 +237,30 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         st.warning("No data available for voltage visualization.")
         return
         
-    # Ensure timestamp is datetime and set as index
-    df = results_df.copy()
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df = df.sort_values('timestamp')
-    df = df.set_index('timestamp')
-    
-    # Create mock data for 3 phases based on actual voltage
-    voltage_data = pd.DataFrame(index=df.index)
-    voltage_data['[0]Phase A'] = df['voltage_v']  # Original data
-    voltage_data['[1]Phase B'] = df['voltage_v'] * 0.98  # Slightly lower
-    voltage_data['[2]Phase C'] = df['voltage_v'] * 1.02  # Slightly higher
-    
-    # Create voltage chart with all phases
-    st.line_chart(voltage_data)
+    try:
+        # Ensure timestamp is datetime and set as index
+        df = results_df.copy()
+        
+        # Check if voltage_v column exists
+        if 'voltage_v' not in df.columns:
+            st.error("Voltage data not available: missing 'voltage_v' column")
+            return
+            
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df.sort_values('timestamp')
+        df = df.set_index('timestamp')
+        
+        # Create mock data for 3 phases based on actual voltage
+        voltage_data = pd.DataFrame(index=df.index)
+        voltage_data['[0]Phase A'] = df['voltage_v']  # Original data
+        voltage_data['[1]Phase B'] = df['voltage_v'] * 0.98  # Slightly lower
+        voltage_data['[2]Phase C'] = df['voltage_v'] * 1.02  # Slightly higher
+        
+        # Create voltage chart with all phases
+        st.line_chart(voltage_data)
+    except Exception as e:
+        logger.error(f"Error displaying voltage time series: {str(e)}")
+        st.error(f"Error displaying voltage chart: {str(e)}")
 
 def display_power_consumption(results_df: pd.DataFrame):
     """Display power consumption visualization."""
@@ -285,16 +295,43 @@ def display_transformer_dashboard(
         return
 
     try:
-        # Show customer analysis if tile was clicked
-        if 'show_customer_analysis' in st.session_state and st.session_state.show_customer_analysis:
-            st.session_state.show_customer_analysis = False  # Reset for next time
+        # Show customer details if a specific customer was selected
+        if 'show_customer_details' in st.session_state and st.session_state.show_customer_details:
+            st.session_state.show_customer_details = False  # Reset for next time
+            
+            if customer_df is not None and 'selected_customer_id' in st.session_state:
+                # Filter for the selected customer
+                selected_customer_id = st.session_state.selected_customer_id
+                selected_customer_df = customer_df[customer_df['customer_id'] == selected_customer_id].copy()
+                
+                if selected_customer_df.empty:
+                    st.warning(f"No data available for Customer {selected_customer_id}")
+                    return
+                
+                # Add back button
+                if st.button("← Back to Customer List"):
+                    st.session_state.show_customer_bridge = True
+                    st.experimental_rerun()
+                
+                # Display the detailed view for this customer
+                st.header(f"Customer {selected_customer_id} Details")
+                display_customer_tab(selected_customer_df)
+                return
+            else:
+                st.warning("No customer data available for the selected customer.")
+                return
+                
+        # Show customer bridge view if requested
+        if 'show_customer_bridge' in st.session_state and st.session_state.show_customer_bridge:
             if customer_df is not None:
-                display_customer_tab(customer_df)
+                # Display the bridge view
+                display_customers_bridge_view(customer_df)
                 return
             else:
                 st.warning("No customer data available for this transformer.")
+                st.session_state.show_customer_bridge = False
                 return
-                
+        
         # Reset index if timestamp is the index
         if isinstance(transformer_df.index, pd.DatetimeIndex):
             transformer_df = transformer_df.reset_index()
@@ -339,8 +376,8 @@ def display_transformer_dashboard(
                 str(customer_count),
                 is_clickable=True
             ):
-                # Show customer analysis
-                st.session_state.show_customer_analysis = True
+                # Show customer bridge view
+                st.session_state.show_customer_bridge = True
                 st.experimental_rerun()
        
         with cols[2]:
@@ -376,16 +413,22 @@ def display_customer_tab(df: pd.DataFrame):
         st.warning("No customer data available")
         return
 
-    # Create customer selector
+    # Only show the customer selector if there are multiple customers
     customer_ids = sorted(df['customer_id'].unique())
-    selected_customer = st.selectbox(
-        "Select Customer",
-        customer_ids,
-        format_func=lambda x: f"Customer {x}"
-    )
-
-    # Filter data for selected customer
-    customer_df = df[df['customer_id'] == selected_customer].copy()  # Create copy to avoid SettingWithCopyWarning
+    
+    # If called from bridge view, we already filtered for a specific customer
+    if len(customer_ids) > 1:
+        selected_customer = st.selectbox(
+            "Select Customer",
+            customer_ids,
+            format_func=lambda x: f"Customer {x}"
+        )
+        
+        # Filter data for selected customer
+        customer_df = df[df['customer_id'] == selected_customer].copy()  # Create copy to avoid SettingWithCopyWarning
+    else:
+        # Already filtered for a specific customer
+        customer_df = df.copy()
     
     # Round values according to spec
     customer_df['power_kw'] = customer_df['power_kw'].round(3)  # x.xxx
@@ -440,6 +483,90 @@ def display_customer_tab(df: pd.DataFrame):
         customer_df[['timestamp', 'power_kw', 'current_a', 'voltage_v']].sort_values('timestamp', ascending=False),
         use_container_width=True
     )
+
+def display_customers_bridge_view(customer_df: pd.DataFrame):
+    """
+    Display a bridge view showing a table of all customers for a transformer.
+    User can click on any customer to view their detailed information.
+    """
+    if customer_df is None or customer_df.empty:
+        st.warning("No customer data available for this transformer")
+        return
+    
+    st.header("Customers Overview")
+    
+    # Back button to return to transformer dashboard
+    if st.button("← Back to Dashboard"):
+        # Clear session state
+        if 'show_customer_bridge' in st.session_state:
+            st.session_state.show_customer_bridge = False
+        st.experimental_rerun()
+    
+    # Get unique customers and prepare summary data
+    customer_ids = sorted(customer_df['customer_id'].unique())
+    
+    # Create a list to hold the latest reading for each customer
+    latest_readings = []
+    
+    for cust_id in customer_ids:
+        # Get data for this customer
+        cust_data = customer_df[customer_df['customer_id'] == cust_id]
+        
+        # Skip if no data
+        if cust_data.empty:
+            continue
+            
+        # Get the latest reading
+        latest = cust_data.sort_values('timestamp').iloc[-1]
+        
+        # Add to our list
+        latest_readings.append({
+            "customer_id": cust_id,
+            "timestamp": latest['timestamp'],
+            "power_kw": round(latest['power_kw'], 3),
+            "current_a": round(latest['current_a'], 3),
+            "voltage_v": round(latest['voltage_v'], 1)
+        })
+    
+    # Convert to DataFrame
+    summary_df = pd.DataFrame(latest_readings)
+    
+    # Display the summary table with clickable rows
+    st.markdown("### Customer List")
+    st.markdown("Click on 'View Details' to see comprehensive information for a specific customer")
+    
+    # Table header
+    col1, col2, col3, col4, col5 = st.columns([1, 2, 1, 1, 1])
+    col1.markdown("**Customer**")
+    col2.markdown("**Timestamp**")
+    col3.markdown("**Power (kW)**")
+    col4.markdown("**Current (A)**")
+    col5.markdown("**Voltage (V)**")
+    
+    st.markdown("---")
+    
+    # Table rows
+    for i, row in enumerate(summary_df.itertuples()):
+        col1, col2, col3, col4, col5 = st.columns([1, 2, 1, 1, 1])
+        
+        with col1:
+            st.write(f"Customer {row.customer_id}")
+        with col2:
+            st.write(f"{row.timestamp}")
+        with col3:
+            st.write(f"{row.power_kw}")
+        with col4:
+            st.write(f"{row.current_a}")
+        with col5:
+            if st.button("View Details", key=f"cust_{row.customer_id}"):
+                # Set session state to view this customer's details
+                st.session_state.selected_customer_id = row.customer_id
+                st.session_state.show_customer_details = True
+                st.session_state.show_customer_bridge = False
+                st.experimental_rerun()
+                
+        # Add a divider between rows
+        st.markdown("---")
 
 def display_transformer_data(results_df: pd.DataFrame):
     """Display transformer data visualizations in the same layout as customer tab."""
