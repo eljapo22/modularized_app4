@@ -126,11 +126,15 @@ def display_loading_status(results_df: pd.DataFrame):
     # Round loading percentages to 1 decimal place for consistent display
     df['loading_percentage'] = df['loading_percentage'].round(1)
     
-    # Find the maximum loading percentage and its timestamp
+    # Find the maximum loading point
     max_loading_idx = df['loading_percentage'].idxmax()
     max_loading_point = df.loc[max_loading_idx]
     max_loading_time = max_loading_point['timestamp']
     max_loading_value = max_loading_point['loading_percentage']
+    
+    # Use session state max_loading_time if available - ensures consistency across charts
+    if 'max_loading_time' in st.session_state:
+        max_loading_time = st.session_state.max_loading_time
     
     # Create an Altair chart for loading percentage
     base_chart = alt.Chart(df).mark_line(
@@ -379,6 +383,10 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         max_loading_idx = df['power_kw'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
+    
+    # Use session state max_loading_time if available - ensures consistency across charts
+    if 'max_loading_time' in st.session_state:
+        max_loading_time = st.session_state.max_loading_time
     
     # Create power chart with Altair
     chart = create_altair_chart(
@@ -1158,6 +1166,10 @@ def display_transformer_data(results_df: pd.DataFrame):
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
     
+    # Use session state max_loading_time if available - ensures consistency across charts
+    if 'max_loading_time' in st.session_state:
+        max_loading_time = st.session_state.max_loading_time
+    
     # Add peak load indicator
     peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
         color='red',
@@ -1533,7 +1545,7 @@ def display_customer_data(results_df: pd.DataFrame):
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values('timestamp')
-
+    
     # Power Consumption
     create_colored_banner("Power Consumption")
     
@@ -1698,3 +1710,29 @@ def create_multi_line_chart(df, column_dict, title=None):
     chart = chart.properties(width='container')
     
     return chart
+
+def display_full_customer_dashboard(results_df: pd.DataFrame):
+    """Display a full-page dashboard for a given customer."""
+    if results_df is None or results_df.empty:
+        st.warning("No data available for customer dashboard.")
+        return
+        
+    # Show key metrics at the top
+    display_key_customer_metrics(results_df)
+    
+    # Make sure timestamp is in datetime format
+    df = results_df.copy()
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+    # Find the maximum loading point - This is now centralized for all charts
+    if 'loading_percentage' in df.columns:
+        max_loading_idx = df['loading_percentage'].idxmax()
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+        
+        # Store in session state for consistent use across all charts
+        st.session_state.max_loading_time = max_loading_time
+    else:
+        # If loading percentage is not available, we'll let each chart determine its own max point
+        if 'max_loading_time' in st.session_state:
+            del st.session_state.max_loading_time
