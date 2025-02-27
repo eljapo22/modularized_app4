@@ -1147,8 +1147,44 @@ def display_transformer_data(results_df: pd.DataFrame):
         height=300
     )
     
+    # Find the maximum loading point for the peak load indicator
+    if 'loading_percentage' in df.columns:
+        max_loading_idx = df['loading_percentage'].idxmax()
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+    else:
+        # If loading percentage is not available, use max power as an alternative
+        max_loading_idx = df['power_kw'].idxmax()
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+    
+    # Add peak load indicator
+    peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
+        color='red',
+        strokeWidth=2,
+        strokeDash=[4, 2]
+    ).encode(
+        x='peak_time:T'
+    )
+    
+    # Add text annotation for peak load
+    peak_text = alt.Chart(pd.DataFrame({
+        'peak_time': [max_loading_time],
+        'y': [df['power_kw'].max() * 0.9]
+    })).mark_text(
+        align='left',
+        baseline='bottom',
+        fontSize=12,
+        fontWeight='bold',
+        color='red'
+    ).encode(
+        x='peak_time:T',
+        y='y:Q',
+        text=alt.value('⚠️ Peak load')
+    )
+    
     # Add horizontal capacity line if size_kva exists
-    chart = base
+    chart = alt.layer(base, peak_rule, peak_text)
     if 'size_kva' in power_df.columns and not power_df['size_kva'].isna().all():
         try:
             # Get the size_kva value and convert to equivalent power in kW
@@ -1169,12 +1205,12 @@ def display_transformer_data(results_df: pd.DataFrame):
             # Create a new DataFrame with timestamp domain information
             domain_df = pd.DataFrame({
                 'timestamp': [power_df['timestamp'].min(), power_df['timestamp'].max()],
-                'y': [size_kw, size_kw],
-                'text': ['', f'Capacity: {size_kva:.0f} kVA']  # Text only on the right point
+                'y': [size_kw] * 2,
+                'text': [f"Capacity: {size_kw:.1f}kW"] * 2
             })
             
-            # Add text annotation for the capacity line, positioned at the max timestamp
-            capacity_text = alt.Chart(domain_df).mark_text(
+            # Add text annotation for the capacity line
+            capacity_text = alt.Chart(domain_df.iloc[[-1]]).mark_text(
                 align='right',
                 baseline='bottom',
                 dx=-5,
@@ -1189,7 +1225,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             )
             
             # Combine charts
-            chart = alt.layer(base, capacity_rule, capacity_text)
+            chart = alt.layer(chart, capacity_rule, capacity_text)
             logger.info(f"Added transformer capacity line at {size_kw:.1f} kW (from {size_kva:.1f} kVA with PF={avg_pf:.2f})")
         except Exception as e:
             logger.error(f"Could not add transformer capacity line: {str(e)}")
@@ -1264,8 +1300,35 @@ def display_transformer_data(results_df: pd.DataFrame):
             height=250
         )
         
+        # Add peak load indicator for current
+        current_peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
+            color='red',
+            strokeWidth=2,
+            strokeDash=[4, 2]
+        ).encode(
+            x='peak_time:T'
+        )
+        
+        # Add text annotation for peak load
+        current_peak_text = alt.Chart(pd.DataFrame({
+            'peak_time': [max_loading_time],
+            'y': [df['current_a'].max() * 0.9]
+        })).mark_text(
+            align='left',
+            baseline='bottom',
+            fontSize=12,
+            fontWeight='bold',
+            color='red'
+        ).encode(
+            x='peak_time:T',
+            y='y:Q',
+            text=alt.value('⚠️ Peak load')
+        )
+        
+        # Combine chart with peak load indicator
+        current_chart = alt.layer(current_base, current_peak_rule, current_peak_text)
+        
         # Add alert timestamp if in session state
-        current_chart = current_base
         if 'highlight_timestamp' in st.session_state:
             try:
                 alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
@@ -1368,44 +1431,66 @@ def display_transformer_data(results_df: pd.DataFrame):
             title=None  # No title needed as we use colored banner
         )
         
+        # Add peak load indicator
+        peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
+            color='red',
+            strokeWidth=2,
+            strokeDash=[4, 2]  # Different dash pattern
+        ).encode(
+            x='peak_time:T'
+        )
+        
+        # Add text annotation for peak load
+        peak_text = alt.Chart(pd.DataFrame({
+            'peak_time': [max_loading_time],
+            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.9]  # Position below max for visibility
+        })).mark_text(
+            align='left',
+            baseline='bottom',
+            fontSize=12,
+            fontWeight='bold',
+            color='red'
+        ).encode(
+            x='peak_time:T',
+            y='y:Q',
+            text=alt.value('⚠️ Peak load')
+        )
+        
+        # Combine the charts
+        voltage_chart = alt.layer(voltage_chart, peak_rule, peak_text)
+        
         # Add alert timestamp if in session state
         if 'highlight_timestamp' in st.session_state:
             try:
                 alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
                 
-                # Create vertical rule at alert time
-                alert_rule = alt.Chart(pd.DataFrame({
-                    'timestamp': [alert_time]
-                })).mark_rule(
+                # Create a vertical rule to mark the alert time
+                rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
                     color='gray',
                     strokeWidth=2,
                     strokeDash=[5, 5]
                 ).encode(
-                    x='timestamp:T'
+                    x='alert_time:T'
                 )
                 
-                # Add alert text - place at top of chart
-                max_voltage = voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max()
-                alert_text = alt.Chart(pd.DataFrame({
-                    'timestamp': [alert_time],
-                    'y': [max_voltage],
-                    'text': ['⚠️ Alert point']
+                # Add text annotation for the alert
+                text = alt.Chart(pd.DataFrame({
+                    'alert_time': [alert_time],
+                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max()]
                 })).mark_text(
                     align='left',
                     baseline='top',
-                    dx=5,
-                    dy=-5,
+                    dy=-10,
                     fontSize=12,
-                    fontWeight='bold',
                     color='gray'
                 ).encode(
-                    x='timestamp:T',
+                    x='alert_time:T',
                     y='y:Q',
-                    text='text:N'
+                    text=alt.value('⚠️ Alert point')
                 )
                 
-                # Combine with base chart - layer alert elements on top
-                voltage_chart = alt.layer(voltage_chart, alert_rule, alert_text)
+                # Combine with existing chart
+                voltage_chart = alt.layer(voltage_chart, rule, text)
             except Exception as e:
                 logger.error(f"Could not add alert timestamp to voltage chart: {str(e)}")
         
