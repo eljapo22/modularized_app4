@@ -265,7 +265,7 @@ def display_loading_status(results_df: pd.DataFrame):
     ).encode(
         x='max_time:T',
         y='y:Q',
-        text=alt.value(f'Peak: {max_loading_value:.1f}%')
+        text=alt.value(f'⚠️ Peak load')
     )
     
     # Add the max loading indicator to the chart
@@ -299,7 +299,7 @@ def display_loading_status(results_df: pd.DataFrame):
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
-                    text=alt.value(f'Selected: {alert_time.hour}:00')
+                    text=alt.value('⚠️ Alert point')
                 )
                 
                 # Add to the chart
