@@ -356,7 +356,6 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Base voltage is 400V
         base_voltage = 400
         
-        # Create variations for both views
         # Time-based index for sinusoidal patterns
         time_idx = np.linspace(0, 4*np.pi, len(df))
         
@@ -953,36 +952,50 @@ def display_transformer_data(results_df: pd.DataFrame):
     
     with col2:
         create_colored_banner("Voltage")
-        # Create voltage chart with direct Altair
-        voltage_base = alt.Chart(df).mark_line(point=True, color="#2ca02c").encode(
-            x=alt.X('timestamp:T', 
-                axis=alt.Axis(
-                    format='%m/%d/%y',
-                    title='Date',
-                    labelAngle=-45,
-                    labelColor='#333333',
-                    titleColor='#333333',
-                    labelFontSize=14,
-                    titleFontSize=16
-                )
-            ),
-            y=alt.Y('voltage_v:Q', 
-                axis=alt.Axis(
-                    title='Voltage (V)',
-                    labelColor='#333333',
-                    titleColor='#333333',
-                    labelFontSize=14,
-                    titleFontSize=16
-                )
-            ),
-            tooltip=['timestamp:T', 'voltage_v:Q']
-        ).properties(
-            width="container",
-            height=250
+        # Create synthetic 3-phase voltage data (same as customer view)
+        voltage_data = pd.DataFrame()
+        voltage_data['timestamp'] = df['timestamp']
+        
+        # Import for math functions (if not already available)
+        import numpy as np
+        
+        # Base voltage is 400V
+        base_voltage = 400
+        
+        # Time-based index for sinusoidal patterns
+        time_idx = np.linspace(0, 4*np.pi, len(df))
+        
+        # Define the range (+/- 8% of 400V)
+        variation_pct = 0.08  # 8%
+        
+        # Create three phases with slight shifts but similar patterns
+        # Phase A - centered around 400V
+        phase_a = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx)
+        voltage_data['Phase A'] = phase_a
+        
+        # Phase B - shifted 120 degrees (2π/3 radians)
+        phase_b = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (2*np.pi/3))
+        voltage_data['Phase B'] = phase_b
+        
+        # Phase C - shifted 240 degrees (4π/3 radians)
+        phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
+        voltage_data['Phase C'] = phase_c
+        
+        # Define the column mapping for the multi-line chart
+        column_dict = {
+            'Phase A': 'Phase A',
+            'Phase B': 'Phase B',
+            'Phase C': 'Phase C'
+        }
+        
+        # Create a multi-line chart with Altair
+        voltage_chart = create_multi_line_chart(
+            voltage_data, 
+            column_dict,
+            title=None  # No title needed as we use colored banner
         )
         
         # Add alert timestamp if in session state
-        voltage_chart = voltage_base
         if 'highlight_timestamp' in st.session_state:
             try:
                 alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
@@ -998,10 +1011,11 @@ def display_transformer_data(results_df: pd.DataFrame):
                     x='timestamp:T'
                 )
                 
-                # Add alert text
+                # Add alert text - place at top of chart
+                max_voltage = voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max()
                 alert_text = alt.Chart(pd.DataFrame({
                     'timestamp': [alert_time],
-                    'y': [df['voltage_v'].max()],
+                    'y': [max_voltage],
                     'text': ['⚠️ Alert point']
                 })).mark_text(
                     align='left',
@@ -1017,10 +1031,13 @@ def display_transformer_data(results_df: pd.DataFrame):
                     text='text:N'
                 )
                 
-                # Combine with base chart
-                voltage_chart = alt.layer(voltage_base, alert_rule, alert_text)
+                # Combine with base chart - layer alert elements on top
+                voltage_chart = alt.layer(voltage_chart, alert_rule, alert_text)
             except Exception as e:
                 logger.error(f"Could not add alert timestamp to voltage chart: {str(e)}")
+        
+        # Set the height to match the original chart
+        voltage_chart = voltage_chart.properties(height=250)
         
         st.altair_chart(voltage_chart, use_container_width=True)
 
