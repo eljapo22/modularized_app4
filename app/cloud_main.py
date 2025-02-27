@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, date
 
 from app.services.cloud_data_service import CloudDataService
 from app.services.cloud_alert_service import CloudAlertService
-from app.visualization.charts import display_transformer_dashboard, display_full_customer_dashboard
+from app.visualization.charts import display_transformer_dashboard
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -299,11 +299,6 @@ def main():
                 
                 # Display dashboard
                 display_transformer_dashboard(transformer_data, customer_data)
-                
-                # Also display customer dashboard with consistent peak load indicators if customer data is available
-                if not customer_data.empty:
-                    st.subheader("Customer Dashboard")
-                    display_full_customer_dashboard(customer_data)
             except Exception as e:
                 logger.error(f"Error displaying dashboard: {str(e)}")
                 st.error(f"Error displaying dashboard: {str(e)}")
