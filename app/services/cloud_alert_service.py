@@ -327,6 +327,10 @@ class CloudAlertService:
                     st.write(f"**End-Date Loading Status:** {end_status}")
                     st.write(f"**End-Date Loading:** {end_point['loading_percentage']:.1f}%")
                     st.write(f"**End Time:** {end_point.name}")
+                    
+                    # Store the end point timestamp in session state for chart highlighting
+                    st.session_state.highlight_timestamp = end_point.name
+                    logger.info(f"Set highlight timestamp to end date: {end_point.name}")
                 
                 # Create deep link
                 deep_link = self._create_deep_link(

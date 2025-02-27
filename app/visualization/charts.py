@@ -1734,6 +1734,11 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
         if 'max_loading_time' in st.session_state:
             del st.session_state.max_loading_time
 
+    # Log the alert timestamp if available (helpful for debugging)
+    if 'highlight_timestamp' in st.session_state:
+        alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+        st.write(f"Alert time set to: {alert_time.strftime('%Y-%m-%d %H:%M')}")
+
     # Display loading status chart
     display_loading_status(df)
     
