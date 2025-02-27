@@ -1717,9 +1717,6 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
         st.warning("No data available for customer dashboard.")
         return
         
-    # Show key metrics at the top
-    display_key_customer_metrics(results_df)
-    
     # Make sure timestamp is in datetime format
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
@@ -1736,3 +1733,17 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
         # If loading percentage is not available, we'll let each chart determine its own max point
         if 'max_loading_time' in st.session_state:
             del st.session_state.max_loading_time
+
+    # Display loading status chart
+    display_loading_status(df)
+    
+    # Display power time series
+    display_power_time_series(df)
+    
+    # Display current time series if data is available
+    if 'current_a' in df.columns and not df['current_a'].isna().all():
+        display_current_time_series(df)
+    
+    # Display voltage time series if data is available
+    if 'voltage_a' in df.columns and not df['voltage_a'].isna().all():
+        display_voltage_time_series(df)
