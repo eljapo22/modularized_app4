@@ -346,6 +346,28 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df = df.sort_values('timestamp')
         
+        # Extract a pattern from power or current data for synergy
+        pattern = None
+        if 'power_kw' in df.columns and not df['power_kw'].isna().all():
+            power_min = df['power_kw'].min()
+            power_max = df['power_kw'].max()
+            # Avoid division by zero
+            if power_max > power_min:
+                pattern = (df['power_kw'] - power_min) / (power_max - power_min)
+            else:
+                pattern = pd.Series(0.5, index=df.index, name='pattern')
+        elif 'current_a' in df.columns and not df['current_a'].isna().all():
+            current_min = df['current_a'].min()
+            current_max = df['current_a'].max()
+            # Avoid division by zero
+            if current_max > current_min:
+                pattern = (df['current_a'] - current_min) / (current_max - current_min)
+            else:
+                pattern = pd.Series(0.5, index=df.index, name='pattern')
+        else:
+            # Create a default pattern if neither power nor current data is available
+            pattern = pd.Series(0.5, index=range(len(df)), name='pattern')
+        
         # Create synthetic data for 3 phases
         voltage_data = pd.DataFrame()
         voltage_data['timestamp'] = df['timestamp']
@@ -359,22 +381,30 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Time-based index for sinusoidal patterns
         time_idx = np.linspace(0, 4*np.pi, len(df))
         
-        # Define the range (+/- 8% of 400V)
-        variation_pct = 0.08  # 8%
+        # Define the range parameters
+        variation_pct = 0.06  # 6% pure sinusoidal variation
+        pattern_influence = 0.02  # 2% influence from data pattern 
         
-        # Create three phases with slight shifts but similar patterns
-        # All phases will stay within +/- 8% of 400V
+        # Ensure pattern has the right shape
+        if pattern is None or len(pattern) != len(df):
+            pattern = np.ones(len(df)) * 0.5
         
-        # Phase A - centered around 400V
-        phase_a = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx)
+        # Phase A - centered around 400V with pattern influence
+        phase_a = base_voltage + \
+                  base_voltage * variation_pct * np.sin(time_idx) + \
+                  base_voltage * pattern_influence * pattern.values
         voltage_data['Phase A'] = phase_a
         
-        # Phase B - shifted 120 degrees (2π/3 radians)
-        phase_b = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (2*np.pi/3))
+        # Phase B - shifted 120 degrees (2π/3 radians) with pattern influence
+        phase_b = base_voltage + \
+                  base_voltage * variation_pct * np.sin(time_idx - (2*np.pi/3)) + \
+                  base_voltage * pattern_influence * pattern.values
         voltage_data['Phase B'] = phase_b
         
-        # Phase C - shifted 240 degrees (4π/3 radians)
-        phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
+        # Phase C - shifted 240 degrees (4π/3 radians) with pattern influence
+        phase_c = base_voltage + \
+                  base_voltage * variation_pct * np.sin(time_idx - (4*np.pi/3)) + \
+                  base_voltage * pattern_influence * pattern.values
         voltage_data['Phase C'] = phase_c
         
         # Define the column mapping for the multi-line chart
@@ -385,14 +415,14 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         }
         
         # Create a multi-line chart with Altair
-        chart = create_multi_line_chart(
+        voltage_chart = create_multi_line_chart(
             voltage_data, 
             column_dict,
-            title="Voltage (V)"
+            title=None  # No title needed as we use colored banner
         )
         
         # Display the chart with streamlit
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(voltage_chart, use_container_width=True)
     
     except Exception as e:
         st.error(f"Error displaying voltage visualization: {e}")
@@ -751,6 +781,21 @@ def display_transformer_data(results_df: pd.DataFrame):
     else:
         logger.warning("size_kva column not found in dataframe")
     
+    # Extract a normalized pattern from power data for voltage synergy
+    # This will be used to influence the voltage pattern (non-intrusive approach)
+    power_pattern = None
+    if 'power_kw' in df.columns and not df['power_kw'].isna().all():
+        power_min = df['power_kw'].min()
+        power_max = df['power_kw'].max()
+        # Avoid division by zero
+        if power_max > power_min:
+            power_pattern = (df['power_kw'] - power_min) / (power_max - power_min)
+        else:
+            power_pattern = pd.Series(0.5, index=df.index, name='pattern')
+    else:
+        # Create a default pattern if power data is not available
+        power_pattern = pd.Series(0.5, index=range(len(df)), name='pattern')
+    
     # Loading Status at the top
     create_colored_banner("Loading Status")
     display_loading_status(df)
@@ -965,20 +1010,32 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Time-based index for sinusoidal patterns
         time_idx = np.linspace(0, 4*np.pi, len(df))
         
-        # Define the range (+/- 8% of 400V)
-        variation_pct = 0.08  # 8%
+        # Define the range parameters
+        variation_pct = 0.06  # 6% pure sinusoidal variation
+        pattern_influence = 0.02  # 2% influence from power pattern
+        
+        # Ensure power_pattern has the right shape
+        if power_pattern is None or len(power_pattern) != len(df):
+            power_pattern = np.ones(len(df)) * 0.5
         
         # Create three phases with slight shifts but similar patterns
+        # Add pattern influence from power data to create synergy
         # Phase A - centered around 400V
-        phase_a = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx)
+        phase_a = base_voltage + \
+                  base_voltage * variation_pct * np.sin(time_idx) + \
+                  base_voltage * pattern_influence * power_pattern.values
         voltage_data['Phase A'] = phase_a
         
         # Phase B - shifted 120 degrees (2π/3 radians)
-        phase_b = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (2*np.pi/3))
+        phase_b = base_voltage + \
+                  base_voltage * variation_pct * np.sin(time_idx - (2*np.pi/3)) + \
+                  base_voltage * pattern_influence * power_pattern.values
         voltage_data['Phase B'] = phase_b
         
         # Phase C - shifted 240 degrees (4π/3 radians)
-        phase_c = base_voltage + base_voltage * variation_pct * 0.8 * np.sin(time_idx - (4*np.pi/3))
+        phase_c = base_voltage + \
+                  base_voltage * variation_pct * np.sin(time_idx - (4*np.pi/3)) + \
+                  base_voltage * pattern_influence * power_pattern.values
         voltage_data['Phase C'] = phase_c
         
         # Define the column mapping for the multi-line chart
