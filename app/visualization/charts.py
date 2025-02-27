@@ -369,6 +369,17 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values('timestamp')
     
+    # Find the maximum loading point
+    if 'loading_percentage' in df.columns:
+        max_loading_idx = df['loading_percentage'].idxmax()
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+    else:
+        # If loading percentage is not available, use max power as an alternative
+        max_loading_idx = df['power_kw'].idxmax()
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+    
     # Create power chart with Altair
     chart = create_altair_chart(
         df,
@@ -376,6 +387,69 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         title="Power Consumption (kW)" if is_transformer_view else None,
         color="#1f77b4"  # Blue color for power
     )
+    
+    # Add peak load indicator
+    peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
+        color='red',
+        strokeWidth=2,
+        strokeDash=[4, 2]  # Different dash pattern
+    ).encode(
+        x='peak_time:T'
+    )
+    
+    # Add text annotation for peak load
+    peak_text = alt.Chart(pd.DataFrame({
+        'peak_time': [max_loading_time],
+        'y': [df['power_kw'].max() * 0.9]  # Position below max for visibility
+    })).mark_text(
+        align='left',
+        baseline='bottom',
+        fontSize=12,
+        fontWeight='bold',
+        color='red'
+    ).encode(
+        x='peak_time:T',
+        y='y:Q',
+        text=alt.value('⚠️ Peak load')
+    )
+    
+    # Combine the charts
+    chart = alt.layer(chart, peak_rule, peak_text)
+    
+    # Add alert timestamp if in session state
+    if 'highlight_timestamp' in st.session_state:
+        try:
+            alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+            
+            # Create a vertical rule to mark the alert time
+            rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
+                color='gray',
+                strokeWidth=2,
+                strokeDash=[5, 5]
+            ).encode(
+                x='alert_time:T'
+            )
+            
+            # Add text annotation for the alert
+            text = alt.Chart(pd.DataFrame({
+                'alert_time': [alert_time],
+                'y': [df['power_kw'].max()]
+            })).mark_text(
+                align='left',
+                baseline='top',
+                dy=-10,
+                fontSize=12,
+                color='gray'
+            ).encode(
+                x='alert_time:T',
+                y='y:Q',
+                text=alt.value('⚠️ Alert point')
+            )
+            
+            # Combine with existing chart
+            chart = alt.layer(chart, rule, text)
+        except Exception as e:
+            logger.error(f"Error highlighting alert timestamp: {e}")
     
     # Display the chart with streamlit
     st.altair_chart(chart, use_container_width=True)
@@ -391,6 +465,17 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values('timestamp')
     
+    # Find the maximum loading point
+    if 'loading_percentage' in df.columns:
+        max_loading_idx = df['loading_percentage'].idxmax()
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+    else:
+        # If loading percentage is not available, use max current as an alternative
+        max_loading_idx = df['current_a'].idxmax()
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+    
     # Create current chart with Altair
     chart = create_altair_chart(
         df,
@@ -398,6 +483,69 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
         title="Current (A)" if is_transformer_view else None,
         color="#ff7f0e"  # Orange color for current
     )
+    
+    # Add peak load indicator
+    peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
+        color='red',
+        strokeWidth=2,
+        strokeDash=[4, 2]  # Different dash pattern
+    ).encode(
+        x='peak_time:T'
+    )
+    
+    # Add text annotation for peak load
+    peak_text = alt.Chart(pd.DataFrame({
+        'peak_time': [max_loading_time],
+        'y': [df['current_a'].max() * 0.9]  # Position below max for visibility
+    })).mark_text(
+        align='left',
+        baseline='bottom',
+        fontSize=12,
+        fontWeight='bold',
+        color='red'
+    ).encode(
+        x='peak_time:T',
+        y='y:Q',
+        text=alt.value('⚠️ Peak load')
+    )
+    
+    # Combine the charts
+    chart = alt.layer(chart, peak_rule, peak_text)
+    
+    # Add alert timestamp if in session state
+    if 'highlight_timestamp' in st.session_state:
+        try:
+            alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+            
+            # Create a vertical rule to mark the alert time
+            rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
+                color='gray',
+                strokeWidth=2,
+                strokeDash=[5, 5]
+            ).encode(
+                x='alert_time:T'
+            )
+            
+            # Add text annotation for the alert
+            text = alt.Chart(pd.DataFrame({
+                'alert_time': [alert_time],
+                'y': [df['current_a'].max()]
+            })).mark_text(
+                align='left',
+                baseline='top',
+                dy=-10,
+                fontSize=12,
+                color='gray'
+            ).encode(
+                x='alert_time:T',
+                y='y:Q',
+                text=alt.value('⚠️ Alert point')
+            )
+            
+            # Combine with existing chart
+            chart = alt.layer(chart, rule, text)
+        except Exception as e:
+            logger.error(f"Error highlighting alert timestamp: {e}")
     
     # Display the chart with streamlit
     st.altair_chart(chart, use_container_width=True)
@@ -415,6 +563,25 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Ensure timestamp is formatted correctly
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df = df.sort_values('timestamp')
+        
+        # Find the maximum loading point
+        if 'loading_percentage' in df.columns:
+            max_loading_idx = df['loading_percentage'].idxmax()
+            max_loading_point = df.loc[max_loading_idx]
+            max_loading_time = max_loading_point['timestamp']
+        else:
+            # If loading percentage is not available, use power or current as alternative
+            if 'power_kw' in df.columns and not df['power_kw'].isna().all():
+                max_loading_idx = df['power_kw'].idxmax()
+                max_loading_point = df.loc[max_loading_idx]
+                max_loading_time = max_loading_point['timestamp']
+            elif 'current_a' in df.columns and not df['current_a'].isna().all():
+                max_loading_idx = df['current_a'].idxmax()
+                max_loading_point = df.loc[max_loading_idx]
+                max_loading_time = max_loading_point['timestamp']
+            else:
+                # Default to middle timestamp if no other metrics available
+                max_loading_time = df['timestamp'].iloc[len(df) // 2]
         
         # Extract a pattern from power or current data for synergy
         pattern = None
@@ -503,6 +670,69 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             column_dict,
             title=None  # No title needed as we use colored banner
         )
+        
+        # Add peak load indicator
+        peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
+            color='red',
+            strokeWidth=2,
+            strokeDash=[4, 2]  # Different dash pattern
+        ).encode(
+            x='peak_time:T'
+        )
+        
+        # Add text annotation for peak load
+        peak_text = alt.Chart(pd.DataFrame({
+            'peak_time': [max_loading_time],
+            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.9]  # Position below max for visibility
+        })).mark_text(
+            align='left',
+            baseline='bottom',
+            fontSize=12,
+            fontWeight='bold',
+            color='red'
+        ).encode(
+            x='peak_time:T',
+            y='y:Q',
+            text=alt.value('⚠️ Peak load')
+        )
+        
+        # Combine the charts
+        voltage_chart = alt.layer(voltage_chart, peak_rule, peak_text)
+        
+        # Add alert timestamp if in session state
+        if 'highlight_timestamp' in st.session_state:
+            try:
+                alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+                
+                # Create a vertical rule to mark the alert time
+                rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
+                    color='gray',
+                    strokeWidth=2,
+                    strokeDash=[5, 5]
+                ).encode(
+                    x='alert_time:T'
+                )
+                
+                # Add text annotation for the alert
+                text = alt.Chart(pd.DataFrame({
+                    'alert_time': [alert_time],
+                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max()]
+                })).mark_text(
+                    align='left',
+                    baseline='top',
+                    dy=-10,
+                    fontSize=12,
+                    color='gray'
+                ).encode(
+                    x='alert_time:T',
+                    y='y:Q',
+                    text=alt.value('⚠️ Alert point')
+                )
+                
+                # Combine with existing chart
+                voltage_chart = alt.layer(voltage_chart, rule, text)
+            except Exception as e:
+                logger.error(f"Error highlighting alert timestamp: {e}")
         
         # Display the chart with streamlit
         st.altair_chart(voltage_chart, use_container_width=True)
@@ -971,7 +1201,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             
             # Create a vertical rule to mark the alert time
             rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
-                color='red',
+                color='gray',
                 strokeWidth=2,
                 strokeDash=[5, 5]
             ).encode(
@@ -983,11 +1213,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                 'alert_time': [alert_time],
                 'y': [df['power_kw'].max()]
             })).mark_text(
-                align='left',
+                align='center',
                 baseline='top',
-                dy=-10,
                 fontSize=12,
-                color='red'
+                color='gray'
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
@@ -1045,7 +1274,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 alert_rule = alt.Chart(pd.DataFrame({
                     'timestamp': [alert_time]
                 })).mark_rule(
-                    color='red',
+                    color='gray',
                     strokeWidth=2,
                     strokeDash=[5, 5]
                 ).encode(
@@ -1055,8 +1284,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 # Add alert text
                 alert_text = alt.Chart(pd.DataFrame({
                     'timestamp': [alert_time],
-                    'y': [df['current_a'].max()],
-                    'text': ['⚠️ Alert point']
+                    'y': [df['current_a'].max()]
                 })).mark_text(
                     align='left',
                     baseline='top',
@@ -1064,11 +1292,11 @@ def display_transformer_data(results_df: pd.DataFrame):
                     dy=-5,
                     fontSize=12,
                     fontWeight='bold',
-                    color='red'
+                    color='gray'
                 ).encode(
                     x='timestamp:T',
                     y='y:Q',
-                    text='text:N'
+                    text=alt.value('⚠️ Alert point')
                 )
                 
                 # Combine with base chart
@@ -1149,7 +1377,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 alert_rule = alt.Chart(pd.DataFrame({
                     'timestamp': [alert_time]
                 })).mark_rule(
-                    color='red',
+                    color='gray',
                     strokeWidth=2,
                     strokeDash=[5, 5]
                 ).encode(
@@ -1169,7 +1397,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                     dy=-5,
                     fontSize=12,
                     fontWeight='bold',
-                    color='red'
+                    color='gray'
                 ).encode(
                     x='timestamp:T',
                     y='y:Q',
@@ -1290,10 +1518,9 @@ def create_altair_chart(df, y_column, title=None, color=None):
             
             # Create a vertical rule to mark the alert time
             rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
-                color='red',
+                color='gray',
                 strokeWidth=2,
-                opacity=0.7,
-                strokeDash=[5, 5]  # Dashed line
+                strokeDash=[5, 5]
             ).encode(
                 x='alert_time:T'
             )
@@ -1303,11 +1530,10 @@ def create_altair_chart(df, y_column, title=None, color=None):
                 'alert_time': [alert_time],
                 'y': [df[y_column].max()]
             })).mark_text(
-                align='left',
+                align='center',
                 baseline='top',
-                dy=-10,
                 fontSize=12,
-                color='red'
+                color='gray'
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
