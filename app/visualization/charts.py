@@ -382,29 +382,42 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         time_idx = np.linspace(0, 4*np.pi, len(df))
         
         # Define the range parameters
-        variation_pct = 0.06  # 6% pure sinusoidal variation
-        pattern_influence = 0.02  # 2% influence from data pattern 
+        variation_pct = 0.07  # Increased from 0.06 to 0.07 (7% variation)
+        pattern_influence = 0.04  # Increased from 0.02 to 0.04 (4% influence)
+        random_noise = 0.01  # Added 1% random noise for natural irregularities
+        
+        # Generate random noise for more natural variations
+        np.random.seed(42)  # Set seed for reproducibility
+        noise_a = np.random.normal(0, 1, len(df)) 
+        noise_b = np.random.normal(0, 1, len(df))
+        noise_c = np.random.normal(0, 1, len(df))
         
         # Ensure pattern has the right shape
         if pattern is None or len(pattern) != len(df):
             pattern = np.ones(len(df)) * 0.5
         
-        # Phase A - centered around 400V with pattern influence
+        # Create inverse pattern for voltage (power increases = voltage slightly decreases)
+        inverse_pattern = 1 - pattern.values
+        
+        # Phase A - centered around 400V with enhanced pattern influence and noise
         phase_a = base_voltage + \
                   base_voltage * variation_pct * np.sin(time_idx) + \
-                  base_voltage * pattern_influence * pattern.values
+                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
+                  base_voltage * random_noise * noise_a
         voltage_data['Phase A'] = phase_a
         
-        # Phase B - shifted 120 degrees (2π/3 radians) with pattern influence
+        # Phase B - shifted 120 degrees (2π/3 radians) with enhanced pattern influence and noise
         phase_b = base_voltage + \
                   base_voltage * variation_pct * np.sin(time_idx - (2*np.pi/3)) + \
-                  base_voltage * pattern_influence * pattern.values
+                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
+                  base_voltage * random_noise * noise_b
         voltage_data['Phase B'] = phase_b
         
-        # Phase C - shifted 240 degrees (4π/3 radians) with pattern influence
+        # Phase C - shifted 240 degrees (4π/3 radians) with enhanced pattern influence and noise
         phase_c = base_voltage + \
                   base_voltage * variation_pct * np.sin(time_idx - (4*np.pi/3)) + \
-                  base_voltage * pattern_influence * pattern.values
+                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
+                  base_voltage * random_noise * noise_c
         voltage_data['Phase C'] = phase_c
         
         # Define the column mapping for the multi-line chart
@@ -1011,31 +1024,36 @@ def display_transformer_data(results_df: pd.DataFrame):
         time_idx = np.linspace(0, 4*np.pi, len(df))
         
         # Define the range parameters
-        variation_pct = 0.06  # 6% pure sinusoidal variation
-        pattern_influence = 0.02  # 2% influence from power pattern
+        variation_pct = 0.07  # Increased from 0.06 to 0.07 (7% variation)
+        pattern_influence = 0.04  # Increased from 0.02 to 0.04 (4% influence)
+        random_noise = 0.01  # Added 1% random noise for natural irregularities
         
         # Ensure power_pattern has the right shape
         if power_pattern is None or len(power_pattern) != len(df):
             power_pattern = np.ones(len(df)) * 0.5
         
-        # Create three phases with slight shifts but similar patterns
-        # Add pattern influence from power data to create synergy
-        # Phase A - centered around 400V
+        # Create inverse pattern for voltage (power increases = voltage slightly decreases)
+        inverse_pattern = 1 - power_pattern.values
+        
+        # Phase A - centered around 400V with enhanced pattern influence and noise
         phase_a = base_voltage + \
                   base_voltage * variation_pct * np.sin(time_idx) + \
-                  base_voltage * pattern_influence * power_pattern.values
+                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
+                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
         voltage_data['Phase A'] = phase_a
         
-        # Phase B - shifted 120 degrees (2π/3 radians)
+        # Phase B - shifted 120 degrees (2π/3 radians) with enhanced pattern influence and noise
         phase_b = base_voltage + \
                   base_voltage * variation_pct * np.sin(time_idx - (2*np.pi/3)) + \
-                  base_voltage * pattern_influence * power_pattern.values
+                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
+                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
         voltage_data['Phase B'] = phase_b
         
-        # Phase C - shifted 240 degrees (4π/3 radians)
+        # Phase C - shifted 240 degrees (4π/3 radians) with enhanced pattern influence and noise
         phase_c = base_voltage + \
                   base_voltage * variation_pct * np.sin(time_idx - (4*np.pi/3)) + \
-                  base_voltage * pattern_influence * power_pattern.values
+                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
+                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
         voltage_data['Phase C'] = phase_c
         
         # Define the column mapping for the multi-line chart
