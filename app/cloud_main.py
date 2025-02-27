@@ -273,6 +273,19 @@ def main():
                     except Exception as e:
                         logger.error(f"Failed to parse alert timestamp {param_alert_time}: {str(e)}")
                 
+                # Find and set max loading point from the transformer data
+                try:
+                    if transformer_data is not None and not transformer_data.empty and 'loading_percentage' in transformer_data.columns:
+                        max_loading_idx = transformer_data['loading_percentage'].idxmax()
+                        max_loading_point = transformer_data.loc[max_loading_idx]
+                        max_loading_time = max_loading_point.name if isinstance(max_loading_point.name, pd.Timestamp) else pd.to_datetime(max_loading_point.name)
+                        
+                        # Store in session state for consistent use across all charts
+                        st.session_state.max_loading_time = max_loading_time
+                        logger.info(f"Deep link: Set max loading time to {max_loading_time}")
+                except Exception as e:
+                    logger.error(f"Failed to determine max loading point: {str(e)}")
+                
             except Exception as e:
                 logger.error(f"Auto-triggered search: Error getting customer data: {str(e)}")
                 st.warning(f"Could not retrieve customer data: {str(e)}")
