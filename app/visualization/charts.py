@@ -126,6 +126,12 @@ def display_loading_status(results_df: pd.DataFrame):
     # Round loading percentages to 1 decimal place for consistent display
     df['loading_percentage'] = df['loading_percentage'].round(1)
     
+    # Find the maximum loading percentage and its timestamp
+    max_loading_idx = df['loading_percentage'].idxmax()
+    max_loading_point = df.loc[max_loading_idx]
+    max_loading_time = max_loading_point['timestamp']
+    max_loading_value = max_loading_point['loading_percentage']
+    
     # Create an Altair chart for loading percentage
     base_chart = alt.Chart(df).mark_line(
         point=True,
@@ -236,6 +242,70 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Combine all chart elements - only using threshold lines
     chart = alt.layer(base_chart, *threshold_areas, *threshold_lines)
+    
+    # Add vertical indicator for maximum loading point
+    max_rule = alt.Chart(pd.DataFrame({'max_time': [max_loading_time]})).mark_rule(
+        color='#dc3545',  # Red color matching critical threshold
+        strokeWidth=2,
+        strokeDash=[4, 2]  # Different dash pattern to distinguish it
+    ).encode(
+        x='max_time:T'
+    )
+    
+    # Add text annotation for maximum loading
+    max_text = alt.Chart(pd.DataFrame({
+        'max_time': [max_loading_time],
+        'y': [130]  # Position at top of chart
+    })).mark_text(
+        align='center',
+        baseline='bottom',
+        fontSize=12,
+        fontWeight='bold',
+        color='#dc3545'
+    ).encode(
+        x='max_time:T',
+        y='y:Q',
+        text=alt.value(f'Peak: {max_loading_value:.1f}%')
+    )
+    
+    # Add the max loading indicator to the chart
+    chart = alt.layer(chart, max_rule, max_text)
+    
+    # Check if we should also add alert time indicator from session state
+    if 'highlight_timestamp' in st.session_state:
+        try:
+            alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+            
+            # Only add if alert_time is different from max_loading_time
+            if alert_time != max_loading_time:
+                # Create vertical rule at alert time
+                alert_rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
+                    color='gray',
+                    strokeWidth=2,
+                    strokeDash=[5, 5]
+                ).encode(
+                    x='alert_time:T'
+                )
+                
+                # Add text annotation for alert time
+                alert_text = alt.Chart(pd.DataFrame({
+                    'alert_time': [alert_time],
+                    'y': [130]
+                })).mark_text(
+                    align='center',
+                    baseline='top',
+                    fontSize=12,
+                    color='gray'
+                ).encode(
+                    x='alert_time:T',
+                    y='y:Q',
+                    text=alt.value(f'Selected: {alert_time.hour}:00')
+                )
+                
+                # Add to the chart
+                chart = alt.layer(chart, alert_rule, alert_text)
+        except Exception as e:
+            logger.error(f"Error adding alert time indicator: {e}")
     
     # Display the chart
     st.altair_chart(chart, use_container_width=True)
