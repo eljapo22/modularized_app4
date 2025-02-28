@@ -123,89 +123,99 @@ class CloudAlertService:
             logger.error(f"Error selecting alert points: {str(e)}")
             return None, None
 
-    def _create_email_content(self, max_data: pd.Series, end_data: Optional[pd.Series], 
-                            max_status: str, max_color: str, deep_link: str) -> str:
-        """
-        Create HTML content for alert email with context
+    def _create_email_content(self, max_point, end_point=None, max_status='', max_color='', deep_link=''):
+        """Create email HTML content for alert"""
         
-        Args:
-            max_data: Series with transformer data at max loading point
-            end_data: Series with transformer data at end date point (may be None)
-            max_status: Status of the max loading alert
-            max_color: Color of the max loading alert
-            deep_link: Deep link back to app
-            
-        Returns:
-            str: HTML content of the email
-        """
-        transformer_id = max_data['transformer_id']
-        max_loading_pct = max_data['loading_percentage']
+        # Extract data from the max point
+        transformer_id = max_point['transformer_id']
+        max_data = max_point['data']
+        max_loading_pct = max_point['loading_percentage']
         
-        # Get status for end_data if available
-        end_status = None
-        end_color = None
+        # Only extract end data if available
+        end_data = None
         end_loading_pct = None
+        end_status = ''
+        end_color = ''
         
-        if end_data is not None:
-            end_loading_pct = end_data['loading_percentage']
+        if end_point is not None:
+            end_data = end_point['data']
+            end_loading_pct = end_point['loading_percentage']
             end_status, end_color = get_alert_status(end_loading_pct)
         
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2f4f4f;">Transformer Loading Alert {get_status_emoji(max_status)}</h2>
+            <h2 style="color: #2f4f4f;">⚠️ Transformer Loading Alert</h2>
+            
+            <p style="margin-top: 20px;">Dear Recipient,</p>
+            
+            <p>This is an automated alert from the Transformer Loading Analysis System regarding abnormal loading conditions detected for Transformer {transformer_id}.</p>
             
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: {max_color};">Peak Status: {max_status}</h3>
-                <p><strong>Transformer:</strong> {transformer_id}</p>
-                <p><strong>Peak Loading:</strong> {max_loading_pct:.1f}%</p>
-                <p><strong>Peak Time:</strong> {max_data.name.strftime('%Y-%m-%d %H:%M')}</p>
+                <h3 style="color: {max_color};">{get_status_emoji(max_status)} {max_status} Peak Load Alert</h3>
+                <ul style="list-style-type: none; padding-left: 20px;">
+                    <li><strong>Peak Loading:</strong> {max_loading_pct:.1f}% {max_loading_pct >= 100 and '(Exceeds safe threshold)' or ''}</li>
+                    <li><strong>Peak Occurrence:</strong> {max_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
+                </ul>
+            </div>
+            
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                <h4>📊 Peak Load Readings:</h4>
+                <ul style="list-style-type: none; padding-left: 20px;">
+                    <li><strong>Power:</strong> {max_data['power_kw']:.1f} kW</li>
+                    <li><strong>Current:</strong> {max_data['current_a']:.1f} A</li>
+                    <li><strong>Voltage:</strong> {max_data['voltage_v']:.1f} V</li>
+                    <li><strong>Power Factor:</strong> {max_data['power_factor']:.2f}</li>
+                </ul>
+            </div>
         """
         
         # Add end date information if available
         if end_data is not None:
             html += f"""
-                <h3 style="margin-top: 20px; color: {end_color};">End-Date Status: {end_status}</h3>
-                <p><strong>End-Date Loading:</strong> {end_loading_pct:.1f}%</p>
-                <p><strong>Time:</strong> {end_data.name.strftime('%Y-%m-%d %H:%M')}</p>
-            """
-            
-        html += f"""
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                <h3 style="color: {end_color};">{get_status_emoji(end_status)} {end_status}: End-Date Loading</h3>
+                <ul style="list-style-type: none; padding-left: 20px;">
+                    <li><strong>End-Date Loading:</strong> {end_loading_pct:.1f}%</li>
+                    <li><strong>Recorded On:</strong> {end_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
+                </ul>
             </div>
             
             <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h4>Peak Loading Readings:</h4>
-                <ul>
-                    <li>Power: {max_data['power_kw']:.1f} kW</li>
-                    <li>Current: {max_data['current_a']:.1f} A</li>
-                    <li>Voltage: {max_data['voltage_v']:.1f} V</li>
-                    <li>Power Factor: {max_data['power_factor']:.2f}</li>
+                <h4>📊 End-Date Load Readings:</h4>
+                <ul style="list-style-type: none; padding-left: 20px;">
+                    <li><strong>Power:</strong> {end_data['power_kw']:.1f} kW</li>
+                    <li><strong>Current:</strong> {end_data['current_a']:.1f} A</li>
+                    <li><strong>Voltage:</strong> {end_data['voltage_v']:.1f} V</li>
+                    <li><strong>Power Factor:</strong> {end_data['power_factor']:.2f}</li>
                 </ul>
-        """
-        
-        # Add end date detailed readings if available
-        if end_data is not None:
-            html += f"""
-                <h4 style="margin-top: 20px;">End-Date Readings:</h4>
-                <ul>
-                    <li>Power: {end_data['power_kw']:.1f} kW</li>
-                    <li>Current: {end_data['current_a']:.1f} A</li>
-                    <li>Voltage: {end_data['voltage_v']:.1f} V</li>
-                    <li>Power Factor: {end_data['power_factor']:.2f}</li>
-                </ul>
+            </div>
             """
             
         html += f"""
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                <h4>Recommended Actions:</h4>
+                <ul>
+                    <li><strong>Immediate Inspection:</strong> Check transformer health and cooling systems.</li>
+                    <li><strong>Load Redistribution:</strong> Consider redistributing the load to avoid overloading.</li>
+                    <li><strong>Monitor Trends:</strong> Review past loading history for potential risk mitigation.</li>
+                </ul>
             </div>
+            
+            <p>For a detailed loading history and further analysis, click the button below:</p>
             
             <div style="text-align: center; margin: 30px 0;">
                 <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                    View Loading History
+                    🔍 View Loading History
                 </a>
             </div>
             
-            <p style="color: #6c757d; font-size: 12px; text-align: center;">
-                This is an automated alert from your Transformer Loading Analysis System.<br>
-                Click the button above to view the loading history leading up to this alert.
+            <p>If you have any questions or require further assistance, please contact the maintenance team.</p>
+            
+            <p>Best regards,<br>
+            Transformer Monitoring Team</p>
+            
+            <p style="color: #6c757d; font-size: 12px; text-align: center; margin-top: 30px;">
+                This is an automated alert from your Transformer Loading Analysis System.
             </p>
         </div>
         """
@@ -348,8 +358,9 @@ class CloudAlertService:
                 logger.info(f"Created deep link: {deep_link}")
                 
                 # Create and send email
+                emoji_indicator = get_status_emoji(max_status)
                 msg = MIMEMultipart('alternative')
-                msg['Subject'] = f"Transformer Loading Alert - Peak: {max_point['loading_percentage']:.1f}%" + (
+                msg['Subject'] = f"{emoji_indicator} {max_status} Transformer Loading Alert - Peak: {max_point['loading_percentage']:.1f}%" + (
                     f", End: {end_point['loading_percentage']:.1f}%" if end_point is not None else ""
                 )
                 msg['From'] = self.email
