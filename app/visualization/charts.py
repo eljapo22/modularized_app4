@@ -138,7 +138,7 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Set fixed Y-axis ranges
     y_min = 0
-    y_max = 150
+    y_max = 130
     
     # Create an Altair chart for loading percentage
     base_chart = alt.Chart(df).mark_line(
@@ -686,19 +686,6 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             title=None  # No title needed as we use colored banner
         )
         
-        # Add y-axis domain constraint to focus on the relevant voltage range
-        voltage_chart = voltage_chart.encode(
-            y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[370, 430]),  # Wider range to capture full 7% variation
-                    axis=alt.Axis(
-                        title="Value, V",
-                        labelColor='#333333',
-                        titleColor='#333333',
-                        labelFontSize=14,
-                        titleFontSize=16
-                    ))
-        )
-        
         # Add peak load indicator
         peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
             color='red',
@@ -1194,7 +1181,7 @@ def display_transformer_data(results_df: pd.DataFrame):
     
     # Set fixed Y-axis ranges
     y_min = 0
-    y_max = 150
+    y_max = 130
     
     # Add peak load indicator
     peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
@@ -1468,19 +1455,6 @@ def display_transformer_data(results_df: pd.DataFrame):
             voltage_data, 
             column_dict,
             title=None  # No title needed as we use colored banner
-        )
-        
-        # Add y-axis domain constraint to focus on the relevant voltage range
-        voltage_chart = voltage_chart.encode(
-            y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[370, 430]),  # Adjusted range to better fit the data
-                    axis=alt.Axis(
-                        title="Value, V",
-                        labelColor='#333333',
-                        titleColor='#333333',
-                        labelFontSize=14,
-                        titleFontSize=16
-                    ))
         )
         
         # Add peak load indicator
