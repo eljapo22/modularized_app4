@@ -118,9 +118,6 @@ def main():
         # Auto-select first feeder instead of showing dropdown
         feeder = feeders[0]
         
-        # Add a small vertical spacer for UI consistency
-        st.markdown("<div style='padding: 10px'></div>", unsafe_allow_html=True)
-
         # Transformer selection with comprehensive error handling
         try:
             # Ensure feeder is a string and extract number if needed

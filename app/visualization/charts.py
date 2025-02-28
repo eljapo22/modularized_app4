@@ -276,7 +276,7 @@ def display_loading_status(results_df: pd.DataFrame):
         text=alt.value(f'Peak load')
     )
     
-    # Add the max loading indicator to the chart
+    # Combine the charts
     chart = alt.layer(chart, max_rule, max_text)
     
     # Check if we should also add alert time indicator from session state
@@ -854,7 +854,6 @@ def display_transformer_dashboard(
             try:
                 alert_timestamp_str = st.session_state.highlight_timestamp
                 alert_timestamp = pd.to_datetime(alert_timestamp_str)
-                st.info(f" Showing alert data for: {alert_timestamp.strftime('%Y-%m-%d %H:%M')}")
             except Exception as e:
                 logger.error(f"Error parsing alert timestamp: {e}")
         
