@@ -25,10 +25,6 @@ def main():
         layout="wide"
     )
     
-    # Display loading header in transformer view
-    if param_view == 'transformer':
-        st.header("Transformer Loading Analysis")
-    
     # Process URL parameters for deep links
     params = st.experimental_get_query_params()
     auto_search = False
@@ -37,6 +33,10 @@ def main():
     param_start = params.get("start", [""])[0]
     param_end = params.get("end", [""])[0]
     param_alert_time = params.get("alert_time", [""])[0]
+    
+    # Display loading header in transformer view
+    if param_view == 'transformer':
+        st.header("Transformer Loading Analysis")
     
     # Initialize services with error handling
     try:
@@ -319,8 +319,10 @@ def main():
         # Starting deep link search
         logger.info(f"Deep link search with view={param_view}, id={param_transformer_id}, start={param_start}, end={param_end}")
         
-        if param_view == 'transformer':
+        # Only show transformer header in transformer view if not already shown
+        if param_view == 'transformer' and not st.session_state.get('header_shown', False):
             st.header("Transformer Loading Analysis")
+            st.session_state.header_shown = True
         
         # Rerun to update display
         st.rerun()
