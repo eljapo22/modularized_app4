@@ -572,21 +572,23 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [df['current_a'].max() * 1.05]  # Same position as peak load
+                'y': [df['current_a'].max() * 1.08]  # Position slightly higher than peak load
             })).mark_text(
                 align='left',
-                baseline='top',
+                baseline='bottom',
                 fontSize=12,
                 color='gray',
-                dy=-10  # Consistent vertical offset
+                dx=5,  # Horizontal offset
+                dy=-5  # Vertical offset
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
                 text=alt.value('Alert point')
             )
             
-            # Combine with existing chart
+            # Combine with existing chart containing peak load indicators
             chart = alt.layer(chart, rule, text)
+            logger.info(f"Added alert timestamp to current chart at {alert_time}")
         except Exception as e:
             logger.error(f"Error highlighting alert timestamp: {e}")
     
@@ -1221,8 +1223,8 @@ def display_transformer_data(results_df: pd.DataFrame):
             )
         ),
         y=alt.Y('power_kw:Q', 
-            scale=alt.Scale(zero=False),  # Use zero=False to show data variations better
-            ),
+                scale=alt.Scale(zero=False),  # Use zero=False to show data variations better
+                ),
         tooltip=['timestamp:T', 'power_kw:Q']
     ).properties(
         width="container",
@@ -1434,22 +1436,23 @@ def display_transformer_data(results_df: pd.DataFrame):
                 # Add alert text
                 alert_text = alt.Chart(pd.DataFrame({
                     'timestamp': [alert_time],
-                    'y': [df['current_a'].max() * 1.05]  # Same position as peak load
+                    'y': [df['current_a'].max() * 1.08]  # Position slightly higher than peak load
                 })).mark_text(
                     align='left',
-                    baseline='top',
+                    baseline='bottom',
                     fontSize=12,
                     fontWeight='bold',
                     color='gray',
-                    dy=-10  # Consistent vertical offset
+                    dx=5,  # Horizontal offset
+                    dy=-5  # Vertical offset
                 ).encode(
                     x='timestamp:T',
                     y='y:Q',
                     text=alt.value('Alert point')
                 )
                 
-                # Combine with base chart
-                current_chart = alt.layer(current_base, alert_rule, alert_text)
+                # Combine with existing chart containing peak load indicators
+                current_chart = alt.layer(current_chart, alert_rule, alert_text)
             except Exception as e:
                 logger.error(f"Could not add alert timestamp to current chart: {str(e)}")
         
