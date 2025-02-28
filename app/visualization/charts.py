@@ -379,8 +379,12 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values('timestamp')
     
-    # Find the maximum loading point
-    if 'loading_percentage' in df.columns:
+    # First check if max_loading_time is in session state
+    if 'max_loading_time' in st.session_state:
+        max_loading_time = st.session_state.max_loading_time
+        logger.info(f"Power chart: Using session state max_loading_time for peak placement at {max_loading_time}")
+    # Only calculate if not in session state
+    elif 'loading_percentage' in df.columns:
         max_loading_idx = df['loading_percentage'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
@@ -391,10 +395,6 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
         logger.info(f"Power chart: Using power_kw max value as fallback for peak placement at {max_loading_time}")
-    
-    # Use session state max_loading_time if available - ensures consistency across charts
-    if 'max_loading_time' in st.session_state:
-        max_loading_time = st.session_state.max_loading_time
     
     # Calculate peak annotation height with more vertical spacing
     peak_annotation_height = df['power_kw'].max() * 1.15  # Increased vertical spacing
@@ -470,7 +470,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
                 'y': [df['power_kw'].max() * 1.05]  # Match peak load height with 5% buffer
             })).mark_text(
                 align='left',
-                baseline='top',
+                baseline='bottom',
                 fontSize=12,
                 color='gray',
                 dx=10,  # Add horizontal offset to avoid overlapping with line
@@ -484,7 +484,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             # Combine with existing chart
             chart = alt.layer(chart, rule, text)
         except Exception as e:
-            logger.error(f"Error highlighting alert timestamp: {e}")
+            logger.error(f"Error adding alert timestamp: {e}")
     
     # Display the chart with streamlit
     st.altair_chart(chart, use_container_width=True)
@@ -500,8 +500,12 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values('timestamp')
     
-    # Find the maximum loading point
-    if 'loading_percentage' in df.columns:
+    # First check if max_loading_time is in session state
+    if 'max_loading_time' in st.session_state:
+        max_loading_time = st.session_state.max_loading_time
+        logger.info(f"Current chart: Using session state max_loading_time for peak placement at {max_loading_time}")
+    # Only calculate if not in session state
+    elif 'loading_percentage' in df.columns:
         max_loading_idx = df['loading_percentage'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
@@ -603,8 +607,12 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df = df.sort_values('timestamp')
         
-        # Find the maximum loading point
-        if 'loading_percentage' in df.columns:
+        # First check if max_loading_time is in session state
+        if 'max_loading_time' in st.session_state:
+            max_loading_time = st.session_state.max_loading_time
+            logger.info(f"Voltage chart: Using session state max_loading_time for peak placement at {max_loading_time}")
+        # Only calculate if not in session state
+        elif 'loading_percentage' in df.columns:
             max_loading_idx = df['loading_percentage'].idxmax()
             max_loading_point = df.loc[max_loading_idx]
             max_loading_time = max_loading_point['timestamp']
@@ -1152,6 +1160,28 @@ def display_transformer_data(results_df: pd.DataFrame):
     else:
         logger.warning("size_kva column not found in dataframe")
     
+    # Find max loading time once for all charts
+    # First check if max_loading_time is in session state
+    if 'max_loading_time' in st.session_state:
+        max_loading_time = st.session_state.max_loading_time
+        logger.info(f"Transformer data: Using session state max_loading_time for all charts at {max_loading_time}")
+    # Only calculate if not in session state
+    elif 'loading_percentage' in df.columns:
+        max_loading_idx = df['loading_percentage'].idxmax()
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+        # Set in session state for other charts to use
+        st.session_state.max_loading_time = max_loading_time
+        logger.info(f"Transformer data: Setting max_loading_time from loading_percentage to {max_loading_time} and saving to session state")
+    else:
+        # If loading percentage is not available, use max power as an alternative
+        max_loading_idx = df['power_kw'].idxmax()
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+        # Set in session state for other charts to use
+        st.session_state.max_loading_time = max_loading_time
+        logger.info(f"Transformer data: Setting max_loading_time from power_kw to {max_loading_time} and saving to session state")
+    
     # Extract a normalized pattern from power data for voltage synergy
     # This will be used to influence the voltage pattern (non-intrusive approach)
     power_pattern = None
@@ -1199,23 +1229,6 @@ def display_transformer_data(results_df: pd.DataFrame):
         height=300
     )
     
-    # Find the maximum loading point for the peak load indicator
-    if 'loading_percentage' in df.columns:
-        max_loading_idx = df['loading_percentage'].idxmax()
-        max_loading_point = df.loc[max_loading_idx]
-        max_loading_time = max_loading_point['timestamp']
-        logger.info(f"Power chart: Using loading_percentage max value for peak placement at {max_loading_time}")
-    else:
-        # If loading percentage is not available, use max power as an alternative
-        max_loading_idx = df['power_kw'].idxmax()
-        max_loading_point = df.loc[max_loading_idx]
-        max_loading_time = max_loading_point['timestamp']
-        logger.info(f"Power chart: Using power_kw max value as fallback for peak placement at {max_loading_time}")
-    
-    # Use session state max_loading_time if available - ensures consistency across charts
-    if 'max_loading_time' in st.session_state:
-        max_loading_time = st.session_state.max_loading_time
-    
     # Calculate peak annotation height with more vertical spacing
     peak_annotation_height = df['power_kw'].max() * 1.25  # Further increased vertical spacing
     
@@ -1250,8 +1263,10 @@ def display_transformer_data(results_df: pd.DataFrame):
         text=alt.value('Peak load')
     )
     
-    # Add horizontal capacity line if size_kva exists
+    # Combine chart with peak load indicator
     chart = alt.layer(base, peak_rule, peak_text)
+    
+    # Add horizontal capacity line if size_kva exists
     if 'size_kva' in power_df.columns and not power_df['size_kva'].isna().all():
         try:
             # Get the size_kva value and convert to equivalent power in kW
