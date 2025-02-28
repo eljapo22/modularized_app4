@@ -1473,7 +1473,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Add y-axis domain constraint to focus on the relevant voltage range
         voltage_chart = voltage_chart.encode(
             y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[380, 420]),  # Adjusted range to better fit the data
+                    scale=alt.Scale(domain=[370, 430]),  # Adjusted range to better fit the data
                     axis=alt.Axis(
                         title="Value, V",
                         labelColor='#333333',
