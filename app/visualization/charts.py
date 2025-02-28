@@ -1221,7 +1221,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         max_loading_time = st.session_state.max_loading_time
     
     # Calculate peak annotation height with more vertical spacing
-    peak_annotation_height = df['power_kw'].max() * 1.15  # Increased vertical spacing
+    peak_annotation_height = df['power_kw'].max() * 1.25  # Further increased vertical spacing
     
     # Set fixed Y-axis ranges
     y_min = 0
@@ -1277,7 +1277,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             domain_df = pd.DataFrame({
                 'timestamp': [power_df['timestamp'].min(), power_df['timestamp'].max()],
                 'y': [size_kw] * 2,
-                'text': [f"Capacity: {size_kw:.1f}kW"] * 2
+                'text': [f"{size_kva:.0f} kVA"] * 2
             })
             
             # Add text annotation for the capacity line
@@ -1318,11 +1318,12 @@ def display_transformer_data(results_df: pd.DataFrame):
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [df['power_kw'].max()]
+                'y': [peak_annotation_height * 1.1]  # Position alert point annotation higher than peak load
             })).mark_text(
-                align='center',
-                baseline='top',
-                fontSize=12,
+                align='left',
+                baseline='bottom',
+                fontSize=14,
+                fontWeight='bold',
                 color='gray',
                 dy=-10  # Consistent vertical offset
             ).encode(
