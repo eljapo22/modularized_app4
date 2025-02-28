@@ -397,7 +397,15 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         logger.info(f"Power chart: Using power_kw max value as fallback for peak placement at {max_loading_time}")
     
     # Calculate peak annotation height with more vertical spacing
-    peak_annotation_height = df['power_kw'].max() * 1.15  # Increased vertical spacing
+    if is_transformer_view:
+        # For transformer view, calculate better annotation spacing based on data range
+        y_min = df['power_kw'].min()
+        y_max = df['power_kw'].max()
+        y_range = y_max - y_min
+        peak_annotation_height = y_max + (y_range * 0.05)  # Add just 5% for annotations
+    else:
+        # For other views, use the original calculation
+        peak_annotation_height = df['power_kw'].max() * 1.15  # Original vertical spacing
     
     # Create power chart with Altair
     chart = create_altair_chart(
@@ -678,11 +686,6 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         
         # Create inverse pattern for voltage (power increases = voltage slightly decreases)
         inverse_pattern = 1 - power_pattern.values
-        
-        # Ensure pattern has the right shape
-        if power_pattern is None or len(power_pattern) != len(df):
-            power_pattern = np.ones(len(df)) * 0.5
-            logger.warning(f"Voltage chart: Pattern data missing or wrong size. Using constant pattern.")
         
         # Phase A - centered around 400V with enhanced pattern influence and noise
         phase_a = base_voltage + \
@@ -1231,7 +1234,15 @@ def display_transformer_data(results_df: pd.DataFrame):
     )
     
     # Calculate peak annotation height with more vertical spacing
-    peak_annotation_height = df['power_kw'].max() * 1.25  # Further increased vertical spacing
+    if True:
+        # For transformer view, calculate better annotation spacing based on data range
+        y_min = df['power_kw'].min()
+        y_max = df['power_kw'].max()
+        y_range = y_max - y_min
+        peak_annotation_height = y_max + (y_range * 0.05)  # Add just 5% for annotations
+    else:
+        # For other views, use the original calculation
+        peak_annotation_height = df['power_kw'].max() * 1.25  # Further increased vertical spacing
     
     # Set fixed Y-axis ranges
     y_min = 0
