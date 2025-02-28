@@ -1395,7 +1395,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 )
             ),
             y=alt.Y('current_a:Q', 
-                scale=alt.Scale(zero=False),  # Use zero=False to show data variations better
+                scale=alt.Scale(domain=[50, 200], zero=False),  # Fixed scale from 50 to 200
                 axis=alt.Axis(
                     title='Current (A)',
                     labelColor='#333333',
