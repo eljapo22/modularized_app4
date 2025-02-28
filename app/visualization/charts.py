@@ -402,6 +402,19 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         color="#1f77b4"  # Blue color for power
     )
     
+    # Apply specific y-axis configuration to ensure power data visibility
+    chart = chart.encode(
+        y=alt.Y('power_kw:Q',
+                scale=alt.Scale(zero=False),  # Prevent flattening
+                axis=alt.Axis(
+                    title='Power (kW)',
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=14,
+                    titleFontSize=16
+                ))
+    )
+    
     # Add peak load indicator
     peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
         color='red',
@@ -414,17 +427,19 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 0.9]  # Position below max for visibility
+        'y': [df['power_kw'].max() * 0.95]  # Position at 95% of max for better visibility
     })).mark_text(
-        align='left',
-        baseline='bottom',
-        fontSize=12,
+        align='right',
+        baseline='top',
+        fontSize=14,  # Larger font
         fontWeight='bold',
-        color='red'
+        color='red',
+        dx=20,  # Shift text right for better spacing
+        dy=-10  # Shift text up for better visibility
     ).encode(
         x='peak_time:T',
         y='y:Q',
-        text=alt.value('⚠️ Peak load')
+        text=alt.value('Peak load')
     )
     
     # Combine the charts
@@ -616,9 +631,9 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         time_idx = np.linspace(0, 4*np.pi, len(df))
         
         # Define the range parameters
-        variation_pct = 0.07  # Increased from 0.06 to 0.07 (7% variation)
-        pattern_influence = 0.04  # Increased from 0.02 to 0.04 (4% influence)
-        random_noise = 0.01  # Added 1% random noise for natural irregularities
+        variation_pct = 0.15  # Increased from 0.06 to 0.15 (15% variation)
+        pattern_influence = 0.08  # Increased from 0.02 to 0.08 (8% influence)
+        random_noise = 0.02  # Increased from 0.01 to 0.02 (2% random noise)
         
         # Extract a pattern from power or current data for synergy
         # This will be used to influence the voltage pattern (non-intrusive approach)
@@ -672,6 +687,10 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
                   base_voltage * random_noise * np.random.normal(0, 1, len(df))
         voltage_data['Phase C'] = phase_c
         
+        # Log voltage data statistics for debugging
+        logger.warning(f"Voltage data statistics - Phase A: min={voltage_data['Phase A'].min():.2f}, max={voltage_data['Phase A'].max():.2f}, range={voltage_data['Phase A'].max() - voltage_data['Phase A'].min():.2f}")
+        logger.warning(f"Expected voltage range based on 15% variation: {base_voltage * 0.85:.2f} to {base_voltage * 1.15:.2f}")
+        
         # Define the column mapping for the multi-line chart
         column_dict = {
             'Phase A': 'Phase A',
@@ -689,7 +708,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Set y-axis domain constraint for voltage chart to ensure data visibility
         voltage_chart = voltage_chart.encode(
             y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[370, 430], zero=False),  # Set voltage range to capture full 7% variation
+                    scale=alt.Scale(domain=[320, 480], zero=False),  # Set voltage range to capture full 15% variation
                     axis=alt.Axis(
                         title="Value, V",
                         labelColor='#333333',
@@ -1209,17 +1228,19 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 0.9]
+        'y': [df['power_kw'].max() * 0.95]  # Position at 95% of max for better visibility
     })).mark_text(
-        align='left',
-        baseline='bottom',
-        fontSize=12,
+        align='right',
+        baseline='top',
+        fontSize=14,  # Larger font
         fontWeight='bold',
-        color='red'
+        color='red',
+        dx=20,  # Shift text right for better spacing
+        dy=-10  # Shift text up for better visibility
     ).encode(
         x='peak_time:T',
         y='y:Q',
-        text=alt.value('⚠️ Peak load')
+        text=alt.value('Peak load')
     )
     
     # Add horizontal capacity line if size_kva exists
@@ -1425,9 +1446,9 @@ def display_transformer_data(results_df: pd.DataFrame):
         time_idx = np.linspace(0, 4*np.pi, len(df))
         
         # Define the range parameters
-        variation_pct = 0.07  # Increased from 0.06 to 0.07 (7% variation)
-        pattern_influence = 0.04  # Increased from 0.02 to 0.04 (4% influence)
-        random_noise = 0.01  # Added 1% random noise for natural irregularities
+        variation_pct = 0.15  # Increased from 0.06 to 0.15 (15% variation)
+        pattern_influence = 0.08  # Increased from 0.02 to 0.08 (8% influence)
+        random_noise = 0.02  # Increased from 0.01 to 0.02 (2% random noise)
         
         # Ensure power_pattern has the right shape
         if power_pattern is None or len(power_pattern) != len(df):
@@ -1458,6 +1479,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                   base_voltage * random_noise * np.random.normal(0, 1, len(df))
         voltage_data['Phase C'] = phase_c
         
+        # Log voltage data statistics for debugging
+        logger.warning(f"Voltage data statistics - Phase A: min={voltage_data['Phase A'].min():.2f}, max={voltage_data['Phase A'].max():.2f}, range={voltage_data['Phase A'].max() - voltage_data['Phase A'].min():.2f}")
+        logger.warning(f"Expected voltage range based on 15% variation: {base_voltage * 0.85:.2f} to {base_voltage * 1.15:.2f}")
+        
         # Define the column mapping for the multi-line chart
         column_dict = {
             'Phase A': 'Phase A',
@@ -1475,7 +1500,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Set y-axis domain constraint for voltage chart to ensure data visibility
         voltage_chart = voltage_chart.encode(
             y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[370, 430], zero=False),  # Set voltage range to capture full 7% variation
+                    scale=alt.Scale(domain=[320, 480], zero=False),  # Set voltage range to capture full 15% variation
                     axis=alt.Axis(
                         title="Value, V",
                         labelColor='#333333',
@@ -1637,7 +1662,10 @@ def create_altair_chart(df, y_column, title=None, color=None):
                     labelFontSize=14,
                     titleFontSize=16
                 )),
-        tooltip=['timestamp:T', f'{y_column}:Q']
+        tooltip=[
+            alt.Tooltip('timestamp:T', title='Date', format='%m/%d/%y %H:%M'),
+            alt.Tooltip(y_column, title=y_column.replace('_', ' ').title())
+        ]
     )
     
     # Apply custom color if provided
