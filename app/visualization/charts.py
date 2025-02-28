@@ -263,7 +263,7 @@ def display_loading_status(results_df: pd.DataFrame):
     # Add text annotation for maximum loading
     max_text = alt.Chart(pd.DataFrame({
         'max_time': [max_loading_time],
-        'y': [145]  # Position below the top of chart for visibility
+        'y': [max_loading_value * 1.05]  # Position 5% above maximum value
     })).mark_text(
         align='center',
         baseline='bottom',
@@ -427,7 +427,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * .90]  # Position significantly above max for better visibility
+        'y': [df['power_kw'].max() * 1.05]  # Position slightly above maximum value
     })).mark_text(
         align='right',
         baseline='bottom',
@@ -527,7 +527,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['current_a'].max() * 1.10]  # Position well above max for visibility
+        'y': [df['current_a'].max() * 1.05]  # Position 5% above maximum value
     })).mark_text(
         align='right',
         baseline='bottom',
@@ -732,7 +732,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Add text annotation for peak load
         peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.95]  # Position lower for better visibility
+            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Position 5% above maximum value
         })).mark_text(
             align='left',
             baseline='bottom',
@@ -1230,7 +1230,7 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 1.10]  # Position significantly above max for better visibility
+        'y': [df['power_kw'].max() * 1.05]  # Position slightly above maximum value
     })).mark_text(
         align='right',
         baseline='bottom',
@@ -1375,7 +1375,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Add text annotation for peak load
         current_peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [df['current_a'].max() * 1.10]  # Position well above max for visibility
+            'y': [df['current_a'].max() * 1.05]  # Position 5% above maximum value
         })).mark_text(
             align='right',
             baseline='bottom',
@@ -1526,7 +1526,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Add text annotation for peak load
         peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.9]  # Position below max for visibility
+            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Position 5% above maximum value
         })).mark_text(
             align='left',
             baseline='bottom',
