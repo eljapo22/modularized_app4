@@ -131,109 +131,114 @@ class CloudAlertService:
             logger.error(f"Error selecting alert points: {str(e)}")
             return None, None
 
-    def _create_email_content(self, max_point, end_point=None, max_status=None, max_color=None, deep_link=''):
-        """Create email HTML content for alert"""
-        
-        # Extract data from the max point
-        transformer_id = max_point['transformer_id']
-        max_data = max_point['data']
-        max_loading_pct = max_point['loading_percentage']
-        
-        # Only extract end data if available
-        end_data = None
-        end_loading_pct = None
-        end_status = None
-        end_color = None
-        
-        if end_point is not None:
-            end_data = end_point['data']
-            end_loading_pct = end_point['loading_percentage']
-            end_status, end_color = get_alert_status(end_loading_pct)
-        
-        html = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6; color: #333;">
-            <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 20px; border-radius: 10px; margin-bottom: 25px; text-align: center; border-bottom: 3px solid #0d6efd;">
-                <h2 style="margin: 0; color: #2c3e50; font-size: 26px;">⚡ UPDATED: Transformer Loading Alert ⚡</h2>
-            </div>
+    def _create_email_content(self, max_data, end_data=None, max_status=None, max_color='#dc3545', deep_link=None):
+        """Create HTML email content for alert"""
+        # Extract data safely using dictionary-style access
+        try:
+            transformer_id = max_data['transformer_id'] if 'transformer_id' in max_data else 'Unknown'
+            max_loading_pct = max_data['loading_percentage'] if 'loading_percentage' in max_data else 0.0
             
-            <p style="margin-top: 20px; font-size: 16px;">Dear Recipient,</p>
+            # Set default status if not provided
+            if max_status is None:
+                max_status, max_color = get_alert_status(max_loading_pct)
             
-            <p style="margin-bottom: 25px; font-size: 16px;">This is an automated alert from the Transformer Loading Analysis System regarding abnormal loading conditions detected for Transformer <strong>{transformer_id}</strong>.</p>
+            # Get end date status if available
+            end_status = None
+            end_color = '#6c757d'  # Default gray
+            end_loading_pct = 0
             
-            <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {max_color};">
-                <h3 style="color: {max_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(max_status)} {max_status} Peak Load Alert</h3>
-                <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
-                    <li style="padding: 5px 0;"><strong>Peak Loading:</strong> {max_loading_pct:.1f}% {'' if max_loading_pct < 100 else '<span style="color: #dc3545;">(Exceeds safe threshold)</span>'}</li>
-                    <li style="padding: 5px 0;"><strong>Peak Occurrence:</strong> {max_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
-                </ul>
-            </div>
-            
-            <div style="background-color: #ffffff; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e9ecef;">
-                <h4 style="margin-top: 0; color: #495057; font-size: 18px;">📊 Peak Load Readings:</h4>
-                <ul style="list-style-type: none; padding-left: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                    <li style="padding: 5px 0;"><strong>Power:</strong> {max_data['power_kw']:.1f} kW</li>
-                    <li style="padding: 5px 0;"><strong>Current:</strong> {max_data['current_a']:.1f} A</li>
-                    <li style="padding: 5px 0;"><strong>Voltage:</strong> {max_data['voltage_v']:.1f} V</li>
-                    <li style="padding: 5px 0;"><strong>Power Factor:</strong> {max_data['power_factor']:.2f}</li>
-                </ul>
-            </div>
-        """
+            if end_data is not None:
+                end_loading_pct = end_data['loading_percentage'] if 'loading_percentage' in end_data else 0.0
+                end_status, end_color = get_alert_status(end_loading_pct)
         
-        # Add end date information if available
-        if end_data is not None:
+            html = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6; color: #333;">
+                <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 20px; border-radius: 10px; margin-bottom: 25px; text-align: center; border-bottom: 3px solid #0d6efd;">
+                    <h2 style="margin: 0; color: #2c3e50; font-size: 26px;">⚡ UPDATED: Transformer Loading Alert ⚡</h2>
+                </div>
+                
+                <p style="margin-top: 20px; font-size: 16px;">Dear Recipient,</p>
+                
+                <p style="margin-bottom: 25px; font-size: 16px;">This is an automated alert from the Transformer Loading Analysis System regarding abnormal loading conditions detected for Transformer <strong>{transformer_id}</strong>.</p>
+                
+                <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {max_color};">
+                    <h3 style="color: {max_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(max_status)} {max_status} Peak Load Alert</h3>
+                    <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
+                        <li style="padding: 5px 0;"><strong>Peak Loading:</strong> {max_loading_pct:.1f}% {'' if max_loading_pct < 100 else '<span style="color: #dc3545;">(Exceeds safe threshold)</span>'}</li>
+                        <li style="padding: 5px 0;"><strong>Peak Occurrence:</strong> {max_data['name'].strftime('%B %d, %Y, at %H:%M')}</li>
+                    </ul>
+                </div>
+                
+                <div style="background-color: #ffffff; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e9ecef;">
+                    <h4 style="margin-top: 0; color: #495057; font-size: 18px;">📊 Peak Load Readings:</h4>
+                    <ul style="list-style-type: none; padding-left: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                        <li style="padding: 5px 0;"><strong>Power:</strong> {max_data['power_kw']:.1f} kW</li>
+                        <li style="padding: 5px 0;"><strong>Current:</strong> {max_data['current_a']:.1f} A</li>
+                        <li style="padding: 5px 0;"><strong>Voltage:</strong> {max_data['voltage_v']:.1f} V</li>
+                        <li style="padding: 5px 0;"><strong>Power Factor:</strong> {max_data['power_factor']:.2f}</li>
+                    </ul>
+                </div>
+            """
+        
+            # Add end date information if available
+            if end_data is not None:
+                html += f"""
+                <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {end_color};">
+                    <h3 style="color: {end_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(end_status)} {end_status}: End-Date Loading</h3>
+                    <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
+                        <li style="padding: 5px 0;"><strong>End-Date Loading:</strong> {end_loading_pct:.1f}%</li>
+                        <li style="padding: 5px 0;"><strong>Recorded On:</strong> {end_data['name'].strftime('%B %d, %Y, at %H:%M')}</li>
+                    </ul>
+                </div>
+                
+                <div style="background-color: #ffffff; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e9ecef;">
+                    <h4 style="margin-top: 0; color: #495057; font-size: 18px;">📊 End-Date Load Readings:</h4>
+                    <ul style="list-style-type: none; padding-left: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                        <li style="padding: 5px 0;"><strong>Power:</strong> {end_data['power_kw']:.1f} kW</li>
+                        <li style="padding: 5px 0;"><strong>Current:</strong> {end_data['current_a']:.1f} A</li>
+                        <li style="padding: 5px 0;"><strong>Voltage:</strong> {end_data['voltage_v']:.1f} V</li>
+                        <li style="padding: 5px 0;"><strong>Power Factor:</strong> {end_data['power_factor']:.2f}</li>
+                    </ul>
+                </div>
+                """
+            
             html += f"""
-            <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {end_color};">
-                <h3 style="color: {end_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(end_status)} {end_status}: End-Date Loading</h3>
-                <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
-                    <li style="padding: 5px 0;"><strong>End-Date Loading:</strong> {end_loading_pct:.1f}%</li>
-                    <li style="padding: 5px 0;"><strong>Recorded On:</strong> {end_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
-                </ul>
-            </div>
-            
-            <div style="background-color: #ffffff; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e9ecef;">
-                <h4 style="margin-top: 0; color: #495057; font-size: 18px;">📊 End-Date Load Readings:</h4>
-                <ul style="list-style-type: none; padding-left: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                    <li style="padding: 5px 0;"><strong>Power:</strong> {end_data['power_kw']:.1f} kW</li>
-                    <li style="padding: 5px 0;"><strong>Current:</strong> {end_data['current_a']:.1f} A</li>
-                    <li style="padding: 5px 0;"><strong>Voltage:</strong> {end_data['voltage_v']:.1f} V</li>
-                    <li style="padding: 5px 0;"><strong>Power Factor:</strong> {end_data['power_factor']:.2f}</li>
-                </ul>
+                <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid #0d6efd;">
+                    <h4 style="margin-top: 0; color: #495057; font-size: 18px;">Recommended Actions:</h4>
+                    <ul>
+                        <li style="margin-bottom: 10px;"><strong>Immediate Inspection:</strong> Check transformer health and cooling systems.</li>
+                        <li style="margin-bottom: 10px;"><strong>Load Redistribution:</strong> Consider redistributing the load to avoid overloading.</li>
+                        <li style="margin-bottom: 10px;"><strong>Monitor Trends:</strong> Review past loading history for potential risk mitigation.</li>
+                    </ul>
+                </div>
+                
+                <p style="margin: 25px 0; font-size: 16px;">For a detailed loading history and further analysis, click the button below:</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                        🔍 View Loading History
+                    </a>
+                </div>
+                
+                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+                    <p style="margin-bottom: 5px; font-size: 16px;">If you have any questions or require further assistance, please contact the maintenance team.</p>
+                    
+                    <p style="margin-top: 25px; font-size: 16px;">
+                        Best regards,<br>
+                        <strong>Transformer Monitoring Team</strong>
+                    </p>
+                    
+                    <p style="color: #6c757d; font-size: 12px; text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+                        This is an automated alert from your Transformer Loading Analysis System.
+                    </p>
+                </div>
             </div>
             """
-            
-        html += f"""
-            <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid #0d6efd;">
-                <h4 style="margin-top: 0; color: #495057; font-size: 18px;">Recommended Actions:</h4>
-                <ul>
-                    <li style="margin-bottom: 10px;"><strong>Immediate Inspection:</strong> Check transformer health and cooling systems.</li>
-                    <li style="margin-bottom: 10px;"><strong>Load Redistribution:</strong> Consider redistributing the load to avoid overloading.</li>
-                    <li style="margin-bottom: 10px;"><strong>Monitor Trends:</strong> Review past loading history for potential risk mitigation.</li>
-                </ul>
-            </div>
-            
-            <p style="margin: 25px 0; font-size: 16px;">For a detailed loading history and further analysis, click the button below:</p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                    🔍 View Loading History
-                </a>
-            </div>
-            
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6;">
-                <p style="margin-bottom: 5px; font-size: 16px;">If you have any questions or require further assistance, please contact the maintenance team.</p>
-                
-                <p style="margin-top: 25px; font-size: 16px;">
-                    Best regards,<br>
-                    <strong>Transformer Monitoring Team</strong>
-                </p>
-                
-                <p style="color: #6c757d; font-size: 12px; text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6;">
-                    This is an automated alert from your Transformer Loading Analysis System.
-                </p>
-            </div>
-        </div>
-        """
-        return html
+            return html
+        
+        except Exception as e:
+            logger.error(f"Error creating email content: {str(e)}")
+            return ""
 
     def _create_deep_link(self, start_date: date, alert_time: datetime, 
                          transformer_id: str, search_end_date: Optional[date] = None) -> str:
