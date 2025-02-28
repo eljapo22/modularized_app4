@@ -132,7 +132,7 @@ def patch_transformer_charts():
                 capacity_text = alt.Chart(pd.DataFrame({
                     'timestamp': [df['timestamp'].max()],
                     'y': [size_kw],
-                    'text': [f"Capacity: {int(size_kva)}kVA"]  # Show kVA instead of kW
+                    'text': [f"Capacity: {int(size_kva)} kVA"]  # Show kVA instead of kW with space
                 })).mark_text(
                     align='right',
                     baseline='bottom',
