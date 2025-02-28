@@ -269,7 +269,8 @@ def display_loading_status(results_df: pd.DataFrame):
         baseline='bottom',
         fontSize=12,
         fontWeight='bold',
-        color='#dc3545'
+        color='#dc3545',
+        dy=-10  # Consistent vertical offset
     ).encode(
         x='max_time:T',
         y='y:Q',
@@ -298,12 +299,13 @@ def display_loading_status(results_df: pd.DataFrame):
                 # Add text annotation for alert time
                 alert_text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [145]
+                    'y': [max_loading_value * 1.05]  # Position at same height as peak load annotation
                 })).mark_text(
                     align='center',
                     baseline='bottom',
                     fontSize=12,
-                    color='gray'
+                    color='gray',
+                    dy=-10  # Consistent vertical offset
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
@@ -435,7 +437,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         fontWeight='bold',
         color='red',
         dx=20,  # Shift text right for better spacing
-        dy=-20  # Shift text up further for better visibility
+        dy=-10  # Consistent vertical offset
     ).encode(
         x='peak_time:T',
         y='y:Q',
@@ -466,9 +468,9 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             })).mark_text(
                 align='left',
                 baseline='top',
-                dy=-10,
                 fontSize=12,
-                color='gray'
+                color='gray',
+                dy=-10  # Consistent vertical offset
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
@@ -535,7 +537,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
         fontWeight='bold',
         color='red',
         dx=20,  # Shift text right for better spacing
-        dy=-20  # Shift text up significantly
+        dy=-10  # Consistent vertical offset
     ).encode(
         x='peak_time:T',
         y='y:Q',
@@ -562,13 +564,13 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [df['current_a'].max()]
+                'y': [df['current_a'].max() * 1.05]  # Same position as peak load
             })).mark_text(
                 align='left',
                 baseline='top',
-                dy=-10,
                 fontSize=12,
-                color='gray'
+                color='gray',
+                dy=-10  # Consistent vertical offset
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
@@ -738,7 +740,8 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             baseline='bottom',
             fontSize=12,
             fontWeight='bold',
-            color='red'
+            color='red',
+            dy=-10  # Consistent vertical offset
         ).encode(
             x='peak_time:T',
             y='y:Q',
@@ -765,13 +768,13 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
                 # Add text annotation for the alert
                 text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max()]
+                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Match peak load position
                 })).mark_text(
                     align='left',
                     baseline='top',
-                    dy=-10,
                     fontSize=12,
-                    color='gray'
+                    color='gray',
+                    dy=-10  # Consistent vertical offset
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
@@ -1238,7 +1241,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         fontWeight='bold',
         color='red',
         dx=20,  # Shift text right for better spacing
-        dy=-20  # Shift text up further for better visibility
+        dy=-10  # Consistent vertical offset
     ).encode(
         x='peak_time:T',
         y='y:Q',
@@ -1276,7 +1279,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 align='right',
                 baseline='bottom',
                 dx=-5,
-                dy=-5,
+                dy=-10,  # Consistent vertical offset
                 fontSize=12,
                 fontWeight='bold',
                 color='red'
@@ -1314,7 +1317,8 @@ def display_transformer_data(results_df: pd.DataFrame):
                 align='center',
                 baseline='top',
                 fontSize=12,
-                color='gray'
+                color='gray',
+                dy=-10  # Consistent vertical offset
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
@@ -1383,7 +1387,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             fontWeight='bold',
             color='red',
             dx=20,  # Shift text right for better spacing
-            dy=-20  # Shift text up significantly
+            dy=-10  # Consistent vertical offset
         ).encode(
             x='peak_time:T',
             y='y:Q',
@@ -1412,15 +1416,14 @@ def display_transformer_data(results_df: pd.DataFrame):
                 # Add alert text
                 alert_text = alt.Chart(pd.DataFrame({
                     'timestamp': [alert_time],
-                    'y': [df['current_a'].max()]
+                    'y': [df['current_a'].max() * 1.05]  # Same position as peak load
                 })).mark_text(
                     align='left',
                     baseline='top',
-                    dx=5,
-                    dy=-5,
                     fontSize=12,
                     fontWeight='bold',
-                    color='gray'
+                    color='gray',
+                    dy=-10  # Consistent vertical offset
                 ).encode(
                     x='timestamp:T',
                     y='y:Q',
@@ -1532,7 +1535,8 @@ def display_transformer_data(results_df: pd.DataFrame):
             baseline='bottom',
             fontSize=12,
             fontWeight='bold',
-            color='red'
+            color='red',
+            dy=-10  # Consistent vertical offset
         ).encode(
             x='peak_time:T',
             y='y:Q',
@@ -1559,13 +1563,13 @@ def display_transformer_data(results_df: pd.DataFrame):
                 # Add text annotation for the alert
                 text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max()]
+                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Match peak load position
                 })).mark_text(
                     align='left',
                     baseline='top',
-                    dy=-10,
                     fontSize=12,
-                    color='gray'
+                    color='gray',
+                    dy=-10  # Consistent vertical offset
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
@@ -1705,7 +1709,8 @@ def create_altair_chart(df, y_column, title=None, color=None):
                 align='center',
                 baseline='top',
                 fontSize=12,
-                color='gray'
+                color='gray',
+                dy=-10  # Consistent vertical offset
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
