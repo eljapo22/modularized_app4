@@ -1624,11 +1624,32 @@ def display_customer_data(results_df: pd.DataFrame):
     # Power Consumption
     create_colored_banner("Power Consumption")
     
-    # Create power chart with Altair
-    power_chart = create_altair_chart(
-        df,
-        'power_kw',
-        color="#1f77b4"  # Blue color for power
+    # Create power chart with Altair - with data points (dots) enabled
+    power_chart = alt.Chart(df).mark_line(point=True, color="#1f77b4").encode(
+        x=alt.X('timestamp:T', 
+            axis=alt.Axis(
+                format='%m/%d/%y',
+                title='Date',
+                labelAngle=-45,
+                labelColor='#333333',
+                titleColor='#333333',
+                labelFontSize=14,
+                titleFontSize=16
+            )
+        ),
+        y=alt.Y('power_kw:Q', 
+            scale=alt.Scale(zero=False),
+            axis=alt.Axis(
+                title='Power (kW)',
+                labelColor='#333333',
+                titleColor='#333333',
+                labelFontSize=14,
+                titleFontSize=16
+            )
+        ),
+        tooltip=['timestamp:T', 'power_kw:Q']
+    ).properties(
+        width='container'
     )
     st.altair_chart(power_chart, use_container_width=True)
 
@@ -1650,7 +1671,7 @@ def create_altair_chart(df, y_column, title=None, color=None):
         alt.Chart: Configured Altair chart
     """
     # Base configuration for line chart
-    chart = alt.Chart(df).mark_line().encode(
+    chart = alt.Chart(df).mark_line(point=True).encode(
         x=alt.X('timestamp:T',
                 axis=alt.Axis(
                     format='%m/%d/%y',
@@ -1754,7 +1775,7 @@ def create_multi_line_chart(df, column_dict, title=None):
     long_df['series_name'] = long_df['series'].map(column_dict)
     
     # Create chart
-    chart = alt.Chart(long_df).mark_line().encode(
+    chart = alt.Chart(long_df).mark_line(point=True).encode(
         x=alt.X('timestamp:T',
                 axis=alt.Axis(
                     format='%m/%d/%y',
