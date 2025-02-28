@@ -442,12 +442,12 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         'peak_time': [max_loading_time],
         'y': [peak_annotation_height]  # Position slightly above maximum value
     })).mark_text(
-        align='right',
+        align='left',
         baseline='bottom',
         fontSize=14,  # Larger font
         fontWeight='bold',
         color='red',
-        dx=20,  # Shift text right for better spacing
+        dx=10,  # Consistent horizontal offset
         dy=-10  # Consistent vertical offset
     ).encode(
         x='peak_time:T',
@@ -547,12 +547,12 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
         'peak_time': [max_loading_time],
         'y': [df['current_a'].max() * 1.05]  # Position 5% above maximum value
     })).mark_text(
-        align='right',
+        align='left',
         baseline='bottom',
         fontSize=14,
         fontWeight='bold',
         color='red',
-        dx=20,  # Shift text right for better spacing
+        dx=10,  # Consistent horizontal offset
         dy=-10  # Consistent vertical offset
     ).encode(
         x='peak_time:T',
@@ -1262,12 +1262,12 @@ def display_transformer_data(results_df: pd.DataFrame):
         'peak_time': [max_loading_time],
         'y': [peak_annotation_height]  # Position slightly above maximum value
     })).mark_text(
-        align='right',
+        align='left',
         baseline='bottom',
         fontSize=14,  # Larger font
         fontWeight='bold',
         color='red',
-        dx=20,  # Shift text right for better spacing
+        dx=10,  # Consistent horizontal offset
         dy=-10  # Consistent vertical offset
     ).encode(
         x='peak_time:T',
@@ -1305,7 +1305,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             
             # Add text annotation for the capacity line
             capacity_text = alt.Chart(domain_df.iloc[[-1]]).mark_text(
-                align='right',
+                align='left',
                 baseline='bottom',
                 dx=-5,
                 dy=-10,  # Consistent vertical offset
@@ -1411,12 +1411,12 @@ def display_transformer_data(results_df: pd.DataFrame):
             'peak_time': [max_loading_time],
             'y': [df['current_a'].max() * 1.05]  # Position 5% above maximum value
         })).mark_text(
-            align='right',
+            align='left',
             baseline='bottom',
             fontSize=14,
             fontWeight='bold',
             color='red',
-            dx=20,  # Shift text right for better spacing
+            dx=10,  # Consistent horizontal offset
             dy=-10  # Consistent vertical offset
         ).encode(
             x='peak_time:T',
@@ -1896,3 +1896,5 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
     # Display voltage time series if data is available
     if 'voltage_a' in df.columns and not df['voltage_a'].isna().all():
         display_voltage_time_series(df)
+
+
