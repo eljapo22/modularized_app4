@@ -14,8 +14,21 @@ import smtplib
 
 logger = logging.getLogger(__name__)
 
-def get_alert_status(loading_pct: float) -> tuple[str, str]:
-    """Get alert status and color based on loading percentage"""
+def get_status_emoji(status: str) -> str:
+    """Return emoji for status"""
+    if status == 'Critical':
+        return '🔴'
+    elif status == 'Overloaded':
+        return '🟠'
+    elif status == 'Warning':
+        return '🟡'
+    elif status == 'Pre-Warning':
+        return '🟣'
+    else:
+        return '✅'
+
+def get_alert_status(loading_pct: float) -> Tuple[str, str]:
+    """Determine alert status based on loading percentage"""
     if loading_pct >= 120:
         return 'Critical', '#dc3545'
     elif loading_pct >= 100:
@@ -26,16 +39,6 @@ def get_alert_status(loading_pct: float) -> tuple[str, str]:
         return 'Pre-Warning', '#6f42c1'
     else:
         return 'Normal', '#198754'
-
-def get_status_emoji(status: str) -> str:
-    """Get emoji for status"""
-    return {
-        'Critical': '🔴',
-        'Overloaded': '🟠',
-        'Warning': '🟡',
-        'Pre-Warning': '🟣',
-        'Normal': '🟢'
-    }.get(status, '⚪')
 
 class CloudAlertService:
     def __init__(self):
