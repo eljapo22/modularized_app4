@@ -108,19 +108,18 @@ def main():
         try:
             feeders = data_service.get_feeder_options()
             if not feeders:
-                st.warning("No feeders found. Using default.")
+                logger.warning("No feeders found. Using default.")
                 feeders = ["Feeder 1"]
         except Exception as e:
             logger.error(f"Comprehensive feeder loading error: {str(e)}")
             feeders = ["Feeder 1"]
-            st.warning(f"Error loading feeders: {str(e)}. Using default.")
+            logger.warning(f"Error loading feeders: {str(e)}. Using default.")
 
-        # Ensure a valid selection
-        feeder = st.selectbox(
-            "Feeder",
-            options=feeders,
-            index=0
-        )
+        # Auto-select first feeder instead of showing dropdown
+        feeder = feeders[0]
+        
+        # Add a small vertical spacer for UI consistency
+        st.markdown("<div style='padding: 10px'></div>", unsafe_allow_html=True)
 
         # Transformer selection with comprehensive error handling
         try:
@@ -131,12 +130,12 @@ def main():
             transformers = data_service.get_transformer_options(feeder_str)
             
             if not transformers:
-                st.warning(f"No transformers found for {feeder_str}. Try another feeder.")
+                st.warning(f"No transformers found for feeder '{feeder_str}'.")
                 transformers = [f"Transformer_{feeder_str}_001"]  # Fallback
         except Exception as e:
             logger.error(f"Comprehensive transformer loading error: {str(e)}")
             transformers = [f"Transformer_{feeder}_001"]  # Fallback
-            st.warning(f"Error loading transformers: {str(e)}. Using default.")
+            logger.warning(f"Error loading transformers: {str(e)}. Using default.")
 
         # Ensure a valid transformer selection
         default_index = 0
