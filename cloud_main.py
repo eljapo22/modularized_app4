@@ -1,5 +1,6 @@
 """
 Cloud-specific entry point for the Transformer Loading Analysis Application
+Updated 2025-02-28: Enhanced email alert template
 """
 
 import streamlit as st
