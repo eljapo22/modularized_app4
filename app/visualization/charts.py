@@ -717,7 +717,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             y=alt.Y('value:Q', 
                     scale=alt.Scale(domain=[300, 500], zero=False),  # Set voltage range to capture full 15% variation
                     axis=alt.Axis(
-                        title="Value, V",
+                        title="Voltage",
                         labelColor='#333333',
                         titleColor='#333333',
                         labelFontSize=14,
@@ -1516,7 +1516,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             y=alt.Y('value:Q', 
                     scale=alt.Scale(domain=[300, 500], zero=False),  # Set voltage range to capture full 15% variation
                     axis=alt.Axis(
-                        title="Value, V",
+                        title="Voltage",
                         labelColor='#333333',
                         titleColor='#333333',
                         labelFontSize=14,
@@ -1830,18 +1830,25 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
 
-    # Find the maximum loading point - This is now centralized for all charts
-    if 'loading_percentage' in df.columns:
-        max_loading_idx = df['loading_percentage'].idxmax()
-        max_loading_point = df.loc[max_loading_idx]
-        max_loading_time = max_loading_point['timestamp']
-        
-        # Store in session state for consistent use across all charts
-        st.session_state.max_loading_time = max_loading_time
+    # Check if transformer peak time is already set in session state
+    # If so, use that for consistency across all views
+    if 'max_loading_time' in st.session_state:
+        max_loading_time = st.session_state.max_loading_time
+        logger.info(f"Customer dashboard: Using transformer peak time from session state: {max_loading_time}")
     else:
-        # If loading percentage is not available, we'll let each chart determine its own max point
-        if 'max_loading_time' in st.session_state:
-            del st.session_state.max_loading_time
+        # Find the maximum loading point - This is now centralized for all charts
+        if 'loading_percentage' in df.columns:
+            max_loading_idx = df['loading_percentage'].idxmax()
+            max_loading_point = df.loc[max_loading_idx]
+            max_loading_time = max_loading_point['timestamp']
+            
+            # Store in session state for consistent use across all charts
+            st.session_state.max_loading_time = max_loading_time
+            logger.info(f"Customer dashboard: Setting new peak time based on customer data: {max_loading_time}")
+        else:
+            # If loading percentage is not available, we'll let each chart determine its own max point
+            if 'max_loading_time' in st.session_state:
+                del st.session_state.max_loading_time
 
     # Log the alert timestamp if available (helpful for debugging)
     if 'highlight_timestamp' in st.session_state:
