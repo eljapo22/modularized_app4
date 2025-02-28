@@ -739,7 +739,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
                 range=['#1f77b4', '#ff7f0e', '#2ca02c']  # Blue, Orange, Green
             ))
         ).properties(
-            title="Voltage (V)" if is_transformer_view else None
+            title="Voltage (V)" if is_transformer_view else ""
         )
         
         # Add peak load indicator
