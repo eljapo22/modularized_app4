@@ -3,8 +3,9 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import altair as alt
-from app.visualization.charts import display_power_time_series, display_customer_data, display_transformer_data
+from app.visualization.charts import display_power_time_series, display_current_time_series, display_customer_data, display_transformer_data, display_voltage_time_series
 from app.visualization.charts import format_chart_dates, normalize_timestamps
+from app.utils.ui_components import create_colored_banner
 
 # Create a temporary patch for charts.py
 def patch_transformer_charts():
@@ -14,11 +15,13 @@ def patch_transformer_charts():
     1. Increase vertical spacing above the power chart
     2. Make alert annotations match peak load annotations in height & style
     3. Update the capacity label to show kVA instead of kW
+    4. Fix double alert points in customer views
     """
-    # Store the original function
+    # Store the original functions
     original_display_power_time_series = display_power_time_series
+    original_display_customer_data = display_customer_data
     
-    # Define the patched function
+    # Define the patched function for transformer power time series
     def patched_display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
         """Patched version with improved annotations"""
         if results_df is None or results_df.empty:
@@ -110,8 +113,7 @@ def patch_transformer_charts():
         # Add horizontal capacity line if size_kva exists
         if is_transformer_view and 'size_kva' in df.columns and not df['size_kva'].isna().all():
             try:
-                # Get the size_kva value and convert to equivalent power in kW
-                # Assuming power factor of 0.9 for conversion if not specified
+                # Get the size_kva value directly - no conversion needed for display
                 size_kva = float(df['size_kva'].iloc[0])
                 avg_pf = df['power_factor'].mean() if 'power_factor' in df.columns else 0.9
                 size_kw = size_kva * avg_pf
@@ -164,7 +166,7 @@ def patch_transformer_charts():
                     x='alert_time:T'
                 )
                 
-                # Add text annotation for the alert
+                # Add text annotation for the alert - using same height calculation as peak load
                 text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
                     'y': [peak_annotation_height]  # Match peak load annotation height
@@ -190,7 +192,108 @@ def patch_transformer_charts():
         # Display the chart with streamlit
         st.altair_chart(chart, use_container_width=True)
     
-    # Apply the patch
+    # Define patched customer data display function to fix double alert points
+    def patched_display_customer_data(results_df: pd.DataFrame):
+        """Display customer data visualizations with improved charts."""
+        if results_df is None or results_df.empty:
+            st.warning("No data available for customer visualization.")
+            return
+
+        # Get customer ID
+        customer_id = results_df['customer_id'].iloc[0] if 'customer_id' in results_df.columns else "N/A"
+        
+        # Display customer ID
+        st.markdown(f"""
+            <div style='padding: 10px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
+                <p style='margin: 0; color: #666666; font-size: 14px'>Customer ID: {customer_id}</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Display X coordinate
+        st.markdown("""
+            <div style='padding: 10px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
+                <p style='margin: 0; color: #666666; font-size: 14px'>X Coordinate: 43.6532° N</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Display Y coordinate
+        st.markdown("""
+            <div style='padding: 10px; border: 1px solid #d1d1d1; border-radius: 3px; margin: 8px 0px; background-color: #ffffff'>
+                <p style='margin: 0; color: #666666; font-size: 14px'>Y Coordinate: 79.3832° W</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # Ensure timestamp is datetime
+        df = results_df.copy()
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df.sort_values('timestamp')
+        
+        # Calculate peak annotation height with more vertical spacing (consistent with transformer view)
+        peak_annotation_height = df['power_kw'].max() * 1.15
+        
+        # Power Consumption
+        create_colored_banner("Power Consumption")
+        
+        # Find the maximum loading point
+        max_loading_idx = df['power_kw'].idxmax() 
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+        
+        # Create power chart with Altair - with data points (dots) enabled
+        power_chart = alt.Chart(df).mark_line(point=True, color="#1f77b4").encode(
+            x=alt.X('timestamp:T', 
+                axis=alt.Axis(
+                    format='%m/%d/%y',
+                    title='Date',
+                    labelAngle=-45,
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=14,
+                    titleFontSize=16
+                )
+            ),
+            y=alt.Y('power_kw:Q', 
+                scale=alt.Scale(zero=False),
+                axis=alt.Axis(
+                    title='Power (kW)',
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=14,
+                    titleFontSize=16
+                )
+            ),
+            tooltip=['timestamp:T', 'power_kw:Q']
+        ).properties(
+            width='container'
+        )
+        
+        # Add alert timestamp if in session state - for customer view, just add the rule without text
+        if 'highlight_timestamp' in st.session_state:
+            try:
+                alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+                
+                # Create a vertical rule to mark the alert time
+                rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
+                    color='gray',
+                    strokeWidth=2,
+                    strokeDash=[5, 5]
+                ).encode(
+                    x='alert_time:T'
+                )
+                
+                # Combine charts - only one alert annotation
+                power_chart = alt.layer(power_chart, rule)
+            except Exception as e:
+                logging.error(f"Error highlighting alert timestamp: {e}")
+                
+        st.altair_chart(power_chart, use_container_width=True)
+
+        # Only show Voltage chart
+        create_colored_banner("Voltage")
+        display_voltage_time_series(results_df)
+    
+    # Apply the patches
     import app.visualization.charts
     app.visualization.charts.display_power_time_series = patched_display_power_time_series
+    app.visualization.charts.display_customer_data = patched_display_customer_data
     return patched_display_power_time_series
