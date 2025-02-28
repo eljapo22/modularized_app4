@@ -611,6 +611,9 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
         except Exception as e:
             logger.error(f"Error adding alert timestamp: {e}")
     
+    # Set the height to 300 for consistency
+    chart = chart.properties(height=300)
+    
     # Display the chart with streamlit
     st.altair_chart(chart, use_container_width=True)
 
@@ -654,14 +657,60 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             max_loading_time = df['timestamp'].iloc[middle_index]
             logger.warning(f"Voltage chart: No metrics available for peak detection. Using middle timestamp ({middle_index}/{len(df)}) at {max_loading_time}")
         
-        # Prepare voltage data for multi-line chart
-        voltage_data = df[['timestamp', 'voltage_a', 'voltage_b', 'voltage_c']].rename(
-            columns={
-                'voltage_a': 'Phase A',
-                'voltage_b': 'Phase B',
-                'voltage_c': 'Phase C'
-            }
-        )
+        # Create synthetic 3-phase voltage data (same as transformer view)
+        voltage_data = pd.DataFrame()
+        voltage_data['timestamp'] = df['timestamp']
+        
+        # Import for math functions
+        import numpy as np
+        
+        # Base voltage is 400V
+        base_voltage = 400
+        
+        # Time-based index for sinusoidal patterns
+        time_idx = np.linspace(0, 4*np.pi, len(df))
+        
+        # Define the range parameters
+        variation_pct = 0.15  # 15% variation
+        pattern_influence = 0.08  # 8% influence
+        random_noise = 0.02  # 2% random noise
+        
+        # Create pattern data (using power_kw if available)
+        if 'power_kw' in df.columns and not df['power_kw'].isna().all():
+            power_min = df['power_kw'].min()
+            power_max = df['power_kw'].max()
+            # Avoid division by zero
+            if power_max > power_min:
+                power_pattern = (df['power_kw'] - power_min) / (power_max - power_min)
+            else:
+                power_pattern = pd.Series(0.5, index=df.index, name='pattern')
+        else:
+            power_pattern = np.ones(len(df)) * 0.5
+            logger.warning(f"Voltage chart: Pattern data missing. Using constant pattern.")
+        
+        # Create inverse pattern for voltage (power increases = voltage slightly decreases)
+        inverse_pattern = 1 - power_pattern.values
+        
+        # Phase A - centered around 400V with enhanced pattern influence and noise
+        phase_a = base_voltage + \
+                  base_voltage * variation_pct * np.sin(time_idx) + \
+                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
+                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
+        voltage_data['Phase A'] = phase_a
+        
+        # Phase B - shifted 120 degrees (2π/3 radians) with enhanced pattern influence and noise
+        phase_b = base_voltage + \
+                  base_voltage * variation_pct * np.sin(time_idx - (2*np.pi/3)) + \
+                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
+                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
+        voltage_data['Phase B'] = phase_b
+        
+        # Phase C - shifted 240 degrees (4π/3 radians) with enhanced pattern influence and noise
+        phase_c = base_voltage + \
+                  base_voltage * variation_pct * np.sin(time_idx - (4*np.pi/3)) + \
+                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
+                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
+        voltage_data['Phase C'] = phase_c
         
         # Calculate the annotation height using our helper function for multi-phase
         annotation_height = calculate_annotation_height(
@@ -682,7 +731,9 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Create a multi-line chart for voltage with proper coloring
         voltage_chart = alt.Chart(voltage_data_melted).mark_line().encode(
             x=alt.X('timestamp:T', title='Date'),
-            y=alt.Y('Voltage:Q', title='Voltage (V)'),
+            y=alt.Y('Voltage:Q', 
+                  title='Voltage (V)',
+                  scale=alt.Scale(domain=[300, 500], zero=False)),
             color=alt.Color('Phase:N', scale=alt.Scale(
                 domain=['Phase A', 'Phase B', 'Phase C'],
                 range=['#1f77b4', '#ff7f0e', '#2ca02c']  # Blue, Orange, Green
@@ -757,7 +808,9 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             except Exception as e:
                 logger.error(f"Error adding alert timestamp to voltage chart: {e}")
         
-        # Display the chart with streamlit
+        # Set the height to 300 for consistency
+        voltage_chart = voltage_chart.properties(height=300)
+        
         st.altair_chart(voltage_chart, use_container_width=True)
     
     except Exception as e:
@@ -1346,7 +1399,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             tooltip=['timestamp:T', 'current_a:Q']
         ).properties(
             width="container",
-            height=250
+            height=300
         )
         
         # Add peak load indicator for current
@@ -1567,7 +1620,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 logger.error(f"Could not add alert timestamp to voltage chart: {str(e)}")
         
         # Set the height to match the original chart
-        voltage_chart = voltage_chart.properties(height=250)
+        voltage_chart = voltage_chart.properties(height=300)
         
         st.altair_chart(voltage_chart, use_container_width=True)
 
