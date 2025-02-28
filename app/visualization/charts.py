@@ -171,7 +171,6 @@ def display_loading_status(results_df: pd.DataFrame):
         ),
         tooltip=['timestamp:T', alt.Tooltip('loading_percentage:Q', format='.1f', title='Loading %')]
     ).properties(
-        title="Loading Percentage Over Time",
         height=400
     ).interactive()  # Make chart interactive
     
@@ -305,6 +304,7 @@ def display_loading_status(results_df: pd.DataFrame):
                     baseline='bottom',
                     fontSize=12,
                     color='gray',
+                    dx=10,  # Add horizontal offset to avoid overlapping with line
                     dy=-10  # Consistent vertical offset
                 ).encode(
                     x='alert_time:T',
@@ -317,10 +317,7 @@ def display_loading_status(results_df: pd.DataFrame):
         except Exception as e:
             logger.error(f"Error adding alert time indicator: {e}")
     
-    # Display the chart
-    st.altair_chart(chart, use_container_width=True)
-    
-    # Add threshold legend in a better position - right aligned with proper formatting
+    # Add threshold legend above the chart - right aligned with proper formatting
     st.markdown("""
     <style>
     .threshold-legend {
@@ -328,7 +325,7 @@ def display_loading_status(results_df: pd.DataFrame):
         justify-content: flex-end;
         flex-wrap: wrap;
         gap: 12px;
-        margin-top: -20px;
+        margin-bottom: 5px;
         padding: 5px;
         border-radius: 4px;
     }
@@ -367,6 +364,9 @@ def display_loading_status(results_df: pd.DataFrame):
         </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Display the chart
+    st.altair_chart(chart, use_container_width=True)
 
 def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display power consumption time series visualization."""
@@ -467,12 +467,13 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [df['power_kw'].max()]
+                'y': [df['power_kw'].max() * 1.05]  # Match peak load height with 5% buffer
             })).mark_text(
                 align='left',
                 baseline='top',
                 fontSize=12,
                 color='gray',
+                dx=10,  # Add horizontal offset to avoid overlapping with line
                 dy=-10  # Consistent vertical offset
             ).encode(
                 x='alert_time:T',
@@ -744,6 +745,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             fontSize=12,
             fontWeight='bold',
             color='red',
+            dx=10,  # Add horizontal offset to avoid overlapping with line
             dy=-10  # Consistent vertical offset
         ).encode(
             x='peak_time:T',
@@ -777,6 +779,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
                     baseline='top',
                     fontSize=12,
                     color='gray',
+                    dx=10,  # Add horizontal offset to avoid overlapping with line
                     dy=-10  # Consistent vertical offset
                 ).encode(
                     x='alert_time:T',
@@ -1189,14 +1192,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         ),
         y=alt.Y('power_kw:Q', 
             scale=alt.Scale(zero=False),  # Use zero=False to show data variations better
-            axis=alt.Axis(
-                title='Power (kW)',
-                labelColor='#333333',
-                titleColor='#333333',
-                labelFontSize=14,
-                titleFontSize=16
-            )
-        ),
+            ),
         tooltip=['timestamp:T', 'power_kw:Q']
     ).properties(
         width="container",
@@ -1318,13 +1314,13 @@ def display_transformer_data(results_df: pd.DataFrame):
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [peak_annotation_height * 1.1]  # Position alert point annotation higher than peak load
+                'y': [peak_annotation_height * 1.05]  # Match peak load height
             })).mark_text(
                 align='left',
                 baseline='bottom',
                 fontSize=14,
-                fontWeight='bold',
                 color='gray',
+                dx=10,  # Add horizontal offset to avoid overlapping with line
                 dy=-10  # Consistent vertical offset
             ).encode(
                 x='alert_time:T',
@@ -1543,6 +1539,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             fontSize=12,
             fontWeight='bold',
             color='red',
+            dx=10,  # Add horizontal offset to avoid overlapping with line
             dy=-10  # Consistent vertical offset
         ).encode(
             x='peak_time:T',
@@ -1576,6 +1573,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                     baseline='top',
                     fontSize=12,
                     color='gray',
+                    dx=10,  # Add horizontal offset to avoid overlapping with line
                     dy=-10  # Consistent vertical offset
                 ).encode(
                     x='alert_time:T',
@@ -1738,6 +1736,7 @@ def create_altair_chart(df, y_column, title=None, color=None):
                 baseline='top',
                 fontSize=12,
                 color='gray',
+                dx=10,  # Add horizontal offset to avoid overlapping with line
                 dy=-10  # Consistent vertical offset
             ).encode(
                 x='alert_time:T',
