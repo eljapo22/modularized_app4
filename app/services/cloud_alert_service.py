@@ -123,7 +123,7 @@ class CloudAlertService:
             logger.error(f"Error selecting alert points: {str(e)}")
             return None, None
 
-    def _create_email_content(self, max_point, end_point=None, max_status='', max_color='', deep_link=''):
+    def _create_email_content(self, max_point, end_point=None, max_status=None, max_color=None, deep_link=''):
         """Create email HTML content for alert"""
         
         # Extract data from the max point
@@ -134,8 +134,8 @@ class CloudAlertService:
         # Only extract end data if available
         end_data = None
         end_loading_pct = None
-        end_status = ''
-        end_color = ''
+        end_status = None
+        end_color = None
         
         if end_point is not None:
             end_data = end_point['data']
@@ -153,7 +153,7 @@ class CloudAlertService:
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
                 <h3 style="color: {max_color};">{get_status_emoji(max_status)} {max_status} Peak Load Alert</h3>
                 <ul style="list-style-type: none; padding-left: 20px;">
-                    <li><strong>Peak Loading:</strong> {max_loading_pct:.1f}% {max_loading_pct >= 100 and '(Exceeds safe threshold)' or ''}</li>
+                    <li><strong>Peak Loading:</strong> {max_loading_pct:.1f}% {'' if max_loading_pct < 100 else '(Exceeds safe threshold)'}</li>
                     <li><strong>Peak Occurrence:</strong> {max_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
                 </ul>
             </div>
@@ -374,9 +374,9 @@ class CloudAlertService:
                 html_content = self._create_email_content(
                     max_point, 
                     end_point,
-                    max_status, 
-                    max_color, 
-                    deep_link
+                    max_status=max_status, 
+                    max_color=max_color, 
+                    deep_link=deep_link
                 )
                 msg.attach(MIMEText(html_content, 'html'))
                 
