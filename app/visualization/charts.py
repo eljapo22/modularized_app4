@@ -427,7 +427,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 1.10]  # Position significantly above max for better visibility
+        'y': [df['power_kw'].max() * 1.05]  # Position significantly above max for better visibility
     })).mark_text(
         align='right',
         baseline='bottom',
