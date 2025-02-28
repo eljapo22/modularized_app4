@@ -53,7 +53,7 @@ class CloudAlertService:
         else:
             logger.info("Email alerts enabled")
 
-    def _get_status_color(self, loading_pct: float) -> tuple:
+    def _get_status_color(self, loading_pct: float) -> Tuple[str, str, str]:
         """Get status and color based on loading percentage"""
         if loading_pct >= 120:
             return "CRITICAL", "#dc3545", "🚨"
