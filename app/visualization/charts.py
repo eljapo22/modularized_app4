@@ -368,7 +368,7 @@ def display_loading_status(results_df: pd.DataFrame):
     # Display the chart
     st.altair_chart(chart, use_container_width=True)
 
-def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
+def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False, show_alert_point: bool = True):
     """Display power consumption time series visualization."""
     if results_df is None or results_df.empty:
         st.warning("No data available for power consumption visualization.")
@@ -459,7 +459,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     chart = alt.layer(chart, peak_rule, peak_text)
     
     # Add alert timestamp if in session state
-    if 'highlight_timestamp' in st.session_state:
+    if show_alert_point and 'highlight_timestamp' in st.session_state:
         try:
             alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
             
@@ -497,7 +497,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     # Display the chart with streamlit
     st.altair_chart(chart, use_container_width=True)
 
-def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
+def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False, show_alert_point: bool = True):
     """Display current time series visualization."""
     if results_df is None or results_df.empty:
         st.warning("No data available for current visualization.")
@@ -564,7 +564,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     chart = alt.layer(chart, peak_rule, peak_text)
     
     # Add alert timestamp if in session state
-    if 'highlight_timestamp' in st.session_state:
+    if show_alert_point and 'highlight_timestamp' in st.session_state:
         try:
             alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
             
@@ -603,7 +603,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     # Display the chart with streamlit
     st.altair_chart(chart, use_container_width=True)
 
-def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
+def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False, show_alert_point: bool = True):
     """Display voltage time series visualization."""
     if results_df is None or results_df.empty:
         st.warning("No data available for voltage visualization.")
@@ -770,7 +770,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         voltage_chart = alt.layer(voltage_chart, peak_rule, peak_text)
         
         # Add alert timestamp if in session state and not skipped
-        if 'highlight_timestamp' in st.session_state :
+        if show_alert_point and 'highlight_timestamp' in st.session_state :
             try:
                 alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
                 
@@ -1886,19 +1886,13 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
     # Display loading status chart
     display_loading_status(df)
     
-    # Display power time series
-    display_power_time_series(df)
+    # Display power time series - only show alert point on this chart
+    display_power_time_series(df, show_alert_point=True)
     
     # Display current time series if data is available
     if 'current_a' in df.columns and not df['current_a'].isna().all():
-        display_current_time_series(df)
+        display_current_time_series(df, show_alert_point=False)
     
     # Display voltage time series if data is available
     if 'voltage_a' in df.columns and not df['voltage_a'].isna().all():
-        display_voltage_time_series(df)
-
-
-
-
-
-
+        display_voltage_time_series(df, show_alert_point=False)
