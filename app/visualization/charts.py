@@ -264,7 +264,7 @@ def display_loading_status(results_df: pd.DataFrame):
         'max_time': [max_loading_time],
         'y': [max_loading_value * 1.05]  # Position 5% above maximum value
     })).mark_text(
-        align='center',
+        align='left',
         baseline='bottom',
         fontSize=12,
         fontWeight='bold',
@@ -300,7 +300,7 @@ def display_loading_status(results_df: pd.DataFrame):
                     'alert_time': [alert_time],
                     'y': [max_loading_value * 1.05]  # Position at same height as peak load annotation
                 })).mark_text(
-                    align='center',
+                    align='left',
                     baseline='bottom',
                     fontSize=12,
                     color='gray',
@@ -1761,7 +1761,7 @@ def create_altair_chart(df, y_column, title=None, color=None):
                 'alert_time': [alert_time],
                 'y': [df[y_column].max()]
             })).mark_text(
-                align='center',
+                align='left',
                 baseline='top',
                 fontSize=12,
                 color='gray',
@@ -1896,6 +1896,7 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
     # Display voltage time series if data is available
     if 'voltage_a' in df.columns and not df['voltage_a'].isna().all():
         display_voltage_time_series(df)
+
 
 
 
