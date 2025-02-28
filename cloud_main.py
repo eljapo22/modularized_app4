@@ -67,8 +67,12 @@ st.markdown("""
 def main():
     """Main application function for cloud environment"""
     try:
+        logging.info("Starting cloud application")
+        
         # Apply patched chart functions
+        logging.info("Applying chart patches...")
         patch_transformer_charts()
+        logging.info("Chart patches applied")
         
         # Initialize services
         data_service = CloudDataService()

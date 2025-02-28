@@ -432,7 +432,14 @@ def patch_transformer_charts():
     
     # Apply the patches
     import app.visualization.charts
+    import logging
+    
+    # Log the patch application for debugging
+    logging.info("Applying chart patches to fix annotation issues")
+    
     app.visualization.charts.display_power_time_series = patched_display_power_time_series
     app.visualization.charts.display_customer_data = patched_display_customer_data
     app.visualization.charts.display_current_time_series = patched_display_current_time_series
+    
+    logging.info("Chart patches applied successfully")
     return patched_display_power_time_series
