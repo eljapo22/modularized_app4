@@ -273,7 +273,7 @@ def display_loading_status(results_df: pd.DataFrame):
     ).encode(
         x='max_time:T',
         y='y:Q',
-        text=alt.value(f'⚠️ Peak load')
+        text=alt.value(f'Peak load')
     )
     
     # Add the max loading indicator to the chart
@@ -307,7 +307,7 @@ def display_loading_status(results_df: pd.DataFrame):
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
-                    text=alt.value('⚠️ Alert point')
+                    text=alt.value('Alert point')
                 )
                 
                 # Add to the chart
@@ -472,7 +472,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
-                text=alt.value('⚠️ Alert point')
+                text=alt.value('Alert point')
             )
             
             # Combine with existing chart
@@ -537,7 +537,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     ).encode(
         x='peak_time:T',
         y='y:Q',
-        text=alt.value('⚠️ Peak load')
+        text=alt.value('Peak load')
     )
     
     # Combine the charts
@@ -570,7 +570,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
-                text=alt.value('⚠️ Alert point')
+                text=alt.value('Alert point')
             )
             
             # Combine with existing chart
@@ -730,17 +730,19 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Add text annotation for peak load
         peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.9]  # Position below max for visibility
+            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.95]  # Position higher for better visibility
         })).mark_text(
-            align='left',
-            baseline='bottom',
-            fontSize=12,
+            align='right',
+            baseline='top',
+            fontSize=14,
             fontWeight='bold',
-            color='red'
+            color='red',
+            dx=20,  # Shift text right for better spacing
+            dy=-15  # Shift text up for better visibility
         ).encode(
             x='peak_time:T',
             y='y:Q',
-            text=alt.value('⚠️ Peak load')
+            text=alt.value('Peak load')
         )
         
         # Combine the charts
@@ -773,7 +775,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
-                    text=alt.value('⚠️ Alert point')
+                    text=alt.value('Alert point')
                 )
                 
                 # Combine with existing chart
@@ -1316,7 +1318,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
-                text=alt.value('⚠️ Alert point')
+                text=alt.value('Alert point')
             )
             
             # Combine with existing chart
@@ -1383,7 +1385,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         ).encode(
             x='peak_time:T',
             y='y:Q',
-            text=alt.value('⚠️ Peak load')
+            text=alt.value('Peak load')
         )
         
         # Combine chart with peak load indicator
@@ -1420,7 +1422,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 ).encode(
                     x='timestamp:T',
                     y='y:Q',
-                    text=alt.value('⚠️ Alert point')
+                    text=alt.value('Alert point')
                 )
                 
                 # Combine with base chart
@@ -1532,7 +1534,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         ).encode(
             x='peak_time:T',
             y='y:Q',
-            text=alt.value('⚠️ Peak load')
+            text=alt.value('Peak load')
         )
         
         # Combine the charts
@@ -1565,7 +1567,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
-                    text=alt.value('⚠️ Alert point')
+                    text=alt.value('Alert point')
                 )
                 
                 # Combine with existing chart
@@ -1705,7 +1707,7 @@ def create_altair_chart(df, y_column, title=None, color=None):
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
-                text=alt.value('⚠️ Alert point')
+                text=alt.value('Alert point')
             )
             
             # Combine the base chart with rule and text
