@@ -887,8 +887,12 @@ def display_transformer_dashboard(
                 is_clickable=False
             )
 
+        # Copy the dataframe before passing to display_transformer_data
+        # This ensures any transformations in display_transformer_data don't affect the original
+        transformer_display_df = transformer_df.copy()
+        
         # Display transformer data visualizations
-        display_transformer_data(transformer_df)
+        display_transformer_data(transformer_display_df)
 
     except KeyError as ke:
         logger.error(f"Key error in dashboard display: {str(ke)}")
@@ -1102,263 +1106,32 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Power Consumption
     create_colored_banner("Power Consumption")
     
-    # Create power chart with Altair - using standard function for consistent styling
-    power_df = df.copy()
-    
-    # Create base chart with proper dimensions
-    base = alt.Chart(power_df).mark_line(point=True, color="#1f77b4").encode(
-        x=alt.X('timestamp:T', 
-            axis=alt.Axis(
-                format='%m/%d/%y',
-                title='Date',
-                labelAngle=-45,
-                labelColor='#333333',
-                titleColor='#333333',
-                labelFontSize=14,
-                titleFontSize=16
-            )
-        ),
-        y=alt.Y('power_kw:Q', 
-            axis=alt.Axis(
-                title='Power (kW)',
-                labelColor='#333333',
-                titleColor='#333333',
-                labelFontSize=14,
-                titleFontSize=16
-            )
-        ),
-        tooltip=['timestamp:T', 'power_kw:Q']
-    ).properties(
-        width="container",
-        height=300
+    # Use the standardized chart function with proper view controls
+    power_chart = create_altair_chart(
+        df=df,
+        y_column='power_kw',
+        title='Power Consumption',
+        color='#1f77b4',  # Blue color
+        chart_id='transformer_power'
     )
     
-    # Find the maximum loading point for the peak load indicator
-    if 'loading_percentage' in df.columns:
-        max_loading_idx = df['loading_percentage'].idxmax()
-        max_loading_point = df.loc[max_loading_idx]
-        max_loading_time = max_loading_point['timestamp']
-        logger.info(f"Power chart: Using loading_percentage max value for peak placement at {max_loading_time}")
-    else:
-        # If loading percentage is not available, use max power as an alternative
-        max_loading_idx = df['power_kw'].idxmax()
-        max_loading_point = df.loc[max_loading_idx]
-        max_loading_time = max_loading_point['timestamp']
-        logger.info(f"Power chart: Using power_kw max value as fallback for peak placement at {max_loading_time}")
-    
-    # Use session state max_loading_time if available - ensures consistency across charts
-    if 'max_loading_time' in st.session_state:
-        max_loading_time = st.session_state.max_loading_time
-    
-    # Add peak load indicator
-    peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
-        color='red',
-        strokeWidth=2,
-        strokeDash=[4, 2]
-    ).encode(
-        x='peak_time:T'
-    )
-    
-    # Add text annotation for peak load
-    peak_text = alt.Chart(pd.DataFrame({
-        'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 0.9]
-    })).mark_text(
-        align='left',
-        baseline='bottom',
-        fontSize=12,
-        fontWeight='bold',
-        color='red'
-    ).encode(
-        x='peak_time:T',
-        y='y:Q',
-        text=alt.value('⚠️ Peak load')
-    )
-    
-    # Add horizontal capacity line if size_kva exists
-    chart = alt.layer(base, peak_rule, peak_text)
-    if 'size_kva' in power_df.columns and not power_df['size_kva'].isna().all():
-        try:
-            # Get the size_kva value and convert to equivalent power in kW
-            # Assuming power factor of 0.9 for conversion if not specified
-            size_kva = float(power_df['size_kva'].iloc[0])
-            avg_pf = power_df['power_factor'].mean() if 'power_factor' in power_df.columns else 0.9
-            size_kw = size_kva * avg_pf
-            
-            # Create a horizontal rule at the size_kw value
-            capacity_rule = alt.Chart(pd.DataFrame({'y': [size_kw]})).mark_rule(
-                color='red',
-                strokeWidth=2,
-                strokeDash=[5, 5]
-            ).encode(
-                y='y:Q'
-            )
-            
-            # Create a new DataFrame with timestamp domain information
-            domain_df = pd.DataFrame({
-                'timestamp': [power_df['timestamp'].min(), power_df['timestamp'].max()],
-                'y': [size_kw] * 2,
-                'text': [f"Capacity: {size_kw:.1f}kW"] * 2
-            })
-            
-            # Add text annotation for the capacity line
-            capacity_text = alt.Chart(domain_df.iloc[[-1]]).mark_text(
-                align='right',
-                baseline='bottom',
-                dx=-5,
-                dy=-5,
-                fontSize=12,
-                fontWeight='bold',
-                color='red'
-            ).encode(
-                x='timestamp:T',  # Use the actual timestamp instead of a fixed position
-                y='y:Q',
-                text='text:N'
-            )
-            
-            # Combine charts
-            chart = alt.layer(chart, capacity_rule, capacity_text)
-            logger.info(f"Added transformer capacity line at {size_kw:.1f} kW (from {size_kva:.1f} kVA with PF={avg_pf:.2f})")
-        except Exception as e:
-            logger.error(f"Could not add transformer capacity line: {str(e)}")
-    
-    # Add alert timestamp if in session state
-    if 'highlight_timestamp' in st.session_state:
-        try:
-            alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
-            
-            # Create a vertical rule to mark the alert time
-            rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
-                color='gray',
-                strokeWidth=2,
-                strokeDash=[5, 5]
-            ).encode(
-                x='alert_time:T'
-            )
-            
-            # Add text annotation for the alert
-            text = alt.Chart(pd.DataFrame({
-                'alert_time': [alert_time],
-                'y': [df['power_kw'].max()]
-            })).mark_text(
-                align='center',
-                baseline='top',
-                fontSize=12,
-                color='gray'
-            ).encode(
-                x='alert_time:T',
-                y='y:Q',
-                text=alt.value('⚠️ Alert point')
-            )
-            
-            # Combine with existing chart
-            chart = alt.layer(chart, rule, text)
-            logger.info(f"Added alert timestamp line at {alert_time}")
-        except Exception as e:
-            logger.error(f"Error highlighting alert timestamp: {e}")
-    
-    # Display the chart
-    st.altair_chart(chart, use_container_width=True)
+    # Add the chart to the Streamlit view
+    st.altair_chart(power_chart, use_container_width=True)
 
     # Current and Voltage in columns
     col1, col2 = st.columns(2)
     with col1:
         create_colored_banner("Current")
-        # Create current chart with direct Altair
-        current_base = alt.Chart(df).mark_line(point=True, color="#ff7f0e").encode(
-            x=alt.X('timestamp:T', 
-                axis=alt.Axis(
-                    format='%m/%d/%y',
-                    title='Date',
-                    labelAngle=-45,
-                    labelColor='#333333',
-                    titleColor='#333333',
-                    labelFontSize=14,
-                    titleFontSize=16
-                )
-            ),
-            y=alt.Y('current_a:Q', 
-                axis=alt.Axis(
-                    title='Current (A)',
-                    labelColor='#333333',
-                    titleColor='#333333',
-                    labelFontSize=14,
-                    titleFontSize=16
-                )
-            ),
-            tooltip=['timestamp:T', 'current_a:Q']
-        ).properties(
-            width="container",
-            height=250
+        # Use the standardized chart function for current visualization
+        current_chart = create_altair_chart(
+            df=df,
+            y_column='current_a',
+            title='Current (A)',
+            color='#ff7f0e',  # Orange color
+            chart_id='transformer_current'
         )
         
-        # Add peak load indicator for current
-        current_peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
-            color='red',
-            strokeWidth=2,
-            strokeDash=[4, 2]
-        ).encode(
-            x='peak_time:T'
-        )
-        
-        # Add text annotation for peak load
-        current_peak_text = alt.Chart(pd.DataFrame({
-            'peak_time': [max_loading_time],
-            'y': [df['current_a'].max() * 0.9]
-        })).mark_text(
-            align='left',
-            baseline='bottom',
-            fontSize=12,
-            fontWeight='bold',
-            color='red'
-        ).encode(
-            x='peak_time:T',
-            y='y:Q',
-            text=alt.value('⚠️ Peak load')
-        )
-        
-        # Combine chart with peak load indicator
-        current_chart = alt.layer(current_base, current_peak_rule, current_peak_text)
-        
-        # Add alert timestamp if in session state
-        if 'highlight_timestamp' in st.session_state:
-            try:
-                alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
-                
-                # Create vertical rule at alert time
-                alert_rule = alt.Chart(pd.DataFrame({
-                    'timestamp': [alert_time]
-                })).mark_rule(
-                    color='gray',
-                    strokeWidth=2,
-                    strokeDash=[5, 5]
-                ).encode(
-                    x='timestamp:T'
-                )
-                
-                # Add alert text
-                alert_text = alt.Chart(pd.DataFrame({
-                    'timestamp': [alert_time],
-                    'y': [df['current_a'].max()]
-                })).mark_text(
-                    align='left',
-                    baseline='top',
-                    dx=5,
-                    dy=-5,
-                    fontSize=12,
-                    fontWeight='bold',
-                    color='gray'
-                ).encode(
-                    x='timestamp:T',
-                    y='y:Q',
-                    text=alt.value('⚠️ Alert point')
-                )
-                
-                # Combine with base chart
-                current_chart = alt.layer(current_base, alert_rule, alert_text)
-            except Exception as e:
-                logger.error(f"Could not add alert timestamp to current chart: {str(e)}")
-        
+        # Display the chart
         st.altair_chart(current_chart, use_container_width=True)
     
     with col2:
@@ -1410,86 +1183,21 @@ def display_transformer_data(results_df: pd.DataFrame):
                   base_voltage * random_noise * np.random.normal(0, 1, len(df))
         voltage_data['Phase C'] = phase_c
         
-        # Define the column mapping for the multi-line chart
-        column_dict = {
-            'Phase A': 'Phase A',
-            'Phase B': 'Phase B',
-            'Phase C': 'Phase C'
+        # Use our standardized multi-line chart function for voltage visualization
+        voltage_columns = {
+            'Phase A': 'Phase A (V)',
+            'Phase B': 'Phase B (V)',
+            'Phase C': 'Phase C (V)'
         }
         
-        # Create a multi-line chart with Altair
         voltage_chart = create_multi_line_chart(
-            voltage_data, 
-            column_dict,
-            title=None  # No title needed as we use colored banner
+            df=voltage_data,
+            column_dict=voltage_columns,
+            title='Voltage (V)',
+            chart_id='transformer_voltage'
         )
         
-        # Add peak load indicator
-        peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
-            color='red',
-            strokeWidth=2,
-            strokeDash=[4, 2]  # Different dash pattern
-        ).encode(
-            x='peak_time:T'
-        )
-        
-        # Add text annotation for peak load
-        peak_text = alt.Chart(pd.DataFrame({
-            'peak_time': [max_loading_time],
-            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.9]  # Position below max for visibility
-        })).mark_text(
-            align='left',
-            baseline='bottom',
-            fontSize=12,
-            fontWeight='bold',
-            color='red'
-        ).encode(
-            x='peak_time:T',
-            y='y:Q',
-            text=alt.value('⚠️ Peak load')
-        )
-        
-        # Combine the charts
-        voltage_chart = alt.layer(voltage_chart, peak_rule, peak_text)
-        
-        # Add alert timestamp if in session state
-        if 'highlight_timestamp' in st.session_state:
-            try:
-                alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
-                
-                # Create a vertical rule to mark the alert time
-                rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
-                    color='gray',
-                    strokeWidth=2,
-                    strokeDash=[5, 5]
-                ).encode(
-                    x='alert_time:T'
-                )
-                
-                # Add text annotation for the alert
-                text = alt.Chart(pd.DataFrame({
-                    'alert_time': [alert_time],
-                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max()]
-                })).mark_text(
-                    align='left',
-                    baseline='top',
-                    dy=-10,
-                    fontSize=12,
-                    color='gray'
-                ).encode(
-                    x='alert_time:T',
-                    y='y:Q',
-                    text=alt.value('⚠️ Alert point')
-                )
-                
-                # Combine with existing chart
-                voltage_chart = alt.layer(voltage_chart, rule, text)
-            except Exception as e:
-                logger.error(f"Could not add alert timestamp to voltage chart: {str(e)}")
-        
-        # Set the height to match the original chart
-        voltage_chart = voltage_chart.properties(height=250)
-        
+        # Display the chart
         st.altair_chart(voltage_chart, use_container_width=True)
 
 def display_customer_data(results_df: pd.DataFrame):
@@ -1731,10 +1439,24 @@ def create_altair_chart(df, y_column, title=None, color=None, chart_id=None):
     Returns:
         alt.Chart: Configured Altair chart
     """
-    # Base configuration for line chart
+    # Data must be sorted by timestamp for proper line charts
+    if 'timestamp' not in df.columns:
+        logger.error(f"No timestamp column in DataFrame for chart creation")
+        return None
+        
+    # Ensure timestamps are formatted correctly and data is sorted
+    df = df.copy()  # Create a copy to avoid modifying the original
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.sort_values('timestamp')
+    
+    # Default color if not specified
+    if color is None:
+        color = '#1f77b4'  # Default Altair blue
+    
+    # Create the base chart
     chart = alt.Chart(df).mark_line(
         point=True,
-        interpolate='linear'
+        strokeWidth=2
     ).encode(
         x=alt.X('timestamp:T',
                 axis=alt.Axis(
@@ -1746,31 +1468,78 @@ def create_altair_chart(df, y_column, title=None, color=None, chart_id=None):
                     labelFontSize=14,
                     titleFontSize=16
                 )),
-        y=alt.Y(y_column, 
+        y=alt.Y(f'{y_column}:Q',
                 axis=alt.Axis(
-                    title=y_column.replace('_', ' ').title(), # Format title nicely
+                    title=y_column.replace('_', ' ').title(),
                     labelColor='#333333',
                     titleColor='#333333',
                     labelFontSize=14,
                     titleFontSize=16
                 )),
-        tooltip=['timestamp:T', alt.Tooltip(f'{y_column}:Q', format='.1f')]
+        color=alt.value(color),
+        tooltip=[
+            alt.Tooltip('timestamp:T', title='Date', format='%m/%d/%y %H:%M'),
+            alt.Tooltip(f'{y_column}:Q', title=y_column.replace('_', ' ').title(), format='.2f')
+        ]
     )
-    
-    # Apply custom color if provided
-    if color:
-        chart = chart.encode(color=alt.value(color))
     
     # Add title if provided
     if title:
         chart = chart.properties(title=title)
         
-    # Set chart width to responsive
+    # Set the chart width to be responsive
     chart = chart.properties(width='container')
     
     # Apply saved view settings if we have a chart ID
     if chart_id:
-        chart = apply_view_settings_to_chart(chart, chart_id, df, y_column)
+        # Get saved settings for this chart
+        settings = load_chart_view_settings().get(chart_id, {})
+        
+        # If we have settings, apply them
+        if settings and len(settings) > 0:
+            try:
+                # Set y domain based on saved settings
+                if 'y_min' in settings and 'y_max' in settings:
+                    chart = chart.encode(
+                        y=alt.Y(
+                            f'{y_column}:Q',
+                            scale=alt.Scale(domain=[settings['y_min'], settings['y_max']]),
+                            axis=alt.Axis(
+                                title=y_column.replace('_', ' ').title(),
+                                labelColor='#333333',
+                                titleColor='#333333',
+                                labelFontSize=14,
+                                titleFontSize=16
+                            )
+                        )
+                    )
+                
+                # Set x domain based on saved settings
+                if 'timestamp_min' in settings and 'timestamp_max' in settings:
+                    try:
+                        # Convert timestamps from ISO format to datetime
+                        x_min = pd.to_datetime(settings['timestamp_min'])
+                        x_max = pd.to_datetime(settings['timestamp_max'])
+                        
+                        chart = chart.encode(
+                            x=alt.X(
+                                'timestamp:T',
+                                scale=alt.Scale(domain=[x_min, x_max]),
+                                axis=alt.Axis(
+                                    format='%m/%d/%y',
+                                    title='Date',
+                                    labelAngle=-45,
+                                    labelColor='#333333',
+                                    titleColor='#333333',
+                                    labelFontSize=14,
+                                    titleFontSize=16
+                                )
+                            )
+                        )
+                    except Exception as e:
+                        logger.error(f"Error applying timestamp domain: {e}")
+            except Exception as e:
+                logger.error(f"Error applying view settings to chart {chart_id}: {e}")
     
     # Add selected hour indicator if in session state
     if 'selected_hour' in st.session_state and st.session_state.get('selected_date'):
@@ -1803,7 +1572,7 @@ def create_altair_chart(df, y_column, title=None, color=None, chart_id=None):
                 fontSize=11,
                 color='gray'
             ).encode(
-                x='selected_time:T',  # Use the actual timestamp instead of a fixed position
+                x='selected_time:T',
                 y=alt.value(10),  # Fixed y position
                 text=alt.value(f' Selected: {selected_hour}:00')
             )
@@ -1814,43 +1583,19 @@ def create_altair_chart(df, y_column, title=None, color=None, chart_id=None):
         except Exception as e:
             logger.error(f"Error adding selected hour indicator: {e}")
     
-    # Highlight alert timestamp if it exists in session state
-    if 'highlight_timestamp' in st.session_state:
-        try:
-            alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
-            
-            # Create a vertical rule to mark the alert time
-            rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
-                color='gray',
-                strokeWidth=2,
-                strokeDash=[5, 5]
-            ).encode(
-                x='alert_time:T'
-            )
-            
-            # Add text annotation for the alert
-            text = alt.Chart(pd.DataFrame({
-                'alert_time': [alert_time],
-                'y': [df[y_column].max()]
-            })).mark_text(
-                align='center',
-                baseline='top',
-                fontSize=12,
-                color='gray'
-            ).encode(
-                x='alert_time:T',
-                y='y:Q',
-                text=alt.value('⚠️ Alert point')
-            )
-            
-            # Add to chart
-            chart = alt.layer(chart, rule, text)
-            
-        except Exception as e:
-            logger.error(f"Error highlighting alert timestamp: {e}")
-    
-    # Make chart interactive
-    chart = chart.interactive()
+    # Make chart interactive with custom configuration for x-axis manipulation
+    # This allows users to left-click and drag on x-axis to compress/expand the view
+    chart = chart.configure_axis(
+        # Enable the "domain" to be a visual target for dragging
+        domainWidth=3,  # Make the axis line a bit thicker for easier targeting
+        # Add padding to x-axis to make it easier to grab
+        gridOpacity=0.2,
+    ).configure_view(
+        stroke='transparent',  # Remove border
+    ).interactive(
+        # Add more flexibility to zooming and panning
+        bind_zoom=True   # Enable mouse wheel zoom
+    )
     
     # Add view controls if chart ID is provided
     if chart_id:
@@ -2029,8 +1774,19 @@ def create_multi_line_chart(df, column_dict, title=None, chart_id=None):
         except Exception as e:
             logger.error(f"Error adding selected hour indicator: {e}")
     
-    # Make chart interactive
-    chart = chart.interactive()
+    # Make chart interactive with custom configuration for x-axis manipulation
+    # This allows users to left-click and drag on x-axis to compress/expand the view
+    chart = chart.configure_axis(
+        # Enable the "domain" to be a visual target for dragging
+        domainWidth=3,  # Make the axis line a bit thicker for easier targeting
+        # Add padding to x-axis to make it easier to grab
+        gridOpacity=0.2,
+    ).configure_view(
+        stroke='transparent',  # Remove border
+    ).interactive(
+        # Add more flexibility to zooming and panning
+        bind_zoom=True   # Enable mouse wheel zoom
+    )
     
     # Add view controls if chart ID is provided
     if chart_id:
