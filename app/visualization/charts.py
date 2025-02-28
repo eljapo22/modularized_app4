@@ -1341,7 +1341,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [peak_annotation_height * 1.05]  # Match peak load height
+                'y': [peak_annotation_height]  # Use the same height as peak load
             })).mark_text(
                 align='left',
                 baseline='bottom',
@@ -1896,5 +1896,8 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
     # Display voltage time series if data is available
     if 'voltage_a' in df.columns and not df['voltage_a'].isna().all():
         display_voltage_time_series(df)
+
+
+
 
 
