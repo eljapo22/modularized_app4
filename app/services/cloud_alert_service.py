@@ -105,22 +105,29 @@ class CloudAlertService:
             # Only alert if either max loading or end-date loading is high enough
             alert_criteria_met = False
             
-            if max_loading['loading_percentage'] >= 80:
+            # Using the correct thresholds from MEMORY:
+            # - Critical: >= 120%
+            # - Overloaded: >= 100%
+            # - Warning: >= 80%
+            # - Pre-Warning: >= 50%
+            # - Normal: < 50%
+            
+            if max_loading['loading_percentage'] >= 50:  # Pre-Warning threshold
                 alert_criteria_met = True
-                logger.info(f"Alert criteria met: Max loading {max_loading['loading_percentage']:.1f}% >= 80%")
-            elif end_point is not None and end_point['loading_percentage'] >= 80:
+                logger.info(f"Alert criteria met: Max loading {max_loading['loading_percentage']:.1f}% >= 50%")
+            elif end_point is not None and end_point['loading_percentage'] >= 50:  # Pre-Warning threshold
                 alert_criteria_met = True
-                logger.info(f"Alert criteria met: End-date loading {end_point['loading_percentage']:.1f}% >= 80%")
+                logger.info(f"Alert criteria met: End-date loading {end_point['loading_percentage']:.1f}% >= 50%")
             
             if alert_criteria_met:
                 return max_loading, end_point
             else:
                 logger.info(f"Max loading {max_loading['loading_percentage']:.1f}% and end-date loading " + 
                           (f"{end_point['loading_percentage']:.1f}%" if end_point is not None else "N/A") + 
-                          " below alert threshold (80%)")
+                          " below alert threshold (50%)")
                 st.info(f"🔍 Maximum ({max_loading['loading_percentage']:.1f}%) and end-date loading " + 
                        (f"({end_point['loading_percentage']:.1f}%)" if end_point is not None else "(N/A)") + 
-                       " are below alert threshold (80%)")
+                       " are below alert threshold (50%)")
                 return None, None
                 
         except Exception as e:
@@ -317,6 +324,12 @@ class CloudAlertService:
             msg = "Email alerts disabled - Gmail app password not found in secrets.toml"
             logger.warning(msg)
             st.warning(f"📧 {msg}")
+            return False
+            
+        # Check if the DataFrame is empty
+        if results_df is None or results_df.empty:
+            logger.warning("Empty results dataframe provided to check_and_send_alerts")
+            st.warning("📊 No data available for alert analysis")
             return False
 
         try:

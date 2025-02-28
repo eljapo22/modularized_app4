@@ -137,13 +137,16 @@ def main():
             st.markdown("## Alerts")
             if st.button("Search & Alert", key="alert_button"):
                 with st.spinner("Sending alerts..."):
-                    alert_service.process_alerts(
+                    alert_sent = alert_service.process_alerts(
                         start_date,
                         selected_hour,
                         selected_feeder,
                         selected_transformer
                     )
-                st.success("Alerts sent successfully!")
+                    if alert_sent:
+                        st.success("✅ Alert email sent successfully!")
+                    else:
+                        st.info("ℹ️ No alerts sent - threshold conditions not met or error occurred.")
         
         # Create main content area with tabs
         tab1, tab2 = st.tabs(["📊 Dashboard", "📋 Data"])
