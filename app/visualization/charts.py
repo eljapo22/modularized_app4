@@ -427,15 +427,15 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 0.95]  # Position at 95% of max for better visibility
+        'y': [df['power_kw'].max() * 1.10]  # Position significantly above max for better visibility
     })).mark_text(
         align='right',
-        baseline='top',
+        baseline='bottom',
         fontSize=14,  # Larger font
         fontWeight='bold',
         color='red',
         dx=20,  # Shift text right for better spacing
-        dy=-10  # Shift text up for better visibility
+        dy=-20  # Shift text up further for better visibility
     ).encode(
         x='peak_time:T',
         y='y:Q',
@@ -527,13 +527,15 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['current_a'].max() * 0.9]  # Position below max for visibility
+        'y': [df['current_a'].max() * 1.10]  # Position well above max for visibility
     })).mark_text(
-        align='left',
+        align='right',
         baseline='bottom',
-        fontSize=12,
+        fontSize=14,
         fontWeight='bold',
-        color='red'
+        color='red',
+        dx=20,  # Shift text right for better spacing
+        dy=-20  # Shift text up significantly
     ).encode(
         x='peak_time:T',
         y='y:Q',
@@ -730,15 +732,15 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Add text annotation for peak load
         peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.95]  # Position higher for better visibility
+            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Position well above max for visibility
         })).mark_text(
             align='right',
-            baseline='top',
+            baseline='bottom',
             fontSize=14,
             fontWeight='bold',
             color='red',
             dx=20,  # Shift text right for better spacing
-            dy=-15  # Shift text up for better visibility
+            dy=-20  # Shift text up for better visibility
         ).encode(
             x='peak_time:T',
             y='y:Q',
@@ -1230,15 +1232,15 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 0.95]  # Position at 95% of max for better visibility
+        'y': [df['power_kw'].max() * 1.10]  # Position significantly above max for better visibility
     })).mark_text(
         align='right',
-        baseline='top',
+        baseline='bottom',
         fontSize=14,  # Larger font
         fontWeight='bold',
         color='red',
         dx=20,  # Shift text right for better spacing
-        dy=-10  # Shift text up for better visibility
+        dy=-20  # Shift text up further for better visibility
     ).encode(
         x='peak_time:T',
         y='y:Q',
@@ -1375,13 +1377,15 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Add text annotation for peak load
         current_peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [df['current_a'].max() * 0.9]
+            'y': [df['current_a'].max() * 1.10]  # Position well above max for visibility
         })).mark_text(
-            align='left',
+            align='right',
             baseline='bottom',
-            fontSize=12,
+            fontSize=14,
             fontWeight='bold',
-            color='red'
+            color='red',
+            dx=20,  # Shift text right for better spacing
+            dy=-20  # Shift text up significantly
         ).encode(
             x='peak_time:T',
             y='y:Q',
