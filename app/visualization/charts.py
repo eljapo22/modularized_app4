@@ -396,6 +396,9 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     if 'max_loading_time' in st.session_state:
         max_loading_time = st.session_state.max_loading_time
     
+    # Calculate peak annotation height with more vertical spacing
+    peak_annotation_height = df['power_kw'].max() * 1.15  # Increased vertical spacing
+    
     # Create power chart with Altair
     chart = create_altair_chart(
         df,
@@ -429,7 +432,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 1.05]  # Position slightly above maximum value
+        'y': [peak_annotation_height]  # Position slightly above maximum value
     })).mark_text(
         align='right',
         baseline='bottom',
@@ -1217,6 +1220,9 @@ def display_transformer_data(results_df: pd.DataFrame):
     if 'max_loading_time' in st.session_state:
         max_loading_time = st.session_state.max_loading_time
     
+    # Calculate peak annotation height with more vertical spacing
+    peak_annotation_height = df['power_kw'].max() * 1.15  # Increased vertical spacing
+    
     # Set fixed Y-axis ranges
     y_min = 0
     y_max = 150
@@ -1233,7 +1239,7 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 1.05]  # Position slightly above maximum value
+        'y': [peak_annotation_height]  # Position slightly above maximum value
     })).mark_text(
         align='right',
         baseline='bottom',
