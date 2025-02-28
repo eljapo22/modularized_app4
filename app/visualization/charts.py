@@ -1404,7 +1404,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         
         # Determine max for Y-axis padding
         max_current = df['current_a'].max()
-        y_padding = max_current * 0.25  # Add 25% padding above the maximum value
+        y_padding = max_current * 0.30  # Add 25% padding above the maximum value
         
         # Add peak load indicator for current
         current_peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
