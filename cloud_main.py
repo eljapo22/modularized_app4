@@ -12,6 +12,7 @@ from app.services.cloud_alert_service import CloudAlertService
 from app.visualization.charts import display_transformer_dashboard
 from app.utils.ui_components import create_tile, create_banner, create_section_banner
 from app.utils.performance import log_performance
+from app.utils.chart_patches import patch_transformer_charts
 
 # Configure page - must be first Streamlit command
 st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
@@ -66,6 +67,9 @@ st.markdown("""
 def main():
     """Main application function for cloud environment"""
     try:
+        # Apply patched chart functions
+        patch_transformer_charts()
+        
         # Initialize services
         data_service = CloudDataService()
         alert_service = CloudAlertService()
