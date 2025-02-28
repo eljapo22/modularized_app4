@@ -185,7 +185,7 @@ class CloudAlertService:
         if end_data is not None:
             html += f"""
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: {end_color};">{get_status_emoji(end_status)} {end_status}: End-Date Loading</h3>
+                <h3 style="color: {end_color};">{max_status_emoji} {end_status}: End-Date Loading</h3>
                 <ul style="list-style-type: none; padding-left: 20px;">
                     <li><strong>End-Date Loading:</strong> {end_loading_pct:.1f}%</li>
                     <li><strong>Recorded On:</strong> {end_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
