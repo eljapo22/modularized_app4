@@ -165,8 +165,11 @@ def display_loading_status(results_df: pd.DataFrame):
     if 'max_loading_time' in st.session_state:
         max_loading_time = st.session_state.max_loading_time
     
+    # Calculate the min value to determine Y-axis starting point
+    min_loading = df['loading_percentage'].min()
+    
     # Set fixed Y-axis ranges
-    y_min = 0
+    y_min = 0 if min_loading < 20 else 20
     y_max = 150
     
     # Create an Altair chart for loading percentage
@@ -247,7 +250,7 @@ def display_loading_status(results_df: pd.DataFrame):
     )
     threshold_areas.append(prewarning_area)
     
-    # Normal area (0-50%) - Green background
+    # Normal area (20-50%) - Green background
     normal_area = alt.Chart(pd.DataFrame({
         'x1': [min_time], 'x2': [max_time], 
         'y1': [y_min], 'y2': [50]  # Use y_min from fixed values
@@ -1216,25 +1219,29 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Create power chart with Altair - using standard function for consistent styling
     power_df = df.copy()
     
-    # Determine max for Y-axis padding
+    # Determine max and min for Y-axis settings
     max_power = df['power_kw'].max()
+    min_power = df['power_kw'].min()
     y_padding = max_power * 0.25  # Add 25% padding above the maximum value
+    
+    # Set y-axis minimum based on data
+    y_min = 0 if min_power < 20 else 20
     
     # Create base chart with proper dimensions
     base = alt.Chart(power_df).mark_line(point=True, color="#1f77b4").encode(
         x=alt.X('timestamp:T', 
-            axis=alt.Axis(
-                format='%m/%d/%y',
-                title='Date',
-                labelAngle=-45,
-                labelColor='#333333',
-                titleColor='#333333',
-                labelFontSize=14,
-                titleFontSize=16
-            )
-        ),
+                axis=alt.Axis(
+                    format='%m/%d/%y',
+                    title='Date',
+                    labelAngle=-45,
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=14,
+                    titleFontSize=16
+                )
+            ),
         y=alt.Y('power_kw:Q', 
-                scale=alt.Scale(domain=[0, max_power + y_padding], zero=True),  # Use zero=True to show data variations better
+                scale=alt.Scale(domain=[y_min, max_power + y_padding], zero=False),  # Dynamically set minimum
                 ),
         tooltip=['timestamp:T', 'power_kw:Q']
     ).properties(
