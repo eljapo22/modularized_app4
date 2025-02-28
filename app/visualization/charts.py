@@ -3,11 +3,10 @@
 import logging
 import pandas as pd
 import numpy as np
+import altair as alt
 import streamlit as st
-import altair as alt  # Added for enhanced chart capabilities
-import os  # Add import for os module
-import json  # Add import for json module
 from datetime import datetime, timedelta
+import random
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile, create_colored_banner, create_bordered_header
 from app.config.constants import STATUS_COLORS, CHART_COLORS, LOADING_THRESHOLDS
@@ -1259,121 +1258,111 @@ def add_view_controls_to_chart(chart, chart_id):
     
     Args:
         chart (alt.Chart): An Altair chart
-        chart_id (str): Unique identifier for this chart for saving settings
+        chart_id (str): Unique identifier for this chart for saving settings in session state
         
     Returns:
         chart (alt.Chart): The same chart (for chaining)
     """
-    # Make sure chart is interactive
-    if not getattr(chart, '_interactive', False):
-        chart = chart.interactive()
+    # Create a container for view controls
+    control_container = st.container()
     
-    # Create two columns for the buttons with appropriate widths
-    col1, col2 = st.columns([1, 5])
+    # Get saved settings for this chart if any
+    settings = load_chart_view_settings().get(chart_id, None)
     
-    # Create save button
-    save_clicked = col1.button(f"💾 Save", key=f"save_{chart_id}")
-    reset_clicked = col1.button(f"🔄 Reset", key=f"reset_{chart_id}")
+    # Add view control buttons in a horizontal layout
+    with control_container:
+        cols = st.columns([0.7, 0.3])
+        
+        # Create save button in the left column with the message
+        save_button = cols[0].button(
+            "📊 Save current view (session only)", 
+            key=f"save_view_{chart_id}",
+            help="Save the current chart view for this session only"
+        )
+        
+        # Create reset button in the right column 
+        reset_button = cols[1].button(
+            "🔄 Reset", 
+            key=f"reset_view_{chart_id}",
+            help="Reset to default view"
+        )
     
-    # When save is clicked, use a component to capture the current view state
-    if save_clicked:
-        # Create a hidden container to display a message and set up callback
-        with st.container():
-            # Register a callback to capture view settings after the chart is rendered
-            component_html = f"""
-            <script>
-            // Function to run when the component is loaded
-            function onRender() {{
-                setTimeout(function() {{
-                    try {{
-                        // Find the chart on the page - look for the most recently added chart
-                        const charts = document.querySelectorAll('.marks');
-                        if (charts.length > 0) {{
-                            const chart = charts[charts.length - 1];
-                            
-                            // Get chart bounding client rect
-                            const rect = chart.getBoundingClientRect();
-                            
-                            // Parse current scales from the chart's DOM or attributes
-                            const viewBox = chart.getAttribute('viewBox');
-                            
-                            // Capture the view state
-                            const viewState = {{
-                                chart_id: '{chart_id}',
-                                timestamp: new Date().toISOString()
-                            }};
-                            
-                            // Store the view state in session storage for retrieval in Python
-                            sessionStorage.setItem('chart_view_{chart_id}', JSON.stringify(viewState));
-                            
-                            // Signal to streamlit that we want to save the chart view
-                            window.parent.postMessage({{
-                                type: 'streamlit:componentDataChanged', 
-                                data: {{ save_chart_view: true, chart_id: '{chart_id}' }}
-                            }}, '*');
-                        }}
-                    }} catch(e) {{
-                        console.error('Error capturing view state:', e);
-                    }}
-                }}, 500);
-            }}
+    # Logic for save button
+    if save_button:
+        try:
+            # Extract domain information from the chart
             
-            // Run the function when the component is loaded
-            onRender();
-            </script>
-            """
+            # For x-axis (timestamp), get the current visible range
+            # We'll extract this from the session state or calculate a reasonable default
             
-            # Use a better approach to trigger saving without needing JavaScript message passing
-            # Simply store the view state in session state based on the current chart's domain values
+            # For the x-axis timestamp range, use the data range if available
+            if hasattr(chart, 'data') and 'timestamp' in chart.data.columns:
+                timestamps = pd.to_datetime(chart.data['timestamp'])
+                x_min = timestamps.min()
+                x_max = timestamps.max()
+            else:
+                # Default to a range if we can't determine
+                now = pd.Timestamp.now()
+                x_min = now - pd.Timedelta(days=7)
+                x_max = now
             
-            # Get the current view state from the chart's visible domain
-            # For simplicity in this non-invasive approach, we'll save standard domains:
-            # Loading chart typical range is 0-130%
-            # Power charts range widely but usually 0-X where X depends on the transformer
-            # Voltage charts usually range from ~100-140V for 120V systems
-            # Current charts range from 0-X where X depends on the load
+            # For y-axis, try to extract from the chart
+            # This is a simplification - in reality, we'd need to analyze the Altair chart structure
+            if hasattr(chart, 'data'):
+                # Find numeric columns that aren't timestamps
+                numeric_cols = chart.data.select_dtypes(include=['number']).columns
+                if len(numeric_cols) > 0:
+                    sample_col = numeric_cols[0]
+                    y_min = chart.data[sample_col].min()
+                    y_max = chart.data[sample_col].max()
+                else:
+                    # Default to a generic range if we can't determine
+                    y_min = 0
+                    y_max = 100
+            else:
+                # Default to a generic range if we can't determine
+                y_min = 0
+                y_max = 100
             
-            # Default domains for different chart types
-            default_domains = {
-                "loading_status_chart": {"y_min": 0, "y_max": 130},
-                "power": {"y_min": 0, "y_max": 50},
-                "current": {"y_min": 0, "y_max": 200},
-                "voltage": {"y_min": 100, "y_max": 140}
+            # Create view settings
+            view_settings = {
+                'timestamp_min': x_min.isoformat(),
+                'timestamp_max': x_max.isoformat(),
+                'y_min': y_min,
+                'y_max': y_max
             }
             
-            # Determine chart type from chart_id for sensible defaults
-            chart_type = "loading_status_chart" if "loading" in chart_id else (
-                "power" if "power" in chart_id else (
-                "current" if "current" in chart_id else (
-                "voltage" if "voltage" in chart_id else "other"
-            )))
+            # Save settings
+            save_chart_view_settings(chart_id, view_settings)
             
-            # Create a view state for this chart
-            # In a real implementation, we'd extract this from the chart's signals
-            view_state = default_domains.get(chart_type, {"y_min": 0, "y_max": 100})
+            # Show success message
+            st.success("View settings saved for this session only")
             
-            # Add timestamp limits too (use min/max from data)
-            view_state["timestamp_min"] = pd.to_datetime(df["timestamp"].min()).isoformat()
-            view_state["timestamp_max"] = pd.to_datetime(df["timestamp"].max()).isoformat()
-            
-            # Save the view state
-            save_chart_view_settings(chart_id, view_state)
-            
-            # Success message
-            col2.success("View settings saved!")
+        except Exception as e:
+            st.error(f"Could not save view settings: {str(e)}")
+            logger.error(f"Error saving view settings: {e}")
     
-    # If reset button is clicked, remove settings for this chart
-    if reset_clicked:
-        # Check if settings exist for this chart
-        if chart_id in st.session_state.get('chart_view_settings', {}):
-            # Remove them
-            st.session_state.chart_view_settings.pop(chart_id, None)
-            # Save empty settings to disk to effectively remove them
-            save_chart_view_settings(chart_id, {})
-            # Success message
-            col2.info("View reset to default.")
-            # Force a rerun to apply the reset
-            st.experimental_rerun()
+    # Logic for reset button
+    if reset_button:
+        try:
+            # Load all settings
+            settings = load_chart_view_settings()
+            
+            # Remove this chart's settings if they exist
+            if chart_id in settings:
+                del settings[chart_id]
+                
+                # Update session state
+                st.session_state.chart_view_settings = settings
+                
+                # Show success message
+                st.success("View reset to default")
+                
+                # Force a page refresh to apply the reset
+                st.experimental_rerun()
+        except Exception as e:
+            st.error(f"Could not reset view settings: {str(e)}")
+            logger.error(f"Error resetting view settings: {e}")
     
     return chart
 
@@ -1434,7 +1423,7 @@ def create_altair_chart(df, y_column, title=None, color=None, chart_id=None):
         y_column (str): Name of the column to plot on the y-axis
         title (str, optional): Chart title
         color (str, optional): Line color (hex code or named color)
-        chart_id (str, optional): Unique identifier for saving view settings
+        chart_id (str, optional): Unique identifier for saving view settings in session state
         
     Returns:
         alt.Chart: Configured Altair chart
@@ -1503,14 +1492,7 @@ def create_altair_chart(df, y_column, title=None, color=None, chart_id=None):
                     chart = chart.encode(
                         y=alt.Y(
                             f'{y_column}:Q',
-                            scale=alt.Scale(domain=[settings['y_min'], settings['y_max']]),
-                            axis=alt.Axis(
-                                title=y_column.replace('_', ' ').title(),
-                                labelColor='#333333',
-                                titleColor='#333333',
-                                labelFontSize=14,
-                                titleFontSize=16
-                            )
+                            scale=alt.Scale(domain=[settings['y_min'], settings['y_max']])
                         )
                     )
                 
@@ -1524,16 +1506,7 @@ def create_altair_chart(df, y_column, title=None, color=None, chart_id=None):
                         chart = chart.encode(
                             x=alt.X(
                                 'timestamp:T',
-                                scale=alt.Scale(domain=[x_min, x_max]),
-                                axis=alt.Axis(
-                                    format='%m/%d/%y',
-                                    title='Date',
-                                    labelAngle=-45,
-                                    labelColor='#333333',
-                                    titleColor='#333333',
-                                    labelFontSize=14,
-                                    titleFontSize=16
-                                )
+                                scale=alt.Scale(domain=[x_min, x_max])
                             )
                         )
                     except Exception as e:
@@ -1592,10 +1565,7 @@ def create_altair_chart(df, y_column, title=None, color=None, chart_id=None):
         gridOpacity=0.2,
     ).configure_view(
         stroke='transparent',  # Remove border
-    ).interactive(
-        # Add more flexibility to zooming and panning
-        bind_zoom=True   # Enable mouse wheel zoom
-    )
+    ).interactive()
     
     # Add view controls if chart ID is provided
     if chart_id:
@@ -1611,7 +1581,7 @@ def create_multi_line_chart(df, column_dict, title=None, chart_id=None):
         df (pd.DataFrame): DataFrame with timestamp column and multiple data columns
         column_dict (dict): Dictionary mapping column names to display names
         title (str, optional): Chart title
-        chart_id (str, optional): Unique identifier for saving view settings
+        chart_id (str, optional): Unique identifier for saving view settings in session state
         
     Returns:
         alt.Chart: Configured Altair chart with multiple lines
@@ -1783,10 +1753,7 @@ def create_multi_line_chart(df, column_dict, title=None, chart_id=None):
         gridOpacity=0.2,
     ).configure_view(
         stroke='transparent',  # Remove border
-    ).interactive(
-        # Add more flexibility to zooming and panning
-        bind_zoom=True   # Enable mouse wheel zoom
-    )
+    ).interactive()
     
     # Add view controls if chart ID is provided
     if chart_id:
@@ -1837,39 +1804,39 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
         display_voltage_time_series(df)
 
 def load_chart_view_settings():
-    """Load saved chart view settings from disk."""
-    settings_path = os.path.join(os.path.dirname(__file__), 'chart_settings.json')
+    """
+    Load chart view settings from session state only.
     
+    Chart view settings are now only stored in session state and will be lost when the
+    browser session ends. No disk storage is used.
+    
+    Returns:
+        dict: The chart view settings dictionary from session state
+    """
     if 'chart_view_settings' not in st.session_state:
-        # Try to load from disk
-        try:
-            if os.path.exists(settings_path):
-                with open(settings_path, 'r') as f:
-                    st.session_state.chart_view_settings = json.load(f)
-            else:
-                st.session_state.chart_view_settings = {}
-        except Exception as e:
-            logger.error(f"Error loading chart settings: {e}")
-            st.session_state.chart_view_settings = {}
+        st.session_state.chart_view_settings = {}
     
     return st.session_state.chart_view_settings
 
 def save_chart_view_settings(chart_id, view_settings):
-    """Save chart view settings to disk."""
-    settings_path = os.path.join(os.path.dirname(__file__), 'chart_settings.json')
+    """
+    Save chart view settings to session state only.
     
-    # Update session state
-    if 'chart_view_settings' not in st.session_state:
-        st.session_state.chart_view_settings = {}
+    Chart view settings are stored in session state and will be lost when the
+    browser session ends. This is a temporary storage solution.
     
-    st.session_state.chart_view_settings[chart_id] = view_settings
+    Args:
+        chart_id (str): Unique identifier for the chart
+        view_settings (dict): The view settings to save
+    """
+    # Load existing settings
+    settings = load_chart_view_settings()
     
-    # Save to disk
-    try:
-        with open(settings_path, 'w') as f:
-            json.dump(st.session_state.chart_view_settings, f)
-    except Exception as e:
-        logger.error(f"Error saving chart settings: {e}")
+    # Update with new settings
+    settings[chart_id] = view_settings
+    
+    # Save back to session state
+    st.session_state.chart_view_settings = settings
 
 def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display voltage time series visualization."""
