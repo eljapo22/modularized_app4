@@ -1242,6 +1242,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             ),
         y=alt.Y('power_kw:Q', 
                 scale=alt.Scale(domain=[y_min, max_power + y_padding], zero=False),  # Dynamically set minimum
+                title='Power (kW)'
                 ),
         tooltip=['timestamp:T', 'power_kw:Q']
     ).properties(
@@ -1689,7 +1690,7 @@ def display_customer_data(results_df: pd.DataFrame):
         y=alt.Y('power_kw:Q', 
             scale=alt.Scale(zero=False),
             axis=alt.Axis(
-                title='Customer Power (kW)',  # Reverted back to original title
+                title='Power (kW)',  # Reverted back to original title
                 labelColor='#333333',
                 titleColor='#333333',
                 labelFontSize=14,
