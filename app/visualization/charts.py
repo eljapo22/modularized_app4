@@ -686,6 +686,19 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             title=None  # No title needed as we use colored banner
         )
         
+        # Set y-axis domain constraint for voltage chart to ensure data visibility
+        voltage_chart = voltage_chart.encode(
+            y=alt.Y('value:Q', 
+                    scale=alt.Scale(domain=[370, 430], zero=False),  # Set voltage range to capture full 7% variation
+                    axis=alt.Axis(
+                        title="Value, V",
+                        labelColor='#333333',
+                        titleColor='#333333',
+                        labelFontSize=14,
+                        titleFontSize=16
+                    ))
+        )
+        
         # Add peak load indicator
         peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
             color='red',
@@ -1148,6 +1161,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             )
         ),
         y=alt.Y('power_kw:Q', 
+            scale=alt.Scale(zero=False),  # Use zero=False to show data variations better
             axis=alt.Axis(
                 title='Power (kW)',
                 labelColor='#333333',
@@ -1311,6 +1325,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 )
             ),
             y=alt.Y('current_a:Q', 
+                scale=alt.Scale(zero=False),  # Use zero=False to show data variations better
                 axis=alt.Axis(
                     title='Current (A)',
                     labelColor='#333333',
@@ -1457,6 +1472,19 @@ def display_transformer_data(results_df: pd.DataFrame):
             title=None  # No title needed as we use colored banner
         )
         
+        # Set y-axis domain constraint for voltage chart to ensure data visibility
+        voltage_chart = voltage_chart.encode(
+            y=alt.Y('value:Q', 
+                    scale=alt.Scale(domain=[370, 430], zero=False),  # Set voltage range to capture full 7% variation
+                    axis=alt.Axis(
+                        title="Value, V",
+                        labelColor='#333333',
+                        titleColor='#333333',
+                        labelFontSize=14,
+                        titleFontSize=16
+                    ))
+        )
+        
         # Add peak load indicator
         peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
             color='red',
@@ -1601,6 +1629,7 @@ def create_altair_chart(df, y_column, title=None, color=None):
                     titleFontSize=16
                 )),
         y=alt.Y(y_column, 
+                scale=alt.Scale(zero=False),  # Use zero=False to show data variations better
                 axis=alt.Axis(
                     title=y_column.replace('_', ' ').title(), # Format title nicely
                     labelColor='#333333',
@@ -1702,6 +1731,7 @@ def create_multi_line_chart(df, column_dict, title=None):
                     titleFontSize=16
                 )),
         y=alt.Y('value:Q',
+                scale=alt.Scale(zero=False),  # Use zero=False to show data variations better
                 axis=alt.Axis(
                     labelColor='#333333',
                     titleColor='#333333',
