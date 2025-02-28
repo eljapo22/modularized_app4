@@ -434,6 +434,8 @@ class CloudAlertService:
             if isinstance(start_date, datetime):
                 start_date = start_date.date()
             
+            logger.info(f"Processing alerts for transformer {selected_transformer} on {start_date} at hour {selected_hour}")
+            
             # Get transformer data for the specified date range
             transformer_data = data_service.get_transformer_data_range(
                 start_date=start_date,
