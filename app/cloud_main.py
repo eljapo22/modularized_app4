@@ -25,7 +25,9 @@ def main():
         layout="wide"
     )
     
-    st.title("Transformer Loading Analysis")
+    # Display loading header in transformer view
+    if param_view == 'transformer':
+        st.header("Transformer Loading Analysis")
     
     # Process URL parameters for deep links
     params = st.experimental_get_query_params()
@@ -313,6 +315,15 @@ def main():
         except Exception as e:
             logger.error(f"Auto-triggered search: Data retrieval error: {str(e)}")
             st.error(f"Failed to retrieve data: {str(e)}")
+        
+        # Starting deep link search
+        logger.info(f"Deep link search with view={param_view}, id={param_transformer_id}, start={param_start}, end={param_end}")
+        
+        if param_view == 'transformer':
+            st.header("Transformer Loading Analysis")
+        
+        # Rerun to update display
+        st.rerun()
     
     # Main content area
     if 'transformer_data' in st.session_state:

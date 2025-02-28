@@ -378,11 +378,13 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         max_loading_idx = df['loading_percentage'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
+        logger.info(f"Power chart: Using loading_percentage max value for peak placement at {max_loading_time}")
     else:
         # If loading percentage is not available, use max power as an alternative
         max_loading_idx = df['power_kw'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
+        logger.info(f"Power chart: Using power_kw max value as fallback for peak placement at {max_loading_time}")
     
     # Use session state max_loading_time if available - ensures consistency across charts
     if 'max_loading_time' in st.session_state:
@@ -478,11 +480,13 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
         max_loading_idx = df['loading_percentage'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
+        logger.info(f"Current chart: Using loading_percentage max value for peak placement at {max_loading_time}")
     else:
         # If loading percentage is not available, use max current as an alternative
         max_loading_idx = df['current_a'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
+        logger.info(f"Current chart: Using current_a max value as fallback for peak placement at {max_loading_time}")
     
     # Create current chart with Altair
     chart = create_altair_chart(
@@ -577,41 +581,22 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             max_loading_idx = df['loading_percentage'].idxmax()
             max_loading_point = df.loc[max_loading_idx]
             max_loading_time = max_loading_point['timestamp']
-        else:
-            # If loading percentage is not available, use power or current as alternative
-            if 'power_kw' in df.columns and not df['power_kw'].isna().all():
-                max_loading_idx = df['power_kw'].idxmax()
-                max_loading_point = df.loc[max_loading_idx]
-                max_loading_time = max_loading_point['timestamp']
-            elif 'current_a' in df.columns and not df['current_a'].isna().all():
-                max_loading_idx = df['current_a'].idxmax()
-                max_loading_point = df.loc[max_loading_idx]
-                max_loading_time = max_loading_point['timestamp']
-            else:
-                # Default to middle timestamp if no other metrics available
-                max_loading_time = df['timestamp'].iloc[len(df) // 2]
-        
-        # Extract a pattern from power or current data for synergy
-        pattern = None
-        if 'power_kw' in df.columns and not df['power_kw'].isna().all():
-            power_min = df['power_kw'].min()
-            power_max = df['power_kw'].max()
-            # Avoid division by zero
-            if power_max > power_min:
-                pattern = (df['power_kw'] - power_min) / (power_max - power_min)
-            else:
-                pattern = pd.Series(0.5, index=df.index, name='pattern')
+            logger.info(f"Voltage chart: Using loading_percentage max value for peak placement at {max_loading_time}")
+        elif 'power_kw' in df.columns and not df['power_kw'].isna().all():
+            max_loading_idx = df['power_kw'].idxmax()
+            max_loading_point = df.loc[max_loading_idx]
+            max_loading_time = max_loading_point['timestamp']
+            logger.info(f"Voltage chart: Using power_kw max value for peak placement at {max_loading_time}")
         elif 'current_a' in df.columns and not df['current_a'].isna().all():
-            current_min = df['current_a'].min()
-            current_max = df['current_a'].max()
-            # Avoid division by zero
-            if current_max > current_min:
-                pattern = (df['current_a'] - current_min) / (current_max - current_min)
-            else:
-                pattern = pd.Series(0.5, index=df.index, name='pattern')
+            max_loading_idx = df['current_a'].idxmax()
+            max_loading_point = df.loc[max_loading_idx]
+            max_loading_time = max_loading_point['timestamp']
+            logger.info(f"Voltage chart: Using current_a max value for peak placement at {max_loading_time}")
         else:
-            # Create a default pattern if neither power nor current data is available
-            pattern = pd.Series(0.5, index=range(len(df)), name='pattern')
+            # Default to middle timestamp if no other metrics available
+            middle_index = len(df) // 2
+            max_loading_time = df['timestamp'].iloc[middle_index]
+            logger.warning(f"Voltage chart: No metrics available for peak detection. Using middle timestamp ({middle_index}/{len(df)}) at {max_loading_time}")
         
         # Create synthetic data for 3 phases
         voltage_data = pd.DataFrame()
@@ -631,38 +616,56 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         pattern_influence = 0.04  # Increased from 0.02 to 0.04 (4% influence)
         random_noise = 0.01  # Added 1% random noise for natural irregularities
         
-        # Generate random noise for more natural variations
-        np.random.seed(42)  # Set seed for reproducibility
-        noise_a = np.random.normal(0, 1, len(df)) 
-        noise_b = np.random.normal(0, 1, len(df))
-        noise_c = np.random.normal(0, 1, len(df))
-        
-        # Ensure pattern has the right shape
-        if pattern is None or len(pattern) != len(df):
-            pattern = np.ones(len(df)) * 0.5
+        # Extract a pattern from power or current data for synergy
+        # This will be used to influence the voltage pattern (non-intrusive approach)
+        power_pattern = None
+        if 'power_kw' in df.columns and not df['power_kw'].isna().all():
+            power_min = df['power_kw'].min()
+            power_max = df['power_kw'].max()
+            # Avoid division by zero
+            if power_max > power_min:
+                power_pattern = (df['power_kw'] - power_min) / (power_max - power_min)
+            else:
+                power_pattern = pd.Series(0.5, index=df.index, name='pattern')
+        elif 'current_a' in df.columns and not df['current_a'].isna().all():
+            current_min = df['current_a'].min()
+            current_max = df['current_a'].max()
+            # Avoid division by zero
+            if current_max > current_min:
+                power_pattern = (df['current_a'] - current_min) / (current_max - current_min)
+            else:
+                power_pattern = pd.Series(0.5, index=df.index, name='pattern')
+        else:
+            # Create a default pattern if neither power nor current data is available
+            power_pattern = pd.Series(0.5, index=range(len(df)), name='pattern')
         
         # Create inverse pattern for voltage (power increases = voltage slightly decreases)
-        inverse_pattern = 1 - pattern.values
+        inverse_pattern = 1 - power_pattern.values
+        
+        # Ensure pattern has the right shape
+        if power_pattern is None or len(power_pattern) != len(df):
+            power_pattern = np.ones(len(df)) * 0.5
+            logger.warning(f"Voltage chart: Pattern data missing or wrong size. Using constant pattern.")
         
         # Phase A - centered around 400V with enhanced pattern influence and noise
         phase_a = base_voltage + \
                   base_voltage * variation_pct * np.sin(time_idx) + \
                   base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
-                  base_voltage * random_noise * noise_a
+                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
         voltage_data['Phase A'] = phase_a
         
         # Phase B - shifted 120 degrees (2π/3 radians) with enhanced pattern influence and noise
         phase_b = base_voltage + \
                   base_voltage * variation_pct * np.sin(time_idx - (2*np.pi/3)) + \
                   base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
-                  base_voltage * random_noise * noise_b
+                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
         voltage_data['Phase B'] = phase_b
         
         # Phase C - shifted 240 degrees (4π/3 radians) with enhanced pattern influence and noise
         phase_c = base_voltage + \
                   base_voltage * variation_pct * np.sin(time_idx - (4*np.pi/3)) + \
                   base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
-                  base_voltage * random_noise * noise_c
+                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
         voltage_data['Phase C'] = phase_c
         
         # Define the column mapping for the multi-line chart
@@ -1160,11 +1163,13 @@ def display_transformer_data(results_df: pd.DataFrame):
         max_loading_idx = df['loading_percentage'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
+        logger.info(f"Power chart: Using loading_percentage max value for peak placement at {max_loading_time}")
     else:
         # If loading percentage is not available, use max power as an alternative
         max_loading_idx = df['power_kw'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
+        logger.info(f"Power chart: Using power_kw max value as fallback for peak placement at {max_loading_time}")
     
     # Use session state max_loading_time if available - ensures consistency across charts
     if 'max_loading_time' in st.session_state:
@@ -1404,6 +1409,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Ensure power_pattern has the right shape
         if power_pattern is None or len(power_pattern) != len(df):
             power_pattern = np.ones(len(df)) * 0.5
+            logger.warning(f"Voltage chart: Pattern data missing or wrong size. Using constant pattern.")
         
         # Create inverse pattern for voltage (power increases = voltage slightly decreases)
         inverse_pattern = 1 - power_pattern.values
