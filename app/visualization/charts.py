@@ -1277,7 +1277,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             domain_df = pd.DataFrame({
                 'timestamp': [power_df['timestamp'].min(), power_df['timestamp'].max()],
                 'y': [size_kw] * 2,
-                'text': [f"{size_kva:.0f} kVA"] * 2
+                'text': [f"Capacity: {size_kva:.0f} kVA"] * 2
             })
             
             # Add text annotation for the capacity line
