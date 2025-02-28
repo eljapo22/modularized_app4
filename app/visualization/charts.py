@@ -8,11 +8,40 @@ import altair as alt  # Added for enhanced chart capabilities
 from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile, create_colored_banner, create_bordered_header
-from app.config.constants import STATUS_COLORS, CHART_COLORS, LOADING_THRESHOLDS
+from app.config.constants import STATUS_COLORS, CHART_COLORS, LOADING_THRESHOLDS, ANNOTATION_TOP_MARGIN_PERCENT, ANNOTATION_PEAK_DX, ANNOTATION_PEAK_DY, ANNOTATION_ALERT_DX, ANNOTATION_ALERT_DY
 from app.config.table_config import DECIMAL_PLACES
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+def calculate_annotation_height(df, y_column=None, is_multi_phase=False, phase_columns=None):
+    """
+    Calculate a consistent annotation height with proper spacing for any chart
+    
+    Args:
+        df: DataFrame with the chart data
+        y_column: Column to use for single-series data
+        is_multi_phase: Whether this is multi-phase data (like voltage)
+        phase_columns: List of column names for multi-phase data
+        
+    Returns:
+        float: The y-position for annotations with proper margin
+    """
+    if is_multi_phase and phase_columns:
+        # For multi-phase charts like voltage
+        y_max = df[phase_columns].max().max()
+        y_min = df[phase_columns].min().min()
+    elif y_column:
+        # For single-series charts
+        y_max = df[y_column].max()
+        y_min = df[y_column].min()
+    else:
+        # Fallback
+        return None
+        
+    # Calculate range and add percentage as margin
+    y_range = y_max - y_min
+    return y_max + (y_range * ANNOTATION_TOP_MARGIN_PERCENT)
 
 def format_chart_dates(df, timestamp_col='timestamp', format='%m/%d/%y'):
     """
@@ -259,17 +288,21 @@ def display_loading_status(results_df: pd.DataFrame):
         x='max_time:T'
     )
     
+    # Calculate peak annotation height with consistent spacing based on data range
+    peak_annotation_height = calculate_annotation_height(df, y_column='loading_percentage')
+    
     # Add text annotation for maximum loading
     max_text = alt.Chart(pd.DataFrame({
         'max_time': [max_loading_time],
-        'y': [max_loading_value * 1.05]  # Position 5% above maximum value
+        'y': [peak_annotation_height]  # Position slightly above maximum value
     })).mark_text(
         align='left',
         baseline='bottom',
-        fontSize=12,
+        fontSize=14,  # Increased font size for consistency with other charts
         fontWeight='bold',
         color='#dc3545',
-        dy=-10  # Consistent vertical offset
+        dx=ANNOTATION_PEAK_DX,  # Using constant for horizontal offset
+        dy=ANNOTATION_PEAK_DY   # Using constant for vertical offset
     ).encode(
         x='max_time:T',
         y='y:Q',
@@ -298,14 +331,14 @@ def display_loading_status(results_df: pd.DataFrame):
                 # Add text annotation for alert time
                 alert_text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [max_loading_value * 1.05]  # Position at same height as peak load annotation
+                    'y': [peak_annotation_height]  # Position at same height as peak load annotation
                 })).mark_text(
                     align='left',
                     baseline='bottom',
                     fontSize=12,
                     color='gray',
-                    dx=10,  # Add horizontal offset to avoid overlapping with line
-                    dy=-10  # Consistent vertical offset
+                    dx=ANNOTATION_ALERT_DX,  # Using constant for horizontal offset (more space)
+                    dy=ANNOTATION_ALERT_DY   # Using constant for vertical offset
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
@@ -396,16 +429,8 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         max_loading_time = max_loading_point['timestamp']
         logger.info(f"Power chart: Using power_kw max value as fallback for peak placement at {max_loading_time}")
     
-    # Calculate peak annotation height with more vertical spacing
-    if is_transformer_view:
-        # For transformer view, calculate better annotation spacing based on data range
-        y_min = df['power_kw'].min()
-        y_max = df['power_kw'].max()
-        y_range = y_max - y_min
-        peak_annotation_height = y_max + (y_range * 0.05)  # Add just 5% for annotations
-    else:
-        # For other views, use the original calculation
-        peak_annotation_height = df['power_kw'].max() * 1.15  # Original vertical spacing
+    # Calculate peak annotation height with consistent spacing based on data range
+    peak_annotation_height = calculate_annotation_height(df, y_column='power_kw')
     
     # Create power chart with Altair
     chart = create_altair_chart(
@@ -413,19 +438,6 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         'power_kw',
         title="Power Consumption (kW)" if is_transformer_view else None,
         color="#1f77b4",  # Blue color for power
-    )
-    
-    # Apply specific y-axis configuration to ensure power data visibility
-    chart = chart.encode(
-        y=alt.Y('power_kw:Q',
-                scale=alt.Scale(zero=False),  # Prevent flattening
-                axis=alt.Axis(
-                    title='Power(kW)',
-                    labelColor='#333333',
-                    titleColor='#333333',
-                    labelFontSize=14,
-                    titleFontSize=16
-                ))
     )
     
     # Add peak load indicator
@@ -447,15 +459,15 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         fontSize=14,  # Larger font
         fontWeight='bold',
         color='red',
-        dx=10,  # Consistent horizontal offset
-        dy=-10  # Consistent vertical offset
+        dx=ANNOTATION_PEAK_DX,  # Using constant for horizontal offset
+        dy=ANNOTATION_PEAK_DY   # Using constant for vertical offset
     ).encode(
         x='peak_time:T',
         y='y:Q',
         text=alt.value('Peak load')
     )
     
-    # Combine the charts
+    # Combine peak load indicator with the main chart
     chart = alt.layer(chart, peak_rule, peak_text)
     
     # Add alert timestamp if in session state
@@ -481,8 +493,8 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
                 baseline='bottom',
                 fontSize=12,
                 color='gray',
-                dx=10,  # Add horizontal offset to avoid overlapping with line
-                dy=-10  # Consistent vertical offset
+                dx=ANNOTATION_ALERT_DX,  # Using constant for horizontal offset (more space)
+                dy=ANNOTATION_ALERT_DY   # Using constant for vertical offset
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
@@ -498,11 +510,11 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     st.altair_chart(chart, use_container_width=True)
 
 def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False, show_alert_point: bool = True):
-    """Display current time series visualization."""
+    """Display current consumption time series visualization."""
     if results_df is None or results_df.empty:
         st.warning("No data available for current visualization.")
         return
-        
+    
     # Ensure we have a clean working copy with proper timestamps
     df = results_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
@@ -511,26 +523,26 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     # First check if max_loading_time is in session state
     if 'max_loading_time' in st.session_state:
         max_loading_time = st.session_state.max_loading_time
-        logger.info(f"Current chart: Using session state max_loading_time for peak placement at {max_loading_time}")
     # Only calculate if not in session state
     elif 'loading_percentage' in df.columns:
         max_loading_idx = df['loading_percentage'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
-        logger.info(f"Current chart: Using loading_percentage max value for peak placement at {max_loading_time}")
     else:
         # If loading percentage is not available, use max current as an alternative
         max_loading_idx = df['current_a'].idxmax()
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
-        logger.info(f"Current chart: Using current_a max value as fallback for peak placement at {max_loading_time}")
+    
+    # Calculate peak annotation height using helper function
+    peak_annotation_height = calculate_annotation_height(df, y_column='current_a')
     
     # Create current chart with Altair
     chart = create_altair_chart(
         df,
         'current_a',
         title="Current (A)" if is_transformer_view else None,
-        color="#ff7f0e"  # Orange color for current
+        color="#ff7f0e",  # Orange color for current
     )
     
     # Add peak load indicator
@@ -545,15 +557,15 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['current_a'].max() * 1.05]  # Position 5% above maximum value
+        'y': [peak_annotation_height]  # Position using helper function
     })).mark_text(
         align='left',
         baseline='bottom',
         fontSize=14,
         fontWeight='bold',
         color='red',
-        dx=10,  # Consistent horizontal offset
-        dy=-10  # Consistent vertical offset
+        dx=ANNOTATION_PEAK_DX,  # Using constant
+        dy=ANNOTATION_PEAK_DY    # Using constant
     ).encode(
         x='peak_time:T',
         y='y:Q',
@@ -580,25 +592,24 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [df['current_a'].max() * 1.08]  # Position slightly higher than peak load
+                'y': [peak_annotation_height]  # Using same height as peak load annotation
             })).mark_text(
                 align='left',
-                baseline='bottom',
+                baseline='bottom',  # Changed to bottom for consistency with peak load
                 fontSize=12,
                 color='gray',
-                dx=5,  # Horizontal offset
-                dy=-5  # Vertical offset
+                dx=ANNOTATION_ALERT_DX,  # Using constant
+                dy=ANNOTATION_ALERT_DY    # Using constant
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
                 text=alt.value('Alert point')
             )
             
-            # Combine with existing chart containing peak load indicators
+            # Combine with existing chart
             chart = alt.layer(chart, rule, text)
-            logger.info(f"Added alert timestamp to current chart at {alert_time}")
         except Exception as e:
-            logger.error(f"Error highlighting alert timestamp: {e}")
+            logger.error(f"Error adding alert timestamp: {e}")
     
     # Display the chart with streamlit
     st.altair_chart(chart, use_container_width=True)
@@ -643,100 +654,41 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             max_loading_time = df['timestamp'].iloc[middle_index]
             logger.warning(f"Voltage chart: No metrics available for peak detection. Using middle timestamp ({middle_index}/{len(df)}) at {max_loading_time}")
         
-        # Create synthetic data for 3 phases
-        voltage_data = pd.DataFrame()
-        voltage_data['timestamp'] = df['timestamp']
-        
-        # Import for math functions
-        import numpy as np
-        
-        # Base voltage is 400V
-        base_voltage = 400
-        
-        # Time-based index for sinusoidal patterns
-        time_idx = np.linspace(0, 4*np.pi, len(df))
-        
-        # Define the range parameters
-        variation_pct = 0.15  # Increased from 0.06 to 0.15 (15% variation)
-        pattern_influence = 0.08  # Increased from 0.02 to 0.08 (8% influence)
-        random_noise = 0.02  # Increased from 0.01 to 0.02 (2% random noise)
-        
-        # Extract a pattern from power or current data for synergy
-        # This will be used to influence the voltage pattern (non-intrusive approach)
-        power_pattern = None
-        if 'power_kw' in df.columns and not df['power_kw'].isna().all():
-            power_min = df['power_kw'].min()
-            power_max = df['power_kw'].max()
-            # Avoid division by zero
-            if power_max > power_min:
-                power_pattern = (df['power_kw'] - power_min) / (power_max - power_min)
-            else:
-                power_pattern = pd.Series(0.5, index=df.index, name='pattern')
-        elif 'current_a' in df.columns and not df['current_a'].isna().all():
-            current_min = df['current_a'].min()
-            current_max = df['current_a'].max()
-            # Avoid division by zero
-            if current_max > current_min:
-                power_pattern = (df['current_a'] - current_min) / (current_max - current_min)
-            else:
-                power_pattern = pd.Series(0.5, index=df.index, name='pattern')
-        else:
-            # Create a default pattern if neither power nor current data is available
-            power_pattern = pd.Series(0.5, index=range(len(df)), name='pattern')
-        
-        # Create inverse pattern for voltage (power increases = voltage slightly decreases)
-        inverse_pattern = 1 - power_pattern.values
-        
-        # Phase A - centered around 400V with enhanced pattern influence and noise
-        phase_a = base_voltage + \
-                  base_voltage * variation_pct * np.sin(time_idx) + \
-                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
-                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
-        voltage_data['Phase A'] = phase_a
-        
-        # Phase B - shifted 120 degrees (2π/3 radians) with enhanced pattern influence and noise
-        phase_b = base_voltage + \
-                  base_voltage * variation_pct * np.sin(time_idx - (2*np.pi/3)) + \
-                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
-                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
-        voltage_data['Phase B'] = phase_b
-        
-        # Phase C - shifted 240 degrees (4π/3 radians) with enhanced pattern influence and noise
-        phase_c = base_voltage + \
-                  base_voltage * variation_pct * np.sin(time_idx - (4*np.pi/3)) + \
-                  base_voltage * pattern_influence * (inverse_pattern - 0.5) + \
-                  base_voltage * random_noise * np.random.normal(0, 1, len(df))
-        voltage_data['Phase C'] = phase_c
-        
-        # Log voltage data statistics for debugging
-        logger.warning(f"Voltage data statistics - Phase A: min={voltage_data['Phase A'].min():.2f}, max={voltage_data['Phase A'].max():.2f}, range={voltage_data['Phase A'].max() - voltage_data['Phase A'].min():.2f}")
-        logger.warning(f"Expected voltage range based on 15% variation: {base_voltage * 0.85:.2f} to {base_voltage * 1.15:.2f}")
-        
-        # Define the column mapping for the multi-line chart
-        column_dict = {
-            'Phase A': 'Phase A',
-            'Phase B': 'Phase B',
-            'Phase C': 'Phase C'
-        }
-        
-        # Create a multi-line chart with Altair
-        voltage_chart = create_multi_line_chart(
-            voltage_data, 
-            column_dict,
-            title=None  # No title needed as we use colored banner
+        # Prepare voltage data for multi-line chart
+        voltage_data = df[['timestamp', 'voltage_a', 'voltage_b', 'voltage_c']].rename(
+            columns={
+                'voltage_a': 'Phase A',
+                'voltage_b': 'Phase B',
+                'voltage_c': 'Phase C'
+            }
         )
         
-        # Set y-axis domain constraint for voltage chart to ensure data visibility
-        voltage_chart = voltage_chart.encode(
-            y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[300, 500], zero=False),  # Set voltage range to capture full 15% variation
-                    axis=alt.Axis(
-                        title="Voltage",
-                        labelColor='#333333',
-                        titleColor='#333333',
-                        labelFontSize=14,
-                        titleFontSize=16
-                    ))
+        # Calculate the annotation height using our helper function for multi-phase
+        annotation_height = calculate_annotation_height(
+            voltage_data, 
+            is_multi_phase=True,
+            phase_columns=['Phase A', 'Phase B', 'Phase C']
+        )
+        
+        # Melt the data for Altair's format
+        voltage_data_melted = pd.melt(
+            voltage_data,
+            id_vars=['timestamp'],
+            value_vars=['Phase A', 'Phase B', 'Phase C'],
+            var_name='Phase',
+            value_name='Voltage'
+        )
+        
+        # Create a multi-line chart for voltage with proper coloring
+        voltage_chart = alt.Chart(voltage_data_melted).mark_line().encode(
+            x=alt.X('timestamp:T', title='Date'),
+            y=alt.Y('Voltage:Q', title='Voltage (V)'),
+            color=alt.Color('Phase:N', scale=alt.Scale(
+                domain=['Phase A', 'Phase B', 'Phase C'],
+                range=['#1f77b4', '#ff7f0e', '#2ca02c']  # Blue, Orange, Green
+            ))
+        ).properties(
+            title="Voltage (V)" if is_transformer_view else None
         )
         
         # Add peak load indicator
@@ -751,15 +703,15 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Add text annotation for peak load
         peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Position 5% above maximum value
+            'y': [annotation_height]  # Using our new helper function
         })).mark_text(
             align='left',
             baseline='bottom',
-            fontSize=12,
+            fontSize=14,  # Increased font size for consistency with other charts
             fontWeight='bold',
             color='red',
-            dx=10,  # Add horizontal offset to avoid overlapping with line
-            dy=-10  # Consistent vertical offset
+            dx=ANNOTATION_PEAK_DX,  # Using constant
+            dy=ANNOTATION_PEAK_DY    # Using constant
         ).encode(
             x='peak_time:T',
             y='y:Q',
@@ -769,8 +721,8 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Combine the charts
         voltage_chart = alt.layer(voltage_chart, peak_rule, peak_text)
         
-        # Add alert timestamp if in session state and not skipped
-        if show_alert_point and 'highlight_timestamp' in st.session_state :
+        # Add alert timestamp if in session state
+        if show_alert_point and 'highlight_timestamp' in st.session_state:
             try:
                 alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
                 
@@ -786,24 +738,24 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
                 # Add text annotation for the alert
                 text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Match peak load position
+                    'y': [annotation_height]  # Same height as peak load annotation
                 })).mark_text(
                     align='left',
-                    baseline='top',
+                    baseline='bottom',  # Changed to bottom for consistency with peak load
                     fontSize=12,
                     color='gray',
-                    dx=10,  # Add horizontal offset to avoid overlapping with line
-                    dy=-10  # Consistent vertical offset
+                    dx=ANNOTATION_ALERT_DX,  # Using constant
+                    dy=ANNOTATION_ALERT_DY    # Using constant
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
                     text=alt.value('Alert point')
                 )
                 
-                # Combine with existing chart
+                # Add to the main chart
                 voltage_chart = alt.layer(voltage_chart, rule, text)
             except Exception as e:
-                logger.error(f"Error highlighting alert timestamp: {e}")
+                logger.error(f"Error adding alert timestamp to voltage chart: {e}")
         
         # Display the chart with streamlit
         st.altair_chart(voltage_chart, use_container_width=True)
@@ -1564,7 +1516,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         })).mark_text(
             align='left',
             baseline='bottom',
-            fontSize=12,
+            fontSize=14,  # Increased font size for consistency with other charts
             fontWeight='bold',
             color='red',
             dx=10,  # Add horizontal offset to avoid overlapping with line
@@ -1595,10 +1547,10 @@ def display_transformer_data(results_df: pd.DataFrame):
                 # Add text annotation for the alert
                 text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Match peak load position
+                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Same height as peak load annotation
                 })).mark_text(
                     align='left',
-                    baseline='top',
+                    baseline='bottom',  # Changed to bottom for consistency with peak load
                     fontSize=12,
                     color='gray',
                     dx=10,  # Add horizontal offset to avoid overlapping with line

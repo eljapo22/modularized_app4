@@ -31,6 +31,13 @@ CHART_COLORS = {
     'text': '#2f4f4f'       # Dark slate gray
 }
 
+# Annotation Configuration
+ANNOTATION_TOP_MARGIN_PERCENT = 0.10  # Percentage of y-axis range to add above max value for annotations
+ANNOTATION_PEAK_DX = 10  # Horizontal offset for peak load annotations
+ANNOTATION_PEAK_DY = -15  # Vertical offset for peak load annotations
+ANNOTATION_ALERT_DX = 20  # Horizontal offset for alert annotations (more space for data values)
+ANNOTATION_ALERT_DY = -15  # Vertical offset for alert annotations
+
 # Gmail API scope
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
