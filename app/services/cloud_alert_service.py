@@ -5,7 +5,7 @@ import logging
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime, date
+from datetime import datetime, date, time
 from typing import Optional, Dict, Tuple
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -231,7 +231,13 @@ class CloudAlertService:
             # Add end date if provided
             if search_end_date:
                 params['end'] = search_end_date.strftime('%Y-%m-%d')
-                
+                # Add the alert time to match the end date if not already specified
+                if not isinstance(alert_time, datetime) or alert_time.date() != search_end_date:
+                    end_hour = 23  # Default to end of day
+                    end_alert_time = datetime.combine(search_end_date, time(hour=end_hour))
+                    params['alert_time'] = end_alert_time.strftime('%Y-%m-%dT%H:%M:%S')
+                    logger.info(f"Setting alert_time to end date: {params['alert_time']}")
+            
             # Create the query string
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
             

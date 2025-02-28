@@ -272,6 +272,26 @@ def main():
                         logger.info(f"Set highlight timestamp to {alert_time_parsed}")
                     except Exception as e:
                         logger.error(f"Failed to parse alert timestamp {param_alert_time}: {str(e)}")
+                # If no specific alert_time but end_date is provided, use end date as alert point
+                elif param_end:
+                    try:
+                        # Use the end date at the selected hour or default to end of day
+                        end_date_parsed = pd.to_datetime(param_end)
+                        hour = 23  # Default to end of day
+                        
+                        # Create a timestamp for end of the day
+                        alert_time = pd.Timestamp(
+                            year=end_date_parsed.year,
+                            month=end_date_parsed.month,
+                            day=end_date_parsed.day,
+                            hour=hour
+                        )
+                        
+                        # Store in session state
+                        st.session_state.highlight_timestamp = alert_time
+                        logger.info(f"Set highlight timestamp to end date: {alert_time}")
+                    except Exception as e:
+                        logger.error(f"Failed to set end date as alert time: {str(e)}")
                 
                 # Find and set max loading point from the transformer data
                 try:
