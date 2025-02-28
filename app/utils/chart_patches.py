@@ -52,7 +52,7 @@ def patch_transformer_charts():
             max_loading_time = st.session_state.max_loading_time
         
         # Calculate peak annotation height with more vertical spacing
-        peak_annotation_height = df['power_kw'].max() * 1.15  # Increased vertical spacing
+        peak_annotation_height = df['power_kw'].max() * 1.25  # Further increased vertical spacing
         
         # Create power chart with Altair
         chart = alt.Chart(df).mark_line(point=True).encode(
@@ -167,10 +167,10 @@ def patch_transformer_charts():
                     x='alert_time:T'
                 )
                 
-                # Add text annotation for the alert - using same height calculation as peak load
+                # Add text annotation for the alert - using same height calculation as peak load + extra space
                 text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [peak_annotation_height]  # Match peak load annotation height
+                    'y': [peak_annotation_height * 1.1]  # Position alert point annotation higher than peak load
                 })).mark_text(
                     align='left',
                     baseline='bottom',
@@ -240,7 +240,7 @@ def patch_transformer_charts():
         max_loading_point = df.loc[max_loading_idx]
         max_loading_time = max_loading_point['timestamp']
         
-        # Create power chart with Altair - with data points (dots) enabled
+        # Create base power chart with Altair - with data points (dots) enabled
         power_chart = alt.Chart(df).mark_line(point=True, color="#1f77b4").encode(
             x=alt.X('timestamp:T', 
                 axis=alt.Axis(
@@ -268,12 +268,12 @@ def patch_transformer_charts():
             width='container'
         )
         
-        # Add alert timestamp if in session state - for customer view, just add the rule without text
+        # Add alert timestamp if in session state - for customer view, ONLY add rule with no text
         if 'highlight_timestamp' in st.session_state:
             try:
                 alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
                 
-                # Create a vertical rule to mark the alert time
+                # Create a vertical rule to mark the alert time (without text annotation)
                 rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
                     color='gray',
                     strokeWidth=2,
@@ -282,7 +282,7 @@ def patch_transformer_charts():
                     x='alert_time:T'
                 )
                 
-                # Combine charts - only one alert annotation
+                # Combine charts - only include the rule
                 power_chart = alt.layer(power_chart, rule)
             except Exception as e:
                 logging.error(f"Error highlighting alert timestamp: {e}")
@@ -293,9 +293,68 @@ def patch_transformer_charts():
         create_colored_banner("Voltage")
         display_voltage_time_series(results_df)
         
-        # Show Current chart with patched version
+        # Show Current chart with patched version - create a fresh version for this view
         create_colored_banner("Current")
-        patched_display_current_time_series(results_df)
+        
+        # Only use the current data for the chart, no annotations
+        if results_df is not None and not results_df.empty:
+            current_df = results_df.copy()
+            
+            # Ensure timestamp is datetime
+            current_df['timestamp'] = pd.to_datetime(current_df['timestamp'])
+            current_df = current_df.sort_values('timestamp')
+            
+            # Create current chart with Altair - with data points (dots) enabled
+            current_chart = alt.Chart(current_df).mark_line(point=True, color="#1f77b4").encode(
+                x=alt.X('timestamp:T', 
+                    axis=alt.Axis(
+                        format='%m/%d/%y',
+                        title='Date',
+                        labelAngle=-45,
+                        labelColor='#333333',
+                        titleColor='#333333',
+                        labelFontSize=14,
+                        titleFontSize=16
+                    )
+                ),
+                y=alt.Y('current_a:Q', 
+                    scale=alt.Scale(zero=False),
+                    axis=alt.Axis(
+                        title='Current (A)',
+                        labelColor='#333333',
+                        titleColor='#333333',
+                        labelFontSize=14,
+                        titleFontSize=16
+                    )
+                ),
+                tooltip=['timestamp:T', 'current_a:Q']
+            ).properties(
+                width='container'
+            )
+            
+            # Add alert timestamp if in session state - single rule only, no text annotation
+            if 'highlight_timestamp' in st.session_state:
+                try:
+                    alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+                    
+                    # Create a vertical rule to mark the alert time
+                    rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
+                        color='gray',
+                        strokeWidth=2,
+                        strokeDash=[5, 5]
+                    ).encode(
+                        x='alert_time:T'
+                    )
+                    
+                    # Combine charts - only the rule, no annotation to avoid duplicates
+                    current_chart = alt.layer(current_chart, rule)
+                except Exception as e:
+                    logging.error(f"Error highlighting alert timestamp: {e}")
+            
+            # Display the chart
+            st.altair_chart(current_chart, use_container_width=True)
+        else:
+            st.warning("No current data available.")
     
     # Define patched current time series display function to fix double alert points
     def patched_display_current_time_series(results_df: pd.DataFrame):
