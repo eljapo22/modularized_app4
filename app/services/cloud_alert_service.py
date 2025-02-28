@@ -138,6 +138,9 @@ class CloudAlertService:
             transformer_id = max_data['transformer_id'] if 'transformer_id' in max_data else 'Unknown'
             max_loading_pct = max_data['loading_percentage'] if 'loading_percentage' in max_data else 0.0
             
+            # Get the timestamp (which is the Series name/index)
+            max_timestamp = max_data.name if hasattr(max_data, 'name') else datetime.now()
+            
             # Set default status if not provided
             if max_status is None:
                 max_status, max_color = get_alert_status(max_loading_pct)
@@ -146,10 +149,12 @@ class CloudAlertService:
             end_status = None
             end_color = '#6c757d'  # Default gray
             end_loading_pct = 0
+            end_timestamp = None
             
             if end_data is not None:
                 end_loading_pct = end_data['loading_percentage'] if 'loading_percentage' in end_data else 0.0
                 end_status, end_color = get_alert_status(end_loading_pct)
+                end_timestamp = end_data.name if hasattr(end_data, 'name') else datetime.now()
         
             html = f"""
             <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6; color: #333;">
@@ -165,7 +170,7 @@ class CloudAlertService:
                     <h3 style="color: {max_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(max_status)} {max_status} Peak Load Alert</h3>
                     <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
                         <li style="padding: 5px 0;"><strong>Peak Loading:</strong> {max_loading_pct:.1f}% {'' if max_loading_pct < 100 else '<span style="color: #dc3545;">(Exceeds safe threshold)</span>'}</li>
-                        <li style="padding: 5px 0;"><strong>Peak Occurrence:</strong> {max_data['name'].strftime('%B %d, %Y, at %H:%M')}</li>
+                        <li style="padding: 5px 0;"><strong>Peak Occurrence:</strong> {max_timestamp.strftime('%B %d, %Y, at %H:%M')}</li>
                     </ul>
                 </div>
                 
@@ -187,7 +192,7 @@ class CloudAlertService:
                     <h3 style="color: {end_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(end_status)} {end_status}: End-Date Loading</h3>
                     <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
                         <li style="padding: 5px 0;"><strong>End-Date Loading:</strong> {end_loading_pct:.1f}%</li>
-                        <li style="padding: 5px 0;"><strong>Recorded On:</strong> {end_data['name'].strftime('%B %d, %Y, at %H:%M')}</li>
+                        <li style="padding: 5px 0;"><strong>Recorded On:</strong> {end_timestamp.strftime('%B %d, %Y, at %H:%M')}</li>
                     </ul>
                 </div>
                 
