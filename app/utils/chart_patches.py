@@ -20,6 +20,7 @@ def patch_transformer_charts():
     # Store the original functions
     original_display_power_time_series = display_power_time_series
     original_display_customer_data = display_customer_data
+    original_display_current_time_series = display_current_time_series
     
     # Define the patched function for transformer power time series
     def patched_display_power_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
@@ -291,9 +292,88 @@ def patch_transformer_charts():
         # Only show Voltage chart
         create_colored_banner("Voltage")
         display_voltage_time_series(results_df)
+        
+        # Show Current chart with patched version
+        create_colored_banner("Current")
+        patched_display_current_time_series(results_df)
+    
+    # Define patched current time series display function to fix double alert points
+    def patched_display_current_time_series(results_df: pd.DataFrame):
+        """Display current time series visualizations with improved charts."""
+        if results_df is None or results_df.empty:
+            st.warning("No data available for current visualization.")
+            return
+
+        # Ensure timestamp is datetime
+        df = results_df.copy()
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df.sort_values('timestamp')
+        
+        # Calculate peak annotation height with more vertical spacing (consistent with transformer view)
+        peak_annotation_height = df['power_kw'].max() * 1.15
+        
+        # Current
+        
+        # Find the maximum loading point
+        max_loading_idx = df['power_kw'].idxmax() 
+        max_loading_point = df.loc[max_loading_idx]
+        max_loading_time = max_loading_point['timestamp']
+        
+        # Create current chart with Altair - with data points (dots) enabled
+        current_chart = alt.Chart(df).mark_line(point=True, color="#1f77b4").encode(
+            x=alt.X('timestamp:T', 
+                axis=alt.Axis(
+                    format='%m/%d/%y',
+                    title='Date',
+                    labelAngle=-45,
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=14,
+                    titleFontSize=16
+                )
+            ),
+            y=alt.Y('current_a:Q', 
+                scale=alt.Scale(zero=False),
+                axis=alt.Axis(
+                    title='Current (A)',
+                    labelColor='#333333',
+                    titleColor='#333333',
+                    labelFontSize=14,
+                    titleFontSize=16
+                )
+            ),
+            tooltip=['timestamp:T', 'current_a:Q']
+        ).properties(
+            width='container'
+        )
+        
+        # Add alert timestamp if in session state - for customer view, just add the rule without text
+        if 'highlight_timestamp' in st.session_state:
+            try:
+                alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
+                
+                # Create a vertical rule to mark the alert time
+                rule = alt.Chart(pd.DataFrame({'alert_time': [alert_time]})).mark_rule(
+                    color='gray',
+                    strokeWidth=2,
+                    strokeDash=[5, 5]
+                ).encode(
+                    x='alert_time:T'
+                )
+                
+                # Combine charts - only one alert annotation
+                current_chart = alt.layer(current_chart, rule)
+            except Exception as e:
+                logging.error(f"Error highlighting alert timestamp: {e}")
+                
+        st.altair_chart(current_chart, use_container_width=True)
+
+        # Only show Voltage chart
+        display_voltage_time_series(results_df)
     
     # Apply the patches
     import app.visualization.charts
     app.visualization.charts.display_power_time_series = patched_display_power_time_series
     app.visualization.charts.display_customer_data = patched_display_customer_data
+    app.visualization.charts.display_current_time_series = patched_display_current_time_series
     return patched_display_power_time_series
