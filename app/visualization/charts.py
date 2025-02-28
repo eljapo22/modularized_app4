@@ -138,7 +138,7 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Set fixed Y-axis ranges
     y_min = 0
-    y_max = 150
+    y_max = 130
     
     # Create an Altair chart for loading percentage
     base_chart = alt.Chart(df).mark_line(
@@ -263,14 +263,13 @@ def display_loading_status(results_df: pd.DataFrame):
     # Add text annotation for maximum loading
     max_text = alt.Chart(pd.DataFrame({
         'max_time': [max_loading_time],
-        'y': [140]  # Consistent position for annotation
+        'y': [130]  # Position at top of chart
     })).mark_text(
         align='center',
         baseline='bottom',
         fontSize=12,
         fontWeight='bold',
-        color='#dc3545',
-        dy=-10  # Move text up for better positioning
+        color='#dc3545'
     ).encode(
         x='max_time:T',
         y='y:Q',
@@ -299,13 +298,12 @@ def display_loading_status(results_df: pd.DataFrame):
                 # Add text annotation for alert time
                 alert_text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [140]
+                    'y': [130]
                 })).mark_text(
                     align='center',
                     baseline='top',
                     fontSize=12,
-                    color='gray',
-                    dy=10  # Move text down by 10 pixels
+                    color='gray'
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
@@ -449,7 +447,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [140]  # Lowered from 150 to 140 to match other charts
+                'y': [df['power_kw'].max()]
             })).mark_text(
                 align='left',
                 baseline='top',
@@ -547,7 +545,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [140]  # Lowered from 150 to 140 to match other charts
+                'y': [df['current_a'].max()]
             })).mark_text(
                 align='left',
                 baseline='top',
@@ -688,19 +686,6 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             title=None  # No title needed as we use colored banner
         )
         
-        # Add y-axis domain constraint to focus on the relevant voltage range
-        voltage_chart = voltage_chart.encode(
-            y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[350, 420]),  # Set appropriate voltage range
-                    axis=alt.Axis(
-                        title="Value, V",
-                        labelColor='#333333',
-                        titleColor='#333333',
-                        labelFontSize=14,
-                        titleFontSize=16
-                    ))
-        )
-        
         # Add peak load indicator
         peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
             color='red',
@@ -746,7 +731,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
                 # Add text annotation for the alert
                 text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [140]  # Lowered from 150 to 140 to match other charts
+                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max()]
                 })).mark_text(
                     align='left',
                     baseline='top',
@@ -1210,7 +1195,7 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [140]  # Consistent position for annotation
+        'y': [df['power_kw'].max() * 0.9]
     })).mark_text(
         align='left',
         baseline='bottom',
@@ -1287,13 +1272,12 @@ def display_transformer_data(results_df: pd.DataFrame):
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [140]  # Lowered from 150 to 140 to match other charts
+                'y': [df['power_kw'].max()]
             })).mark_text(
                 align='center',
                 baseline='top',
                 fontSize=12,
-                color='gray',
-                dy=10  # Move text down by 10 pixels
+                color='gray'
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
@@ -1353,7 +1337,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Add text annotation for peak load
         current_peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [140]  # Consistent position for annotation
+            'y': [df['current_a'].max() * 0.9]
         })).mark_text(
             align='left',
             baseline='bottom',
@@ -1388,7 +1372,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 # Add alert text
                 alert_text = alt.Chart(pd.DataFrame({
                     'timestamp': [alert_time],
-                    'y': [140]  # Lowered from 150 to 140 to match other charts
+                    'y': [df['current_a'].max()]
                 })).mark_text(
                     align='left',
                     baseline='top',
@@ -1473,19 +1457,6 @@ def display_transformer_data(results_df: pd.DataFrame):
             title=None  # No title needed as we use colored banner
         )
         
-        # Add y-axis domain constraint to focus on the relevant voltage range
-        voltage_chart = voltage_chart.encode(
-            y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[350, 420]),  # Set appropriate voltage range
-                    axis=alt.Axis(
-                        title="Value, V",
-                        labelColor='#333333',
-                        titleColor='#333333',
-                        labelFontSize=14,
-                        titleFontSize=16
-                    ))
-        )
-        
         # Add peak load indicator
         peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
             color='red',
@@ -1498,7 +1469,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Add text annotation for peak load
         peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [140]  # Consistent position for annotation
+            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.9]  # Position below max for visibility
         })).mark_text(
             align='left',
             baseline='bottom',
@@ -1531,7 +1502,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 # Add text annotation for the alert
                 text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [140]  # Lowered from 150 to 140 to match other charts
+                    'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max()]
                 })).mark_text(
                     align='left',
                     baseline='top',
@@ -1668,13 +1639,12 @@ def create_altair_chart(df, y_column, title=None, color=None):
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [140]  # Lowered from 150 to 140 to match other charts
+                'y': [df[y_column].max()]
             })).mark_text(
                 align='center',
                 baseline='top',
                 fontSize=12,
-                color='gray',
-                dy=10  # Move text down by 10 pixels
+                color='gray'
             ).encode(
                 x='alert_time:T',
                 y='y:Q',
