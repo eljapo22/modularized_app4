@@ -166,6 +166,32 @@ class CloudAlertService:
                 
                 <p style="margin-bottom: 25px; font-size: 16px;">This is an automated alert from the Transformer Loading Analysis System regarding abnormal loading conditions detected for Transformer <strong>{transformer_id}</strong>.</p>
                 
+            """
+        
+            # Add end date information if available - REORDERED to come FIRST as Alert Point
+            if end_data is not None:
+                html += f"""
+                <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {end_color};">
+                    <h3 style="color: {end_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(end_status)} {end_status}: Alert Point Loading</h3>
+                    <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
+                        <li style="padding: 5px 0;"><strong>Alert Point Loading:</strong> {end_loading_pct:.1f}%</li>
+                        <li style="padding: 5px 0;"><strong>Recorded On:</strong> {end_timestamp.strftime('%B %d, %Y, at %H:%M')}</li>
+                    </ul>
+                </div>
+                
+                <div style="background-color: #ffffff; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e9ecef;">
+                    <h4 style="margin-top: 0; color: #495057; font-size: 18px;">📊 Alert Point Readings:</h4>
+                    <ul style="list-style-type: none; padding-left: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                        <li style="padding: 5px 0;"><strong>Power:</strong> {end_data['power_kw']:.1f} kW</li>
+                        <li style="padding: 5px 0;"><strong>Current:</strong> {end_data['current_a']:.1f} A</li>
+                        <li style="padding: 5px 0;"><strong>Voltage:</strong> {end_data['voltage_v']:.1f} V</li>
+                        <li style="padding: 5px 0;"><strong>Power Factor:</strong> {end_data['power_factor']:.2f}</li>
+                    </ul>
+                </div>
+                """
+            
+            # Now add the Peak Load information second
+            html += f"""
                 <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {max_color};">
                     <h3 style="color: {max_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(max_status)} {max_status} Peak Load Alert</h3>
                     <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
@@ -184,28 +210,6 @@ class CloudAlertService:
                     </ul>
                 </div>
             """
-        
-            # Add end date information if available
-            if end_data is not None:
-                html += f"""
-                <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {end_color};">
-                    <h3 style="color: {end_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(end_status)} {end_status}: End-Date Loading</h3>
-                    <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
-                        <li style="padding: 5px 0;"><strong>End-Date Loading:</strong> {end_loading_pct:.1f}%</li>
-                        <li style="padding: 5px 0;"><strong>Recorded On:</strong> {end_timestamp.strftime('%B %d, %Y, at %H:%M')}</li>
-                    </ul>
-                </div>
-                
-                <div style="background-color: #ffffff; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e9ecef;">
-                    <h4 style="margin-top: 0; color: #495057; font-size: 18px;">📊 End-Date Load Readings:</h4>
-                    <ul style="list-style-type: none; padding-left: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                        <li style="padding: 5px 0;"><strong>Power:</strong> {end_data['power_kw']:.1f} kW</li>
-                        <li style="padding: 5px 0;"><strong>Current:</strong> {end_data['current_a']:.1f} A</li>
-                        <li style="padding: 5px 0;"><strong>Voltage:</strong> {end_data['voltage_v']:.1f} V</li>
-                        <li style="padding: 5px 0;"><strong>Power Factor:</strong> {end_data['power_factor']:.2f}</li>
-                    </ul>
-                </div>
-                """
             
             html += f"""
                 <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid #0d6efd;">
