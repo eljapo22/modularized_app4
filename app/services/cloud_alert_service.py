@@ -102,8 +102,14 @@ class CloudAlertService:
             # Only alert if either max loading or end-date loading is high enough
             alert_criteria_met = False
             
-            # Keeping threshold at 80% per user request
-            if max_loading['loading_percentage'] >= 80:
+            # Using the correct thresholds from MEMORY:
+            # - Critical: >= 120%
+            # - Overloaded: >= 100%
+            # - Warning: >= 80%
+            # - Pre-Warning: >= 50%
+            # - Normal: < 50%
+            
+            if max_loading['loading_percentage'] >= 50:  # Pre-Warning threshold
                 alert_criteria_met = True
                 logger.info(f"Alert criteria met: Max loading {max_loading['loading_percentage']:.1f}% >= 80%")
             elif end_point is not None and end_point['loading_percentage'] >= 80:
@@ -312,8 +318,25 @@ class CloudAlertService:
             logger.warning(msg)
             st.warning(f"📧 {msg}")
             return False
+            
+        # Check if the DataFrame is empty
+        if results_df is None or results_df.empty:
+            logger.warning("Empty results dataframe provided to check_and_send_alerts")
+            st.warning("📊 No data available for alert analysis")
+            return False
 
         try:
+            # Add verbose debug logging
+            logger.info(f"DataFrame shape: {results_df.shape}")
+            if not results_df.empty:
+                logger.info(f"DataFrame columns: {results_df.columns.tolist()}")
+                logger.info(f"DataFrame index type: {type(results_df.index)}")
+                logger.info(f"DataFrame date range: {results_df.index.min()} to {results_df.index.max()}")
+                
+                # Check if loading_percentage is in the dataframe
+                if 'loading_percentage' in results_df.columns:
+                    logger.info(f"Loading percentage stats: min={results_df['loading_percentage'].min():.1f}%, max={results_df['loading_percentage'].max():.1f}%, mean={results_df['loading_percentage'].mean():.1f}%")
+                
             # Convert alert_time to datetime if it's a numpy.int64
             if isinstance(alert_time, np.int64):
                 alert_time = pd.Timestamp(alert_time).to_pydatetime()
