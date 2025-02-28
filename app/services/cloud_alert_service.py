@@ -14,21 +14,8 @@ import smtplib
 
 logger = logging.getLogger(__name__)
 
-def get_status_emoji(status: str) -> str:
-    """Return emoji for status"""
-    if status == 'Critical':
-        return '🔴'
-    elif status == 'Overloaded':
-        return '🟠'
-    elif status == 'Warning':
-        return '🟡'
-    elif status == 'Pre-Warning':
-        return '🟣'
-    else:
-        return '✅'
-
-def get_alert_status(loading_pct: float) -> Tuple[str, str]:
-    """Determine alert status based on loading percentage"""
+def get_alert_status(loading_pct: float) -> tuple[str, str]:
+    """Get alert status and color based on loading percentage"""
     if loading_pct >= 120:
         return 'Critical', '#dc3545'
     elif loading_pct >= 100:
@@ -39,6 +26,16 @@ def get_alert_status(loading_pct: float) -> Tuple[str, str]:
         return 'Pre-Warning', '#6f42c1'
     else:
         return 'Normal', '#198754'
+
+def get_status_emoji(status: str) -> str:
+    """Get emoji for status"""
+    return {
+        'Critical': '🔴',
+        'Overloaded': '🟠',
+        'Warning': '🟡',
+        'Pre-Warning': '🟣',
+        'Normal': '🟢'
+    }.get(status, '⚪')
 
 class CloudAlertService:
     def __init__(self):
@@ -53,7 +50,7 @@ class CloudAlertService:
         else:
             logger.info("Email alerts enabled")
 
-    def _get_status_color(self, loading_pct: float) -> Tuple[str, str, str]:
+    def _get_status_color(self, loading_pct: float) -> tuple:
         """Get status and color based on loading percentage"""
         if loading_pct >= 120:
             return "CRITICAL", "#dc3545", "🚨"
@@ -105,49 +102,34 @@ class CloudAlertService:
             # Only alert if either max loading or end-date loading is high enough
             alert_criteria_met = False
             
-            # Using the correct thresholds from MEMORY:
-            # - Critical: >= 120%
-            # - Overloaded: >= 100%
-            # - Warning: >= 80%
-            # - Pre-Warning: >= 50%
-            # - Normal: < 50%
-            
-            if max_loading['loading_percentage'] >= 50:  # Pre-Warning threshold
+            if max_loading['loading_percentage'] >= 80:
                 alert_criteria_met = True
-                logger.info(f"Alert criteria met: Max loading {max_loading['loading_percentage']:.1f}% >= 50%")
-            elif end_point is not None and end_point['loading_percentage'] >= 50:  # Pre-Warning threshold
+                logger.info(f"Alert criteria met: Max loading {max_loading['loading_percentage']:.1f}% >= 80%")
+            elif end_point is not None and end_point['loading_percentage'] >= 80:
                 alert_criteria_met = True
-                logger.info(f"Alert criteria met: End-date loading {end_point['loading_percentage']:.1f}% >= 50%")
+                logger.info(f"Alert criteria met: End-date loading {end_point['loading_percentage']:.1f}% >= 80%")
             
             if alert_criteria_met:
                 return max_loading, end_point
             else:
                 logger.info(f"Max loading {max_loading['loading_percentage']:.1f}% and end-date loading " + 
                           (f"{end_point['loading_percentage']:.1f}%" if end_point is not None else "N/A") + 
-                          " below alert threshold (50%)")
+                          " below alert threshold (80%)")
                 st.info(f"🔍 Maximum ({max_loading['loading_percentage']:.1f}%) and end-date loading " + 
                        (f"({end_point['loading_percentage']:.1f}%)" if end_point is not None else "(N/A)") + 
-                       " are below alert threshold (50%)")
+                       " are below alert threshold (80%)")
                 return None, None
                 
         except Exception as e:
             logger.error(f"Error selecting alert points: {str(e)}")
             return None, None
 
-    def _create_email_content(self, max_point, end_point=None, max_status=None, max_color=None, max_status_emoji=None, deep_link="#"):
-        """Create HTML email content for alert"""
-        
-        # Get status info if not already provided
-        if max_status is None or max_color is None:
-            max_status, max_color = get_alert_status(max_point['loading_percentage'])
-        
-        # Get the proper emoji for the status
-        if max_status_emoji is None:
-            max_status_emoji = get_status_emoji(max_status)
+    def _create_email_content(self, max_point, end_point=None, max_status=None, max_color=None, deep_link=''):
+        """Create email HTML content for alert"""
         
         # Extract data from the max point
         transformer_id = max_point['transformer_id']
-        max_data = max_point  # The data is the point itself
+        max_data = max_point['data']
         max_loading_pct = max_point['loading_percentage']
         
         # Only extract end data if available
@@ -155,37 +137,37 @@ class CloudAlertService:
         end_loading_pct = None
         end_status = None
         end_color = None
-        end_status_emoji = None
         
         if end_point is not None:
-            end_data = end_point  # The data is the point itself
+            end_data = end_point['data']
             end_loading_pct = end_point['loading_percentage']
             end_status, end_color = get_alert_status(end_loading_pct)
-            end_status_emoji = get_status_emoji(end_status)
         
         html = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2f4f4f;">⚡ UPDATED: Transformer Loading Alert ⚡</h2>
+        <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6; color: #333;">
+            <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 20px; border-radius: 10px; margin-bottom: 25px; text-align: center; border-bottom: 3px solid #0d6efd;">
+                <h2 style="margin: 0; color: #2c3e50; font-size: 26px;">⚡ UPDATED: Transformer Loading Alert ⚡</h2>
+            </div>
             
-            <p style="margin-top: 20px;">Dear Recipient,</p>
+            <p style="margin-top: 20px; font-size: 16px;">Dear Recipient,</p>
             
-            <p>This is an automated alert from the Transformer Loading Analysis System regarding abnormal loading conditions detected for Transformer {transformer_id}.</p>
+            <p style="margin-bottom: 25px; font-size: 16px;">This is an automated alert from the Transformer Loading Analysis System regarding abnormal loading conditions detected for Transformer <strong>{transformer_id}</strong>.</p>
             
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: {max_color};">{max_status_emoji} {max_status} Peak Load Alert</h3>
-                <ul style="list-style-type: none; padding-left: 20px;">
-                    <li><strong>Peak Loading:</strong> {max_loading_pct:.1f}% {'' if max_loading_pct < 100 else '(Exceeds safe threshold)'}</li>
-                    <li><strong>Peak Occurrence:</strong> {max_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
+            <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {max_color};">
+                <h3 style="color: {max_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(max_status)} {max_status} Peak Load Alert</h3>
+                <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
+                    <li style="padding: 5px 0;"><strong>Peak Loading:</strong> {max_loading_pct:.1f}% {'' if max_loading_pct < 100 else '<span style="color: #dc3545;">(Exceeds safe threshold)</span>'}</li>
+                    <li style="padding: 5px 0;"><strong>Peak Occurrence:</strong> {max_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
                 </ul>
             </div>
             
-            <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h4>📊 Peak Load Readings:</h4>
-                <ul style="list-style-type: none; padding-left: 20px;">
-                    <li><strong>Power:</strong> {max_data['power_kw']:.1f} kW</li>
-                    <li><strong>Current:</strong> {max_data['current_a']:.1f} A</li>
-                    <li><strong>Voltage:</strong> {max_data['voltage_v']:.1f} V</li>
-                    <li><strong>Power Factor:</strong> {max_data['power_factor']:.2f}</li>
+            <div style="background-color: #ffffff; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e9ecef;">
+                <h4 style="margin-top: 0; color: #495057; font-size: 18px;">📊 Peak Load Readings:</h4>
+                <ul style="list-style-type: none; padding-left: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                    <li style="padding: 5px 0;"><strong>Power:</strong> {max_data['power_kw']:.1f} kW</li>
+                    <li style="padding: 5px 0;"><strong>Current:</strong> {max_data['current_a']:.1f} A</li>
+                    <li style="padding: 5px 0;"><strong>Voltage:</strong> {max_data['voltage_v']:.1f} V</li>
+                    <li style="padding: 5px 0;"><strong>Power Factor:</strong> {max_data['power_factor']:.2f}</li>
                 </ul>
             </div>
         """
@@ -193,51 +175,55 @@ class CloudAlertService:
         # Add end date information if available
         if end_data is not None:
             html += f"""
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: {end_color};">{end_status_emoji} {end_status}: End-Date Loading</h3>
-                <ul style="list-style-type: none; padding-left: 20px;">
-                    <li><strong>End-Date Loading:</strong> {end_loading_pct:.1f}%</li>
-                    <li><strong>Recorded On:</strong> {end_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
+            <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {end_color};">
+                <h3 style="color: {end_color}; margin-top: 0; font-size: 20px;">{get_status_emoji(end_status)} {end_status}: End-Date Loading</h3>
+                <ul style="list-style-type: none; padding-left: 10px; margin: 20px 0;">
+                    <li style="padding: 5px 0;"><strong>End-Date Loading:</strong> {end_loading_pct:.1f}%</li>
+                    <li style="padding: 5px 0;"><strong>Recorded On:</strong> {end_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
                 </ul>
             </div>
             
-            <div style="background-color: #ffffff; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h4>📊 End-Date Load Readings:</h4>
-                <ul style="list-style-type: none; padding-left: 20px;">
-                    <li><strong>Power:</strong> {end_data['power_kw']:.1f} kW</li>
-                    <li><strong>Current:</strong> {end_data['current_a']:.1f} A</li>
-                    <li><strong>Voltage:</strong> {end_data['voltage_v']:.1f} V</li>
-                    <li><strong>Power Factor:</strong> {end_data['power_factor']:.2f}</li>
+            <div style="background-color: #ffffff; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e9ecef;">
+                <h4 style="margin-top: 0; color: #495057; font-size: 18px;">📊 End-Date Load Readings:</h4>
+                <ul style="list-style-type: none; padding-left: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                    <li style="padding: 5px 0;"><strong>Power:</strong> {end_data['power_kw']:.1f} kW</li>
+                    <li style="padding: 5px 0;"><strong>Current:</strong> {end_data['current_a']:.1f} A</li>
+                    <li style="padding: 5px 0;"><strong>Voltage:</strong> {end_data['voltage_v']:.1f} V</li>
+                    <li style="padding: 5px 0;"><strong>Power Factor:</strong> {end_data['power_factor']:.2f}</li>
                 </ul>
             </div>
             """
             
         html += f"""
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h4>Recommended Actions:</h4>
+            <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid #0d6efd;">
+                <h4 style="margin-top: 0; color: #495057; font-size: 18px;">Recommended Actions:</h4>
                 <ul>
-                    <li><strong>Immediate Inspection:</strong> Check transformer health and cooling systems.</li>
-                    <li><strong>Load Redistribution:</strong> Consider redistributing the load to avoid overloading.</li>
-                    <li><strong>Monitor Trends:</strong> Review past loading history for potential risk mitigation.</li>
+                    <li style="margin-bottom: 10px;"><strong>Immediate Inspection:</strong> Check transformer health and cooling systems.</li>
+                    <li style="margin-bottom: 10px;"><strong>Load Redistribution:</strong> Consider redistributing the load to avoid overloading.</li>
+                    <li style="margin-bottom: 10px;"><strong>Monitor Trends:</strong> Review past loading history for potential risk mitigation.</li>
                 </ul>
             </div>
             
-            <p>For a detailed loading history and further analysis, click the button below:</p>
+            <p style="margin: 25px 0; font-size: 16px;">For a detailed loading history and further analysis, click the button below:</p>
             
             <div style="text-align: center; margin: 30px 0;">
-                <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                <a href="{deep_link}" style="background-color: #0d6efd; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
                     🔍 View Loading History
                 </a>
             </div>
             
-            <p>If you have any questions or require further assistance, please contact the maintenance team.</p>
-            
-            <p>Best regards,<br>
-            Transformer Monitoring Team</p>
-            
-            <p style="color: #6c757d; font-size: 12px; text-align: center; margin-top: 30px;">
-                This is an automated alert from your Transformer Loading Analysis System.
-            </p>
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+                <p style="margin-bottom: 5px; font-size: 16px;">If you have any questions or require further assistance, please contact the maintenance team.</p>
+                
+                <p style="margin-top: 25px; font-size: 16px;">
+                    Best regards,<br>
+                    <strong>Transformer Monitoring Team</strong>
+                </p>
+                
+                <p style="color: #6c757d; font-size: 12px; text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+                    This is an automated alert from your Transformer Loading Analysis System.
+                </p>
+            </div>
         </div>
         """
         return html
@@ -325,12 +311,6 @@ class CloudAlertService:
             logger.warning(msg)
             st.warning(f"📧 {msg}")
             return False
-            
-        # Check if the DataFrame is empty
-        if results_df is None or results_df.empty:
-            logger.warning("Empty results dataframe provided to check_and_send_alerts")
-            st.warning("📊 No data available for alert analysis")
-            return False
 
         try:
             # Convert alert_time to datetime if it's a numpy.int64
@@ -385,9 +365,9 @@ class CloudAlertService:
                 logger.info(f"Created deep link: {deep_link}")
                 
                 # Create and send email
-                max_status_emoji = get_status_emoji(max_status)
+                emoji_indicator = get_status_emoji(max_status)
                 msg = MIMEMultipart('alternative')
-                msg['Subject'] = f"{max_status_emoji} {max_status} Transformer Loading Alert - Peak: {max_point['loading_percentage']:.1f}%" + (
+                msg['Subject'] = f"{emoji_indicator} {max_status} Transformer Loading Alert - Peak: {max_point['loading_percentage']:.1f}%" + (
                     f", End: {end_point['loading_percentage']:.1f}%" if end_point is not None else ""
                 )
                 msg['From'] = self.email
@@ -403,7 +383,6 @@ class CloudAlertService:
                     end_point,
                     max_status=max_status, 
                     max_color=max_color, 
-                    max_status_emoji=max_status_emoji,
                     deep_link=deep_link
                 )
                 msg.attach(MIMEText(html_content, 'html'))
@@ -433,8 +412,6 @@ class CloudAlertService:
             # Convert start_date to date if it's a datetime
             if isinstance(start_date, datetime):
                 start_date = start_date.date()
-            
-            logger.info(f"Processing alerts for transformer {selected_transformer} on {start_date} at hour {selected_hour}")
             
             # Get transformer data for the specified date range
             transformer_data = data_service.get_transformer_data_range(
