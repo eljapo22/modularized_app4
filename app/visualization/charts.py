@@ -729,14 +729,14 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         )
         
         # Create a multi-line chart for voltage with proper coloring
-        voltage_chart = alt.Chart(voltage_data_melted).mark_line().encode(
+        voltage_chart = alt.Chart(voltage_data_melted).mark_line(point=True).encode(
             x=alt.X('timestamp:T', title='Date'),
             y=alt.Y('Voltage:Q', 
                   title='Voltage (V)',
                   scale=alt.Scale(domain=[300, 500], zero=False)),
             color=alt.Color('Phase:N', scale=alt.Scale(
                 domain=['Phase A', 'Phase B', 'Phase C'],
-                range=['#1f77b4', '#ff7f0e', '#2ca02c']  # Blue, Orange, Green
+                range=['#1f77b4', '#aec7e8', '#d62728']  # Dark blue, Light blue, Red
             ))
         ).properties(
             title="Voltage (V)" if is_transformer_view else ""
@@ -761,8 +761,8 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
             fontSize=14,  # Increased font size for consistency with other charts
             fontWeight='bold',
             color='red',
-            dx=ANNOTATION_PEAK_DX,  # Using constant
-            dy=ANNOTATION_PEAK_DY    # Using constant
+            dx=10,  # Add horizontal offset to avoid overlapping with line
+            dy=-10  # Consistent vertical offset
         ).encode(
             x='peak_time:T',
             y='y:Q',
@@ -795,8 +795,8 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
                     baseline='bottom',  # Changed to bottom for consistency with peak load
                     fontSize=12,
                     color='gray',
-                    dx=ANNOTATION_ALERT_DX,  # Using constant
-                    dy=ANNOTATION_ALERT_DY    # Using constant
+                    dx=10,  # Add horizontal offset to avoid overlapping with line
+                    dy=-10  # Consistent vertical offset
                 ).encode(
                     x='alert_time:T',
                     y='y:Q',
@@ -1216,6 +1216,10 @@ def display_transformer_data(results_df: pd.DataFrame):
     # Create power chart with Altair - using standard function for consistent styling
     power_df = df.copy()
     
+    # Determine max for Y-axis padding
+    max_power = df['power_kw'].max()
+    y_padding = max_power * 0.25  # Add 25% padding above the maximum value
+    
     # Create base chart with proper dimensions
     base = alt.Chart(power_df).mark_line(point=True, color="#1f77b4").encode(
         x=alt.X('timestamp:T', 
@@ -1230,7 +1234,7 @@ def display_transformer_data(results_df: pd.DataFrame):
             )
         ),
         y=alt.Y('power_kw:Q', 
-                scale=alt.Scale(zero=False),  # Use zero=False to show data variations better
+                scale=alt.Scale(domain=[0, max_power + y_padding], zero=True),  # Use zero=True to show data variations better
                 ),
         tooltip=['timestamp:T', 'power_kw:Q']
     ).properties(
@@ -1248,10 +1252,6 @@ def display_transformer_data(results_df: pd.DataFrame):
     else:
         # For other views, use the original calculation
         peak_annotation_height = df['power_kw'].max() * 1.25  # Further increased vertical spacing
-    
-    # Set fixed Y-axis ranges
-    y_min = 0
-    y_max = 150
     
     # Add peak load indicator
     peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
@@ -1402,6 +1402,10 @@ def display_transformer_data(results_df: pd.DataFrame):
             height=300
         )
         
+        # Determine max for Y-axis padding
+        max_current = df['current_a'].max()
+        y_padding = max_current * 0.25  # Add 25% padding above the maximum value
+        
         # Add peak load indicator for current
         current_peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
             color='red',
@@ -1414,7 +1418,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Add text annotation for peak load
         current_peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [df['current_a'].max() * 1.05]  # Position 5% above maximum value
+            'y': [max_current + y_padding]  # Position 25% above maximum value
         })).mark_text(
             align='left',
             baseline='bottom',
@@ -1451,7 +1455,7 @@ def display_transformer_data(results_df: pd.DataFrame):
                 # Add alert text
                 alert_text = alt.Chart(pd.DataFrame({
                     'timestamp': [alert_time],
-                    'y': [df['current_a'].max() * 1.08]  # Position slightly higher than peak load
+                    'y': [max_current + y_padding]  # Position slightly higher than peak load
                 })).mark_text(
                     align='left',
                     baseline='bottom',
@@ -1814,7 +1818,10 @@ def create_multi_line_chart(df, column_dict, title=None):
     # Create mapping for series names
     long_df['series_name'] = long_df['series'].map(column_dict)
     
-    # Create chart
+    # Detect if this is a voltage chart to apply specific colors
+    is_voltage_chart = set(value_vars) == set(['Phase A', 'Phase B', 'Phase C'])
+    
+    # Create chart with points at each data point
     chart = alt.Chart(long_df).mark_line(point=True).encode(
         x=alt.X('timestamp:T',
                 axis=alt.Axis(
@@ -1843,6 +1850,15 @@ def create_multi_line_chart(df, column_dict, title=None):
             alt.Tooltip('series_name:N', title='Series')
         ]
     )
+    
+    # Apply specific colors for voltage charts
+    if is_voltage_chart:
+        chart = chart.encode(
+            color=alt.Color('series_name:N', scale=alt.Scale(
+                domain=['Phase A', 'Phase B', 'Phase C'],
+                range=['#1f77b4', '#aec7e8', '#d62728']  # Dark blue, Light blue, Red
+            ))
+        )
     
     # Add title if specified
     if title:
