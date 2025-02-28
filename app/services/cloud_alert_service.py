@@ -1,5 +1,6 @@
 """
 Cloud-specific alert service for the Transformer Loading Analysis Application
+Updated 2025-02-28: Enhanced email template with recommendations
 """
 import logging
 import streamlit as st
