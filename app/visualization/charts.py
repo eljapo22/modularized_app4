@@ -136,6 +136,45 @@ def display_loading_status(results_df: pd.DataFrame):
     if 'max_loading_time' in st.session_state:
         max_loading_time = st.session_state.max_loading_time
     
+    # -------------------- View Settings Controls --------------------
+    # Load saved view settings
+    chart_id = "loading_status_chart"
+    view_settings = load_chart_view_settings()
+    
+    # Initialize default view settings
+    default_y_min = 0
+    default_y_max = 130
+    
+    # Get saved view settings if available
+    if chart_id in view_settings:
+        default_y_min = view_settings[chart_id].get('y_min', default_y_min)
+        default_y_max = view_settings[chart_id].get('y_max', default_y_max)
+    
+    # Create a collapsible section for view controls
+    with st.expander("Chart View Settings"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            y_min = st.number_input("Y-Axis Minimum (%)", 
+                                    min_value=0, 
+                                    max_value=100, 
+                                    value=int(default_y_min))
+        
+        with col2:
+            y_max = st.number_input("Y-Axis Maximum (%)", 
+                                   min_value=50, 
+                                   max_value=200, 
+                                   value=int(default_y_max))
+        
+        # Save button
+        if st.button("Save View Settings"):
+            view_settings = {
+                'y_min': y_min,
+                'y_max': y_max
+            }
+            save_chart_view_settings(chart_id, view_settings)
+            st.success("View settings saved successfully!")
+    
     # Create an Altair chart for loading percentage
     base_chart = alt.Chart(df).mark_line(
         point=True,
@@ -154,7 +193,7 @@ def display_loading_status(results_df: pd.DataFrame):
             )
         ),
         y=alt.Y('loading_percentage:Q',
-            scale=alt.Scale(domain=[0, 130]),  # Set y-axis range from 0 to 130%
+            scale=alt.Scale(domain=[y_min, y_max]),  # Set y-axis range using view settings
             axis=alt.Axis(
                 title='Loading Percentage (%)',
                 labelColor='#333333',
@@ -169,7 +208,7 @@ def display_loading_status(results_df: pd.DataFrame):
     ).properties(
         title="Loading Percentage Over Time",
         height=400
-    )
+    ).interactive()  # Make chart interactive
     
     # Define threshold areas for background colors with light opacity
     threshold_areas = []
@@ -182,7 +221,7 @@ def display_loading_status(results_df: pd.DataFrame):
     # Critical area (120%+) - Red background
     critical_area = alt.Chart(pd.DataFrame({
         'x1': [min_time], 'x2': [max_time], 
-        'y1': [120], 'y2': [130]
+        'y1': [120], 'y2': [y_max]  # Use y_max from view settings
     })).mark_rect(color='red', opacity=0.2).encode(
         x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
     )
@@ -218,7 +257,7 @@ def display_loading_status(results_df: pd.DataFrame):
     # Normal area (0-50%) - Green background
     normal_area = alt.Chart(pd.DataFrame({
         'x1': [min_time], 'x2': [max_time], 
-        'y1': [0], 'y2': [50]
+        'y1': [y_min], 'y2': [50]  # Use y_min from view settings
     })).mark_rect(color='green', opacity=0.1).encode(
         x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
     )
@@ -1758,3 +1797,38 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
     # Display voltage time series if data is available
     if 'voltage_a' in df.columns and not df['voltage_a'].isna().all():
         display_voltage_time_series(df)
+
+def load_chart_view_settings():
+    """Load saved chart view settings from disk."""
+    settings_path = os.path.join(os.path.dirname(__file__), 'chart_settings.json')
+    
+    if 'chart_view_settings' not in st.session_state:
+        # Try to load from disk
+        try:
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r') as f:
+                    st.session_state.chart_view_settings = json.load(f)
+            else:
+                st.session_state.chart_view_settings = {}
+        except Exception as e:
+            logger.error(f"Error loading chart settings: {e}")
+            st.session_state.chart_view_settings = {}
+    
+    return st.session_state.chart_view_settings
+
+def save_chart_view_settings(chart_id, view_settings):
+    """Save chart view settings to disk."""
+    settings_path = os.path.join(os.path.dirname(__file__), 'chart_settings.json')
+    
+    # Update session state
+    if 'chart_view_settings' not in st.session_state:
+        st.session_state.chart_view_settings = {}
+    
+    st.session_state.chart_view_settings[chart_id] = view_settings
+    
+    # Save to disk
+    try:
+        with open(settings_path, 'w') as f:
+            json.dump(st.session_state.chart_view_settings, f)
+    except Exception as e:
+        logger.error(f"Error saving chart settings: {e}")
