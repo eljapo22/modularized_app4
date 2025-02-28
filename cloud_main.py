@@ -15,6 +15,12 @@ from app.utils.performance import log_performance
 # Configure page - must be first Streamlit command
 st.set_page_config(page_title="Transformer Loading Analysis", layout="wide")
 
+# Initialize session state for UI visibility - main content is hidden by default
+if 'show_main_content' not in st.session_state:
+    st.session_state.show_main_content = False
+
+# Initialize session state tracking is now handled in the main() function
+
 # Add custom CSS for tabs and sidebar
 st.markdown("""
 <style>
@@ -134,45 +140,46 @@ def main():
                     )
                 st.success("Alerts sent successfully!")
         
-        # Create main content area with tabs
-        tab1, tab2 = st.tabs(["📊 Dashboard", "📋 Data"])
-        
-        with tab1:
-            # Display transformer dashboard
-            display_transformer_dashboard(
-                data_service,
-                selected_transformer,
-                start_date,
-                end_date,
-                selected_feeder
-            )
-        
-        with tab2:
-            # Create data section
-            create_section_banner("Raw Data")
+        # Create main content area with tabs - only if show_main_content is True
+        if st.session_state.show_main_content:
+            tab1, tab2 = st.tabs(["📊 Dashboard", "📋 Data"])
             
-            # Get and display transformer data
-            transformer_data = data_service.get_transformer_data_range(
-                start_date,
-                end_date,
-                f"Feeder {selected_feeder}",
-                selected_transformer
-            )
-            if transformer_data is not None:
-                st.dataframe(transformer_data)
-            else:
-                st.warning("No transformer data available for the selected parameters.")
+            with tab1:
+                # Display transformer dashboard
+                display_transformer_dashboard(
+                    data_service,
+                    selected_transformer,
+                    start_date,
+                    end_date,
+                    selected_feeder
+                )
             
-            # Get and display customer data
-            customer_data = data_service.get_customer_data(
-                selected_transformer,
-                start_date,
-                selected_hour
-            )
-            if customer_data is not None:
-                st.dataframe(customer_data)
-            else:
-                st.warning("No customer data available for the selected parameters.")
+            with tab2:
+                # Create data section
+                create_section_banner("Raw Data")
+                
+                # Get and display transformer data
+                transformer_data = data_service.get_transformer_data_range(
+                    start_date,
+                    end_date,
+                    f"Feeder {selected_feeder}",
+                    selected_transformer
+                )
+                if transformer_data is not None:
+                    st.dataframe(transformer_data)
+                else:
+                    st.warning("No transformer data available for the selected parameters.")
+                
+                # Get and display customer data
+                customer_data = data_service.get_customer_data(
+                    selected_transformer,
+                    start_date,
+                    selected_hour
+                )
+                if customer_data is not None:
+                    st.dataframe(customer_data)
+                else:
+                    st.warning("No customer data available for the selected parameters.")
     
     except Exception as e:
         st.error("An error occurred while running the application.")
