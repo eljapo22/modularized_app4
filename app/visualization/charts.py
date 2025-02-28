@@ -138,7 +138,7 @@ def display_loading_status(results_df: pd.DataFrame):
     
     # Set fixed Y-axis ranges
     y_min = 0
-    y_max = 130
+    y_max = 150
     
     # Create an Altair chart for loading percentage
     base_chart = alt.Chart(df).mark_line(
@@ -263,7 +263,7 @@ def display_loading_status(results_df: pd.DataFrame):
     # Add text annotation for maximum loading
     max_text = alt.Chart(pd.DataFrame({
         'max_time': [max_loading_time],
-        'y': [130]  # Position at top of chart
+        'y': [145]  # Position below the top of chart for visibility
     })).mark_text(
         align='center',
         baseline='bottom',
@@ -298,10 +298,10 @@ def display_loading_status(results_df: pd.DataFrame):
                 # Add text annotation for alert time
                 alert_text = alt.Chart(pd.DataFrame({
                     'alert_time': [alert_time],
-                    'y': [130]
+                    'y': [145]
                 })).mark_text(
                     align='center',
-                    baseline='top',
+                    baseline='bottom',
                     fontSize=12,
                     color='gray'
                 ).encode(
@@ -1181,7 +1181,7 @@ def display_transformer_data(results_df: pd.DataFrame):
     
     # Set fixed Y-axis ranges
     y_min = 0
-    y_max = 130
+    y_max = 150
     
     # Add peak load indicator
     peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
