@@ -127,8 +127,16 @@ class CloudAlertService:
             logger.error(f"Error selecting alert points: {str(e)}")
             return None, None
 
-    def _create_email_content(self, max_point, end_point=None, max_status=None, max_color=None, deep_link=''):
-        """Create email HTML content for alert"""
+    def _create_email_content(self, max_point, end_point=None, max_status=None, max_color=None, max_status_emoji=None, deep_link="#"):
+        """Create HTML email content for alert"""
+        
+        # Get status info if not already provided
+        if max_status is None or max_color is None:
+            max_status, max_color = get_alert_status(max_point['loading_percentage'])
+        
+        # Get the proper emoji for the status
+        if max_status_emoji is None:
+            max_status_emoji = get_status_emoji(max_status)
         
         # Extract data from the max point
         transformer_id = max_point['transformer_id']
@@ -155,7 +163,7 @@ class CloudAlertService:
             <p>This is an automated alert from the Transformer Loading Analysis System regarding abnormal loading conditions detected for Transformer {transformer_id}.</p>
             
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: {max_color};">{get_status_emoji(max_status)} {max_status} Peak Load Alert</h3>
+                <h3 style="color: {max_color};">{max_status_emoji} {max_status} Peak Load Alert</h3>
                 <ul style="list-style-type: none; padding-left: 20px;">
                     <li><strong>Peak Loading:</strong> {max_loading_pct:.1f}% {'' if max_loading_pct < 100 else '(Exceeds safe threshold)'}</li>
                     <li><strong>Peak Occurrence:</strong> {max_data.name.strftime('%B %d, %Y, at %H:%M')}</li>
@@ -362,9 +370,9 @@ class CloudAlertService:
                 logger.info(f"Created deep link: {deep_link}")
                 
                 # Create and send email
-                emoji_indicator = get_status_emoji(max_status)
+                max_status_emoji = get_status_emoji(max_status)
                 msg = MIMEMultipart('alternative')
-                msg['Subject'] = f"{emoji_indicator} {max_status} Transformer Loading Alert - Peak: {max_point['loading_percentage']:.1f}%" + (
+                msg['Subject'] = f"{max_status_emoji} {max_status} Transformer Loading Alert - Peak: {max_point['loading_percentage']:.1f}%" + (
                     f", End: {end_point['loading_percentage']:.1f}%" if end_point is not None else ""
                 )
                 msg['From'] = self.email
@@ -380,6 +388,7 @@ class CloudAlertService:
                     end_point,
                     max_status=max_status, 
                     max_color=max_color, 
+                    max_status_emoji=max_status_emoji,
                     deep_link=deep_link
                 )
                 msg.attach(MIMEText(html_content, 'html'))
