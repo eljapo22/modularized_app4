@@ -427,7 +427,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
     # Add text annotation for peak load
     peak_text = alt.Chart(pd.DataFrame({
         'peak_time': [max_loading_time],
-        'y': [df['power_kw'].max() * 1.05]  # Position significantly above max for better visibility
+        'y': [df['power_kw'].max() * .90]  # Position significantly above max for better visibility
     })).mark_text(
         align='right',
         baseline='bottom',
@@ -710,7 +710,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Set y-axis domain constraint for voltage chart to ensure data visibility
         voltage_chart = voltage_chart.encode(
             y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[320, 480], zero=False),  # Set voltage range to capture full 15% variation
+                    scale=alt.Scale(domain=[300, 500], zero=False),  # Set voltage range to capture full 15% variation
                     axis=alt.Axis(
                         title="Value, V",
                         labelColor='#333333',
@@ -732,15 +732,13 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         # Add text annotation for peak load
         peak_text = alt.Chart(pd.DataFrame({
             'peak_time': [max_loading_time],
-            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 1.05]  # Position well above max for visibility
+            'y': [voltage_data[['Phase A', 'Phase B', 'Phase C']].max().max() * 0.95]  # Position lower for better visibility
         })).mark_text(
-            align='right',
+            align='left',
             baseline='bottom',
-            fontSize=14,
+            fontSize=12,
             fontWeight='bold',
-            color='red',
-            dx=20,  # Shift text right for better spacing
-            dy=-20  # Shift text up for better visibility
+            color='red'
         ).encode(
             x='peak_time:T',
             y='y:Q',
@@ -1506,7 +1504,7 @@ def display_transformer_data(results_df: pd.DataFrame):
         # Set y-axis domain constraint for voltage chart to ensure data visibility
         voltage_chart = voltage_chart.encode(
             y=alt.Y('value:Q', 
-                    scale=alt.Scale(domain=[320, 480], zero=False),  # Set voltage range to capture full 15% variation
+                    scale=alt.Scale(domain=[300, 500], zero=False),  # Set voltage range to capture full 15% variation
                     axis=alt.Axis(
                         title="Value, V",
                         labelColor='#333333',
