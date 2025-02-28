@@ -1799,36 +1799,16 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
         display_voltage_time_series(df)
 
 def load_chart_view_settings():
-    """Load saved chart view settings from disk."""
-    settings_path = os.path.join(os.path.dirname(__file__), 'chart_settings.json')
-    
+    """Load chart view settings from session state."""
     if 'chart_view_settings' not in st.session_state:
-        # Try to load from disk
-        try:
-            if os.path.exists(settings_path):
-                with open(settings_path, 'r') as f:
-                    st.session_state.chart_view_settings = json.load(f)
-            else:
-                st.session_state.chart_view_settings = {}
-        except Exception as e:
-            logger.error(f"Error loading chart settings: {e}")
-            st.session_state.chart_view_settings = {}
+        st.session_state.chart_view_settings = {}
     
     return st.session_state.chart_view_settings
 
 def save_chart_view_settings(chart_id, view_settings):
-    """Save chart view settings to disk."""
-    settings_path = os.path.join(os.path.dirname(__file__), 'chart_settings.json')
-    
+    """Save chart view settings to session state."""
     # Update session state
     if 'chart_view_settings' not in st.session_state:
         st.session_state.chart_view_settings = {}
     
     st.session_state.chart_view_settings[chart_id] = view_settings
-    
-    # Save to disk
-    try:
-        with open(settings_path, 'w') as f:
-            json.dump(st.session_state.chart_view_settings, f)
-    except Exception as e:
-        logger.error(f"Error saving chart settings: {e}")
