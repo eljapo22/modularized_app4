@@ -404,7 +404,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         df,
         'power_kw',
         title="Power Consumption (kW)" if is_transformer_view else None,
-        color="#1f77b4"  # Blue color for power
+        color="#1f77b4",  # Blue color for power
     )
     
     # Apply specific y-axis configuration to ensure power data visibility
@@ -412,7 +412,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
         y=alt.Y('power_kw:Q',
                 scale=alt.Scale(zero=False),  # Prevent flattening
                 axis=alt.Axis(
-                    title='Power (kW)',
+                    title='Power(kW)',
                     labelColor='#333333',
                     titleColor='#333333',
                     labelFontSize=14,
@@ -467,7 +467,7 @@ def display_power_time_series(results_df: pd.DataFrame, is_transformer_view: boo
             # Add text annotation for the alert
             text = alt.Chart(pd.DataFrame({
                 'alert_time': [alert_time],
-                'y': [df['power_kw'].max() * 1.05]  # Match peak load height with 5% buffer
+                'y': [peak_annotation_height]  # Match peak load height exactly
             })).mark_text(
                 align='left',
                 baseline='bottom',
@@ -595,7 +595,7 @@ def display_current_time_series(results_df: pd.DataFrame, is_transformer_view: b
     # Display the chart with streamlit
     st.altair_chart(chart, use_container_width=True)
 
-def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False, skip_alert_line: bool = False):
+def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: bool = False):
     """Display voltage time series visualization."""
     if results_df is None or results_df.empty:
         st.warning("No data available for voltage visualization.")
@@ -767,7 +767,7 @@ def display_voltage_time_series(results_df: pd.DataFrame, is_transformer_view: b
         voltage_chart = alt.layer(voltage_chart, peak_rule, peak_text)
         
         # Add alert timestamp if in session state and not skipped
-        if 'highlight_timestamp' in st.session_state and not skip_alert_line:
+        if 'highlight_timestamp' in st.session_state :
             try:
                 alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
                 
@@ -1662,7 +1662,7 @@ def display_customer_data(results_df: pd.DataFrame):
         y=alt.Y('power_kw:Q', 
             scale=alt.Scale(zero=False),
             axis=alt.Axis(
-                title='Customer Power (kW)',
+                title='Customer Power (kW)',  # Reverted back to original title
                 labelColor='#333333',
                 titleColor='#333333',
                 labelFontSize=14,
@@ -1678,7 +1678,7 @@ def display_customer_data(results_df: pd.DataFrame):
     # Only show Voltage chart, removing the Current chart
     create_colored_banner("Voltage")
     # Pass False to skip adding alert line in the voltage chart since it's already shown in other charts
-    display_voltage_time_series(results_df, is_transformer_view=False, skip_alert_line=True)
+    display_voltage_time_series(results_df, is_transformer_view=False)
 
 def create_altair_chart(df, y_column, title=None, color=None):
     """
