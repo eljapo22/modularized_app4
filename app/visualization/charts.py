@@ -136,44 +136,9 @@ def display_loading_status(results_df: pd.DataFrame):
     if 'max_loading_time' in st.session_state:
         max_loading_time = st.session_state.max_loading_time
     
-    # -------------------- View Settings Controls --------------------
-    # Load saved view settings
-    chart_id = "loading_status_chart"
-    view_settings = load_chart_view_settings()
-    
-    # Initialize default view settings
-    default_y_min = 0
-    default_y_max = 130
-    
-    # Get saved view settings if available
-    if chart_id in view_settings:
-        default_y_min = view_settings[chart_id].get('y_min', default_y_min)
-        default_y_max = view_settings[chart_id].get('y_max', default_y_max)
-    
-    # Create a collapsible section for view controls
-    with st.expander("Chart View Settings"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            y_min = st.number_input("Y-Axis Minimum (%)", 
-                                    min_value=0, 
-                                    max_value=100, 
-                                    value=int(default_y_min))
-        
-        with col2:
-            y_max = st.number_input("Y-Axis Maximum (%)", 
-                                   min_value=50, 
-                                   max_value=200, 
-                                   value=int(default_y_max))
-        
-        # Save button
-        if st.button("Save View Settings"):
-            view_settings = {
-                'y_min': y_min,
-                'y_max': y_max
-            }
-            save_chart_view_settings(chart_id, view_settings)
-            st.success("View settings saved successfully!")
+    # Set fixed Y-axis ranges
+    y_min = 0
+    y_max = 130
     
     # Create an Altair chart for loading percentage
     base_chart = alt.Chart(df).mark_line(
@@ -193,7 +158,7 @@ def display_loading_status(results_df: pd.DataFrame):
             )
         ),
         y=alt.Y('loading_percentage:Q',
-            scale=alt.Scale(domain=[y_min, y_max]),  # Set y-axis range using view settings
+            scale=alt.Scale(domain=[y_min, y_max]),  # Set y-axis range using fixed values
             axis=alt.Axis(
                 title='Loading Percentage (%)',
                 labelColor='#333333',
@@ -221,7 +186,7 @@ def display_loading_status(results_df: pd.DataFrame):
     # Critical area (120%+) - Red background
     critical_area = alt.Chart(pd.DataFrame({
         'x1': [min_time], 'x2': [max_time], 
-        'y1': [120], 'y2': [y_max]  # Use y_max from view settings
+        'y1': [120], 'y2': [y_max]  # Use y_max from fixed values
     })).mark_rect(color='red', opacity=0.2).encode(
         x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
     )
@@ -257,7 +222,7 @@ def display_loading_status(results_df: pd.DataFrame):
     # Normal area (0-50%) - Green background
     normal_area = alt.Chart(pd.DataFrame({
         'x1': [min_time], 'x2': [max_time], 
-        'y1': [y_min], 'y2': [50]  # Use y_min from view settings
+        'y1': [y_min], 'y2': [50]  # Use y_min from fixed values
     })).mark_rect(color='green', opacity=0.1).encode(
         x='x1:T', x2='x2:T', y='y1:Q', y2='y2:Q'
     )
@@ -1214,6 +1179,10 @@ def display_transformer_data(results_df: pd.DataFrame):
     if 'max_loading_time' in st.session_state:
         max_loading_time = st.session_state.max_loading_time
     
+    # Set fixed Y-axis ranges
+    y_min = 0
+    y_max = 130
+    
     # Add peak load indicator
     peak_rule = alt.Chart(pd.DataFrame({'peak_time': [max_loading_time]})).mark_rule(
         color='red',
@@ -1797,18 +1766,3 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
     # Display voltage time series if data is available
     if 'voltage_a' in df.columns and not df['voltage_a'].isna().all():
         display_voltage_time_series(df)
-
-def load_chart_view_settings():
-    """Load chart view settings from session state."""
-    if 'chart_view_settings' not in st.session_state:
-        st.session_state.chart_view_settings = {}
-    
-    return st.session_state.chart_view_settings
-
-def save_chart_view_settings(chart_id, view_settings):
-    """Save chart view settings to session state."""
-    # Update session state
-    if 'chart_view_settings' not in st.session_state:
-        st.session_state.chart_view_settings = {}
-    
-    st.session_state.chart_view_settings[chart_id] = view_settings
