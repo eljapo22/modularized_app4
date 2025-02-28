@@ -866,14 +866,14 @@ def display_transformer_dashboard(
                         # Reset all view-related session state to go back to dashboard (first view)
                         st.session_state.show_customer_details = False  # Hide individual customer view (third view)
                         st.session_state.show_customer_bridge = False   # Hide customer list view (second view)
-                        st.experimental_rerun()
+                        st.rerun()
                 with col2:
                     if st.button("← Back to Customer List"):
                         # Go back to customer bridge view (second view)
                         st.session_state.show_customer_bridge = True  # Show the bridge/list view
                         st.session_state.show_customer_details = False  # Hide detailed view
                         # Don't clear selected_customer_id to maintain context
-                        st.experimental_rerun()
+                        st.rerun()
                 
                 # Display the detailed view for this customer
                 st.header(f"Customer {selected_customer_id} Details")
@@ -940,7 +940,7 @@ def display_transformer_dashboard(
             ):
                 # Show customer bridge view
                 st.session_state.show_customer_bridge = True
-                st.experimental_rerun()
+                st.rerun()
        
         with cols[2]:
             create_tile(
@@ -1060,7 +1060,7 @@ def display_customers_bridge_view(customer_df: pd.DataFrame):
         # Reset all view-related session state to go back to dashboard (first view)
         st.session_state.show_customer_bridge = False
         st.session_state.show_customer_details = False
-        st.experimental_rerun()
+        st.rerun()
     
     # Get unique customers and prepare summary data
     customer_ids = sorted(customer_df['customer_id'].unique())
@@ -1123,7 +1123,7 @@ def display_customers_bridge_view(customer_df: pd.DataFrame):
                 st.session_state.selected_customer_id = row.customer_id
                 st.session_state.show_customer_details = True
                 st.session_state.show_customer_bridge = False
-                st.experimental_rerun()
+                st.rerun()
                 
         # Add a divider between rows
         st.markdown("---")
@@ -1847,9 +1847,9 @@ def display_full_customer_dashboard(results_df: pd.DataFrame):
             logger.info(f"Customer dashboard: Setting new peak time based on customer data: {max_loading_time}")
         else:
             # If loading percentage is not available, we'll let each chart determine its own max point
-            if 'max_loading_time' in st.session_state:
-                del st.session_state.max_loading_time
-
+            max_loading_time = None
+            logger.info("Customer dashboard: No loading_percentage available, each chart will determine peak individually")
+    
     # Log the alert timestamp if available (helpful for debugging)
     if 'highlight_timestamp' in st.session_state:
         alert_time = pd.to_datetime(st.session_state.highlight_timestamp)
