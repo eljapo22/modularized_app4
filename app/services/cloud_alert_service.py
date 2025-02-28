@@ -145,7 +145,7 @@ class CloudAlertService:
         
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2f4f4f;">⚠️ Transformer Loading Alert</h2>
+            <h2 style="color: #2f4f4f;">⚡ UPDATED: Transformer Loading Alert ⚡</h2>
             
             <p style="margin-top: 20px;">Dear Recipient,</p>
             
