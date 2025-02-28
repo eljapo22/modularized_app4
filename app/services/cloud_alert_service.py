@@ -102,6 +102,7 @@ class CloudAlertService:
             # Only alert if either max loading or end-date loading is high enough
             alert_criteria_met = False
             
+            # Keeping threshold at 80% per user request
             if max_loading['loading_percentage'] >= 80:
                 alert_criteria_met = True
                 logger.info(f"Alert criteria met: Max loading {max_loading['loading_percentage']:.1f}% >= 80%")
