@@ -132,7 +132,7 @@ class CloudAlertService:
         
         # Extract data from the max point
         transformer_id = max_point['transformer_id']
-        max_data = max_point['data']
+        max_data = max_point  # The data is the point itself
         max_loading_pct = max_point['loading_percentage']
         
         # Only extract end data if available
@@ -142,7 +142,7 @@ class CloudAlertService:
         end_color = None
         
         if end_point is not None:
-            end_data = end_point['data']
+            end_data = end_point  # The data is the point itself
             end_loading_pct = end_point['loading_percentage']
             end_status, end_color = get_alert_status(end_loading_pct)
         
