@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import altair as alt  # Added for enhanced chart capabilities
+import os  # Add import for os module
+import json  # Add import for json module
 from datetime import datetime, timedelta
 from app.services.cloud_data_service import CloudDataService
 from app.utils.ui_components import create_tile, create_colored_banner, create_bordered_header
